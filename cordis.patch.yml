@@ -1,0 +1,4 @@
+- insert:
+    - id: dsh-env-manager
+      name: dsh-env-manager
+      config: {}
