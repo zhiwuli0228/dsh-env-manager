@@ -110,6 +110,67 @@ describe('app', () => {
     expect(dry.blockers.length).toBeGreaterThan(0)
   })
 
+  it('stores host login accounts and login records', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    await app.save('environment', structuredClone(environment), { actor: 'agent' })
+    const got = await app.get('environment', 'test-a')
+    const record = got.record as typeof environment
+    expect(record.hosts[0]?.accounts?.[0]).toMatchObject({
+      username: 'root',
+      authType: 'private-key',
+      credentialRef: 'cred-test-a-root',
+      lastLoginFrom: '10.0.8.21',
+    })
+    expect(record.loginRecords).toHaveLength(2)
+    expect(record.loginRecords?.[1]?.result).toBe('failure')
+  })
+
+  it('reports login records that reference a missing host', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment)
+    broken.id = 'broken-login'
+    broken.loginRecords = [
+      {
+        id: 'login-missing',
+        at: '2026-10-31T08:12:00.000Z',
+        username: 'root',
+        hostRef: 'host-does-not-exist',
+        result: 'success',
+      },
+    ]
+    await app.save('environment', broken, { actor: 'agent' })
+    const report = await app.validate()
+    expect(report.diagnostics.some((item) => item.code === 'HOST_NOT_FOUND')).toBe(true)
+  })
+
+  it('reports duplicate account ids within a host', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment)
+    broken.id = 'duplicate-account'
+    broken.hosts[0]?.accounts?.push({
+      id: 'root',
+      username: 'root-2',
+      authType: 'password',
+    })
+    await app.save('environment', broken, { actor: 'agent' })
+    const report = await app.validate()
+    expect(report.diagnostics.some((item) => item.code === 'DUPLICATE_ACCOUNT_ID')).toBe(true)
+  })
+
+  it('reports login records that reference a missing account', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment)
+    broken.id = 'broken-account-ref'
+    if (broken.loginRecords?.[0]) broken.loginRecords[0].accountId = 'ghost'
+    await app.save('environment', broken, { actor: 'agent' })
+    const report = await app.validate()
+    expect(report.diagnostics.some((item) => item.code === 'ACCOUNT_NOT_FOUND')).toBe(true)
+  })
+
   it('resolves a context and reports credential status', async () => {
     const dir = await makeDir()
     await writeFixture(dir)

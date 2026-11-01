@@ -15,6 +15,94 @@ export function checkIntegrity(snapshot: RegistrySnapshot): Diagnostic[] {
   const serviceIds = new Set(snapshot.services.keys())
   const deploymentIds = new Set(snapshot.deployments.keys())
 
+  for (const environment of snapshot.environments.values()) {
+    const file = `environments/${environment.id}.yaml`
+    const hostIds = new Set<string>()
+    const hostIps = new Set<string>()
+    const roleIds = new Set(environment.roles.map((role) => role.id))
+
+    for (const host of environment.hosts) {
+      if (hostIds.has(host.id)) {
+        out.push(diag('DUPLICATE_HOST_ID', `Host id ${host.id} is duplicated`, { file, path: 'hosts' }))
+      }
+      hostIds.add(host.id)
+      if (host.ip) {
+        if (hostIps.has(host.ip)) {
+          out.push(diag('DUPLICATE_HOST_IP', `Host IP ${host.ip} is duplicated`, { file, path: 'hosts' }))
+        }
+        hostIps.add(host.ip)
+      }
+      for (const role of host.roles) {
+        if (!roleIds.has(role)) {
+          out.push(
+            diag('ROLE_NOT_FOUND', `Host ${host.id} references missing role ${role}`, {
+              file,
+              path: 'hosts.roles',
+            }),
+          )
+        }
+      }
+      const accountIds = new Set<string>()
+      for (const account of host.accounts ?? []) {
+        if (accountIds.has(account.id)) {
+          out.push(
+            diag('DUPLICATE_ACCOUNT_ID', `Account id ${account.id} is duplicated on host ${host.id}`, {
+              file,
+              path: 'hosts.accounts',
+            }),
+          )
+        }
+        accountIds.add(account.id)
+      }
+    }
+
+    for (const endpoint of environment.endpoints) {
+      if (endpoint.hostRef && !hostIds.has(endpoint.hostRef)) {
+        out.push(
+          diag('HOST_NOT_FOUND', `Endpoint ${endpoint.id} references missing host ${endpoint.hostRef}`, {
+            file,
+            path: 'endpoints.hostRef',
+          }),
+        )
+      }
+      if (endpoint.clusterRef && !environment.clusters.some((cluster) => cluster.id === endpoint.clusterRef)) {
+        out.push(
+          diag('CLUSTER_NOT_FOUND', `Endpoint ${endpoint.id} references missing cluster ${endpoint.clusterRef}`, {
+            file,
+            path: 'endpoints.clusterRef',
+          }),
+        )
+      }
+    }
+
+    for (const login of environment.loginRecords ?? []) {
+      const host = login.hostRef ? environment.hosts.find((item) => item.id === login.hostRef) : undefined
+      if (login.hostRef && !host) {
+        out.push(
+          diag('HOST_NOT_FOUND', `Login record ${login.id} references missing host ${login.hostRef}`, {
+            file,
+            path: 'loginRecords.hostRef',
+          }),
+        )
+      }
+      if (login.accountId) {
+        const account = host
+          ? host.accounts?.find((item) => item.id === login.accountId)
+          : environment.hosts
+              .flatMap((item) => item.accounts ?? [])
+              .find((item) => item.id === login.accountId)
+        if (!account) {
+          out.push(
+            diag('ACCOUNT_NOT_FOUND', `Login record ${login.id} references missing account ${login.accountId}`, {
+              file,
+              path: 'loginRecords.accountId',
+            }),
+          )
+        }
+      }
+    }
+  }
+
   for (const service of snapshot.services.values()) {
     for (const ref of service.ruleProfileRefs) {
       if (!snapshot.ruleProfiles.has(ref)) {

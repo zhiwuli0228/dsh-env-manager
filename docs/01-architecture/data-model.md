@@ -83,10 +83,31 @@ interface Host {
   id: string;
   name: string;             // hostname
   os?: string;
+  platform?: string;        // e.g. Linux / x86_64
   ip?: string;
+  publicIp?: string;
   sshPort?: number;         // default 22
   roles: string[];          // LogicalRole ids; many-to-many is expected
+  adminUser?: string;
+  isActive?: boolean;
   credentialRef?: string;
+  accounts?: HostAccount[]; // max 50 per host
+  note?: string;
+}
+
+type LoginProtocol = 'ssh' | 'rdp' | 'web' | 'k8s-api' | 'docker' | 'custom';
+type LoginAuthType = 'password' | 'private-key' | 'agent' | 'token' | 'other';
+
+interface HostAccount {
+  id: string;
+  username: string;
+  purpose?: string;
+  protocol?: LoginProtocol; // defaults to ssh
+  port?: number;
+  authType?: LoginAuthType;
+  credentialRef?: string;   // reference only; never a secret value
+  lastLoginAt?: string;     // ISO-8601
+  lastLoginFrom?: string;   // source IP or hostname
   note?: string;
 }
 
@@ -111,6 +132,18 @@ interface AccessEndpoint {
   note?: string;
 }
 
+interface LoginRecord {
+  id: string;
+  at: string;               // ISO-8601 login time
+  username: string;
+  hostRef?: string;         // Host.id inside this environment
+  accountId?: string;       // HostAccount.id on hostRef
+  protocol?: LoginProtocol;
+  sourceIp?: string;        // client / jump-host address
+  result: 'success' | 'failure';
+  note?: string;
+}
+
 interface Environment extends RecordMeta {
   name: string;
   aliases: string[];
@@ -120,6 +153,7 @@ interface Environment extends RecordMeta {
   hosts: Host[];
   clusters: Cluster[];
   endpoints: AccessEndpoint[];
+  loginRecords?: LoginRecord[]; // max 200; latest-first is a UI convention, not a schema rule
   ruleOverrides?: RuleOverride;   // see §7
 }
 ```
@@ -132,7 +166,21 @@ Forbidden: two host entries with the same hostname or IP that differ only by rol
 
 Validation must reject duplicate host ids within an environment and duplicate `ip` values within an environment.
 
-### 3.2 YAML example
+### 3.2 Accounts and login audit
+
+`Host.accounts` records the identities used to access a host. Each account carries a purpose,
+protocol, authentication type, credential reference, and the last observed login time/source.
+Accounts never carry password, key, token, or kubeconfig material; only `credentialRef` is stored.
+
+`Environment.loginRecords` records login observations, including failed attempts. Records are
+bounded (200 per environment) and may reference a host and one of its accounts. Entries are
+stored in the environment YAML rather than a separate record kind so a topology change and its
+audit context remain one atomic write. The UI sorts them newest-first.
+
+These fields are intentionally lightweight and optional. They are not a replacement for a
+privileged-access-management (PAM) or SIEM system; they are context for DSH sessions.
+
+### 3.3 YAML example
 
 ```yaml
 id: test-a
@@ -150,10 +198,23 @@ hosts:
   - id: host-001
     name: test-a-node-01
     os: ubuntu-22.04
+    platform: Linux / x86_64
     ip: 10.0.1.10
     sshPort: 22
     roles: [management, business]
+    adminUser: root
+    isActive: true
     credentialRef: cred-test-a-root
+    accounts:
+      - id: root
+        username: root
+        purpose: system administration
+        protocol: ssh
+        port: 22
+        authType: private-key
+        credentialRef: cred-test-a-root
+        lastLoginAt: 2026-10-31T08:12:00.000Z
+        lastLoginFrom: 10.0.8.21
 clusters:
   - id: k8s-01
     name: test-a-k8s
@@ -170,6 +231,16 @@ endpoints:
   - id: ep-web-01
     kind: web
     url: https://test-a.example.internal
+loginRecords:
+  - id: login-0001
+    at: 2026-10-31T08:12:00.000Z
+    username: root
+    hostRef: host-001
+    accountId: root
+    protocol: ssh
+    sourceIp: 10.0.8.21
+    result: success
+    note: jump-host session
 createdAt: 2026-11-01T03:00:00.000Z
 updatedAt: 2026-11-01T03:00:00.000Z
 ```
@@ -644,8 +715,12 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 | `ENV_NOT_FOUND` | error | Environment id does not exist |
 | `SERVICE_NOT_FOUND` | error | Service id does not exist |
 | `DEPLOYMENT_NOT_FOUND` | error | Deployment id does not exist |
-| `HOST_NOT_FOUND` | error | Deployment host reference is missing in the environment |
+| `HOST_NOT_FOUND` | error | Deployment host reference, or a login record's host reference, is missing |
 | `CLUSTER_NOT_FOUND` | error | Deployment cluster reference is missing in the environment |
+| `DUPLICATE_HOST_ID` | warning | Two hosts in one environment share an id |
+| `DUPLICATE_HOST_IP` | warning | Two hosts in one environment share an IP |
+| `DUPLICATE_ACCOUNT_ID` | warning | Two accounts on one host share an id |
+| `ACCOUNT_NOT_FOUND` | warning | A login record references an account that is not on its host |
 | `RULE_PROFILE_NOT_FOUND` | error | `ruleProfileRefs` names a missing profile |
 | `DEPLOYMENT_AMBIGUOUS` | error | No deployment id given and several bindings match |
 | `DUPLICATE_ID` | warning | Two files declare the same id; the later file is skipped |
@@ -689,8 +764,13 @@ Validated on every write and by `env_validate`:
 5. `Service.ruleProfileRefs` all exist.
 6. `Environment.hosts[].roles` reference declared roles.
 7. `Environment.endpoints[].hostRef` / `clusterRef` exist in that environment.
-8. `OperationBinding` match references (when present) exist.
-9. `OperationBinding.skill.name` is non-empty.
+8. `Environment.hosts[].accounts[].id` are unique within their host.
+9. `Environment.loginRecords[].hostRef` exists in that environment.
+10. `Environment.loginRecords[].accountId` exists on the referenced host when both are set.
+11. `OperationBinding` match references (when present) exist.
+12. `OperationBinding.skill.name` is non-empty.
+
+Duplicate host ids and duplicate host IPs are also reported as integrity errors.
 
 Broken references are reported, never silently repaired.
 

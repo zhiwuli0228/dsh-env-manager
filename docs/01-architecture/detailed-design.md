@@ -226,7 +226,9 @@ Validation responsibilities:
 - `RecordMeta`: id pattern, `schemaVersion === 1`, ISO timestamps, `updatedAt >= createdAt`.
 - Cross-field rules from `data-model.md`: at least one `deployModes`, host role ids
   exist, `location.kind === runtimeMode`, unique host id / ip / cluster id /
-  endpoint id, `paths` keys and variable names match `[A-Za-z_][A-Za-z0-9_]*`.
+  endpoint id, unique account id per host, `loginRecords[].hostRef`/`accountId`
+  resolve within the environment, `paths` keys and variable names match
+  `[A-Za-z_][A-Za-z0-9_]*`.
 - `structural` shape only. Referential integrity is the registry's job (§6.3), because
   it needs the whole snapshot.
 

@@ -421,15 +421,14 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 
 | Section | Content |
 |---|---|
-| Overview | counts, dataDir, last load, diagnostics summary |
-| Environments | list, create/edit YAML, hosts/clusters/roles/endpoints |
+| Overview | counts, dataDir, warnings, validate |
+| Environments | list, detail (basic info, hosts/accounts, login records, endpoints), create/edit YAML |
 | Services | list, create/edit YAML, Git/artifact/rule refs |
 | Deployments | list, create/edit YAML, runtime-specific fields |
-| Rule profiles | YAML editor with resolved preview and provenance badges |
+| Rule profiles | YAML editor |
 | Operation bindings | YAML editor with match preview and conflict warning |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
 | Operation preview | operation → selected binding, skill availability, policy, parameters |
-| Diagnostics | registry validation results |
 
 Rules for the UI:
 
@@ -513,6 +512,8 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-08 | Credential query returns ref, configured and source only | yes | tool output test |
 | AC-09 | A completed log check stores a sanitized summary and evidence refs | P1 | memory bridge contract test |
 | AC-10 | A rule change derived from experience becomes a pending proposal | P1 | proposal queue test |
+| AC-11 | Environment detail shows host accounts with protocol/auth/last-login source, without secret values | yes | app test + UI checklist |
+| AC-12 | Login records are stored in the environment YAML, reference existing hosts/accounts and render newest-first | yes | app integrity test + UI checklist |
 
 ---
 

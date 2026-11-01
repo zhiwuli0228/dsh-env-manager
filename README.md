@@ -8,7 +8,8 @@ Works in DSH Web and Desktop.
 
 ## What it does
 
-- **Environment Registry** — hosts, clusters, logical roles, access endpoints and co-location in one record.
+- **Environment Registry** — hosts, clusters, logical roles, access endpoints, host
+  accounts and login audit records in one record.
 - **Service Catalog** — Git URL, default branch, build tool, artifact and rule profile references.
 - **Deployment Binding** — which service runs where, as `native`, `docker` or `kubernetes`, with instance-level variables.
 - **Rule Resolver** — layered, field-level overrides with full provenance: every value explains where it came from and what influenced it.
@@ -20,12 +21,16 @@ Works in DSH Web and Desktop.
 
 **V1 is implemented and installed in the `desktop` profile.**
 
-- 34 Vitest tests pass; `npm run build` emits `lib/`.
+- 38 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - Live verification: tools answer in-session, `meta` returns `200`, the panel transport
   round-trips save/list/remove, and both slot registrations are active.
-- Remaining: visual panel QA and the live approval/credential probes V4 and V6.
+- The environment detail view shows basic information, access summary, host account
+  tables, login audit records, endpoints and raw YAML; basic info can be edited, and
+  hosts, accounts and login records have inline create forms.
+- Remaining: row-level edit/delete for hosts/accounts/logins, visual QA in light theme,
+  and the live approval/credential probes V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
 
 Design references:

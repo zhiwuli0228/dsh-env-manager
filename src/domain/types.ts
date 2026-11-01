@@ -52,10 +52,46 @@ export interface Host {
   id: string
   name: string
   os?: string
+  platform?: string
   ip?: string
+  publicIp?: string
   sshPort?: number
   roles: string[]
+  adminUser?: string
+  isActive?: boolean
   credentialRef?: string
+  accounts?: HostAccount[]
+  note?: string
+}
+
+export type LoginProtocol = 'ssh' | 'rdp' | 'web' | 'k8s-api' | 'docker' | 'custom'
+
+export type LoginAuthType = 'password' | 'private-key' | 'agent' | 'token' | 'other'
+
+export interface HostAccount {
+  id: string
+  username: string
+  purpose?: string
+  protocol?: LoginProtocol
+  port?: number
+  authType?: LoginAuthType
+  credentialRef?: string
+  lastLoginAt?: string
+  lastLoginFrom?: string
+  note?: string
+}
+
+export type LoginResult = 'success' | 'failure'
+
+export interface LoginRecord {
+  id: string
+  at: string
+  username: string
+  hostRef?: string
+  accountId?: string
+  protocol?: LoginProtocol
+  sourceIp?: string
+  result: LoginResult
   note?: string
 }
 
@@ -120,6 +156,7 @@ export interface Environment extends RecordMeta {
   hosts: Host[]
   clusters: Cluster[]
   endpoints: AccessEndpoint[]
+  loginRecords?: LoginRecord[]
   ruleOverrides?: RuleOverride
 }
 

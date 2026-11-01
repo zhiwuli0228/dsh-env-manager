@@ -91,7 +91,8 @@ function summaryOf(kind: RecordKind, record: AnyRecord): RecordSummary {
   switch (kind) {
     case 'environment': {
       const env = record as import('../domain/types.js').Environment
-      summary = `${env.category} · ${env.hosts.length} hosts · ${env.clusters.length} clusters`
+      const accounts = env.hosts.reduce((total, host) => total + (host.accounts?.length ?? 0), 0)
+      summary = `${env.category} · ${env.hosts.length} hosts · ${accounts} accounts · ${env.loginRecords?.length ?? 0} logins`
       break
     }
     case 'service': {

@@ -27,6 +27,44 @@ const timestampSchema = z
 
 const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
 
+const loginProtocolSchema = z.enum(['ssh', 'rdp', 'web', 'k8s-api', 'docker', 'custom'])
+const loginAuthTypeSchema = z.enum(['password', 'private-key', 'agent', 'token', 'other'])
+
+function hostAccountSchema(mode: Mode) {
+  return o(
+    {
+      id: z.string().min(1),
+      username: z.string().min(1),
+      purpose: z.string().optional(),
+      protocol: loginProtocolSchema.optional(),
+      port: z.number().int().min(1).max(65535).optional(),
+      authType: loginAuthTypeSchema.optional(),
+      credentialRef: z.string().min(1).optional(),
+      lastLoginAt: timestampSchema.optional(),
+      lastLoginFrom: z.string().optional(),
+      note: z.string().optional(),
+    },
+    mode,
+  )
+}
+
+function loginRecordSchema(mode: Mode) {
+  return o(
+    {
+      id: z.string().min(1),
+      at: timestampSchema,
+      username: z.string().min(1),
+      hostRef: z.string().min(1).optional(),
+      accountId: z.string().min(1).optional(),
+      protocol: loginProtocolSchema.optional(),
+      sourceIp: z.string().optional(),
+      result: z.enum(['success', 'failure']),
+      note: z.string().optional(),
+    },
+    mode,
+  )
+}
+
 function o(shape: Shape, mode: Mode) {
   return mode === 'read' ? z.looseObject(shape) : z.strictObject(shape)
 }
@@ -115,10 +153,15 @@ function environmentFields(mode: Mode): Shape {
             id: z.string().min(1),
             name: z.string().min(1),
             os: z.string().optional(),
+            platform: z.string().optional(),
             ip: z.string().optional(),
+            publicIp: z.string().optional(),
             sshPort: z.number().int().min(1).max(65535).optional(),
             roles: z.array(z.string().min(1)).default([]),
+            adminUser: z.string().optional(),
+            isActive: z.boolean().optional(),
             credentialRef: z.string().min(1).optional(),
+            accounts: z.array(hostAccountSchema(mode)).max(50).optional(),
             note: z.string().optional(),
           },
           mode,
@@ -158,6 +201,7 @@ function environmentFields(mode: Mode): Shape {
         ),
       )
       .default([]),
+    loginRecords: z.array(loginRecordSchema(mode)).max(200).optional(),
     ruleOverrides: ruleOverrideSchema(mode).optional(),
   }
 }

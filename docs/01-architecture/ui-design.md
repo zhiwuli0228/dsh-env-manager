@@ -205,15 +205,56 @@ sidebar:
 - A kind segmented control: Environments, Services, Deployments, Rule Profiles,
   Operation Bindings.
 - `New record` loads the kind template into the editor; `Refresh` reloads the list.
-- Two-column master/detail: a bordered list card on the left (name, id, summary) and a
-  YAML editor card on the right. The empty editor offers the same "New record" action.
+- Environments use a master/detail flow: the left card lists environments (name, id,
+  `category · hosts · accounts · login records`); selecting one opens a read-first detail
+  view (§6.3). The other four kinds remain YAML editor only.
 - Empty lists show a dashed empty state with a short hint, not a blank card.
 - There is no search box in V1; the `record.find` HTTP operation remains available to
   future screens.
 
-### 6.3 Record editor
+### 6.3 Environment detail
 
-Shared `RecordEditor`:
+```text
+← Back to environments
+[glyph] Oracle 1        [Edit YAML] [Delete]
+        oracle1  [test]  ● 1 host · 2 accounts
+Environment overview | Hosts & logins | Login records | Endpoints | YAML
+┌────────────────────────────────────┬──────────────────────────┐
+│ Basic information                  │ Access summary           │
+│ ID / category / name / aliases     │ 1 host   2 accounts      │
+│ description / created / updated    │ 1 endpoint 1 failed      │
+│ hosts / accounts                   │ latest login             │
+│ ┌ Host accounts table ───────────┐ │ Roles                    │
+│ │ username purpose auth last...  │ │ [management] [business]  │
+│ └────────────────────────────────┘ │                          │
+└────────────────────────────────────┴──────────────────────────┘
+```
+
+- Tabs are `Environment overview`, `Hosts & logins`, `Login records`, `Endpoints`, `YAML`.
+  The identity row and the back link stay visible above the tabs.
+- Overview basic information is a two-column key/value grid. `Edit info` opens an inline
+  form for name, aliases, category and description; the ID is immutable. Saving sends the
+  full structured record through `save` (`record`, not `yaml`) and then re-reads it.
+- Access summary counts hosts, accounts, endpoints and failed logins; the latest login time
+  and declared roles sit in the right rail.
+- `Hosts & logins` renders one card per host: name, status, IP/port, platform, admin user and
+  credential reference, then a table of accounts (user, purpose, protocol, auth type,
+  credential reference, last login, source). `Add host` and `Add account` open inline forms.
+- `Login records` sorts newest-first and shows time, result (success/failure), user, host,
+  source IP, protocol and note. `Add login record` opens an inline form with host/account
+  pickers; picking an account fills its username. A successful login also updates that
+  account's `lastLoginAt`/`lastLoginFrom` when it is newer than the stored value. A
+  failure renders with the error state color.
+- `Endpoints` lists id, kind, target, URL, port, credential reference and note.
+- `YAML` exposes the whole environment document with `Save` and `Delete`; it is the
+  escape hatch, not the primary path. Account and login fields never contain secrets.
+- Forms validate required fields locally (id/name/user/time) and rely on the Host for
+  schema and referential-integrity failures. A Host rejection stays visible above the
+  detail view and the form remains open.
+
+### 6.4 YAML record editor
+
+Services, deployments, rule profiles and operation bindings, plus a new environment:
 
 ```text
 test-a                                  [Save] [Delete]
@@ -225,8 +266,8 @@ environment / test-a
 └─────────────────────────────────────────────────────┘
 ```
 
-- The textarea is the source of truth; no form fields in V1. Structured forms are a
-  later refinement, and YAML keeps round-tripping honest.
+- The textarea is the source of truth for this editor; environment detail forms are the
+  structured alternative.
 - `Save` sends the whole YAML through `save`; schema failures are shown in an alert with
   the Host message and code. There is no per-record dry-run button in V1; `Validate`
   on Overview checks the whole registry.
@@ -242,7 +283,7 @@ Production records show a persistent banner:
 "Production environment. Changes affect a live system." with
 `--dsw-alias-state-warn-primary`.
 
-### 6.4 Context Preview
+### 6.5 Context Preview
 
 Inputs: environment id, service id, deployment id (optional), entered as free text with
 example placeholders (`test-a`, `aicoservice`, `deploy-001`).
@@ -254,7 +295,7 @@ with expandable provenance is a later refinement, not part of the current panel.
 If resolution fails, the Host error (code and message) appears in the alert above the
 form.
 
-### 6.5 Operation Preview
+### 6.6 Operation Preview
 
 Inputs: operation id, environment id, service id, deployment id (optional).
 
@@ -262,13 +303,13 @@ Output in V1: the routing result as formatted JSON, including the selected bindi
 Skill, policy and parameters. Conflicts and missing Skills surface as the Host error
 alert. A per-field policy card and an "also matched" list are later refinements.
 
-### 6.6 Validation
+### 6.7 Validation
 
 There is no separate Diagnostics tab in V1. `Validate` on Overview calls the whole
 registry check and renders its result card: pass/fail pill plus diagnostics with
 severity, code and message. `Refresh` reloads `meta` and its warnings.
 
-### 6.7 Bundle config page
+### 6.8 Bundle config page
 
 Read-only rows: version, `dataDir`, record counts, warning count, "Open manager".
 
@@ -276,17 +317,22 @@ Read-only rows: version, `dataDir`, record counts, warning count, "Open manager"
 
 ```js
 const [section, setSection] = useState('overview')
-const [list, setList] = useState(null)        // { items, warnings }
-const [selected, setSelected] = useState(null) // { kind, id, record, yaml }
-const [busy, setBusy] = useState(false)
+const [kind, setKind] = useState('environment')
+const [items, setItems] = useState([])
+const [selected, setSelected] = useState(null)  // record id, not an object
+const [record, setRecord] = useState(null)      // parsed environment detail
+const [yaml, setYaml] = useState('')
 const [error, setError] = useState(null)
+const [message, setMessage] = useState(null)    // transient save/delete toast
 ```
 
-- One `AbortController` per active request; a new request aborts the previous one.
-- After a successful save/delete: refresh `meta` and the current list, then close the
-  editor.
+- Requests use the shared `call(op, payload)` helper and surface Host errors as `ErrorBox`.
+- After a successful save/delete: refresh the list, re-read the selected record for
+  structured saves, and clear detail state when the record is removed.
+- Environment detail forms save with `{ kind: 'environment', record }`; the YAML tab and
+  the other record kinds save with `{ kind, yaml }`.
 - No global state, no context provider, no polling. "Refresh" is explicit.
-- `useEffect` deps always include the current section and selected id.
+- A client reload or HMR resets the selected section and open detail; this is accepted in V1.
 
 ## 8. Internationalization
 
@@ -373,20 +419,30 @@ const S = {
 
 ```text
 EnvManagerPanel
-├── PanelHeader (title, dataDir, refresh)
-├── SectionStrip (tabs)
+├── PanelHeader (glyph, title, subtitle)
+├── SectionTabs (Overview / Records / Context / Operations)
 ├── SectionContent
-│   ├── OverviewSection
-│   ├── RecordListSection (kind) ── RecordTable ── RecordRow
-│   ├── RecordEditor (kind, id) ── YamlEditor, DiagnosticList, ConfirmBar
-│   ├── ContextSection ── ProvenanceTable ── ProvenanceRow
-│   ├── OperationSection ── BindingCard ── PolicyCard ── ParameterTable
-│   └── DiagnosticsSection ── DiagnosticTable
-└── Banner (error / warning / production)
+│   ├── OverviewView (stat cards, runtime, warnings, onboarding)
+│   ├── RecordsView
+│   │   ├── EnvironmentList ── EnvironmentRow
+│   │   ├── EnvironmentDetail
+│   │   │   ├── DetailHeader (back, identity, actions)
+│   │   │   ├── DetailTabs (overview/hosts/logins/endpoints/yaml)
+│   │   │   ├── BasicInfo + BasicInfoForm
+│   │   │   ├── AccessSummary + RoleChips
+│   │   │   ├── HostCard ── AccountTable + AccountForm
+│   │   │   ├── LoginTable + LoginForm
+│   │   │   ├── EndpointTable
+│   │   │   └── YamlEditor
+│   │   └── YamlRecordEditor (service/deployment/rule/binding/new environment)
+│   ├── ContextView ── ResultBlock
+│   └── OperationsView ── ResultBlock
+└── Toast / ErrorBox
 ```
 
 Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `call()`,
-`formatDate()`, `badge()`.
+`formatTime()`, `categoryLabel()`, `authLabel()` and the form primitives `Field`,
+`Select` and `TextArea`.
 
 ## 12. Manual QA checklist
 
@@ -394,16 +450,20 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
       with no filled background, and selects the panel.
 - [ ] The sidebar row shows one label, aligned with the shipped rows, and the active
       row uses the host highlight rather than plugin-provided styling.
-- [ ] Panel renders with an empty `dataDir` and with 20 records.
-- [ ] Search finds by id, name and alias.
-- [ ] Create → save → list → reopen preserves all values (comments are dropped because
-      the Host normalizes YAML).
+- [ ] Panel renders with an empty `dataDir` and with several environments.
+- [ ] Environment list summary shows hosts, accounts and login records.
+- [ ] Detail back link returns to the list and keeps the Records tab selected.
+- [ ] Basic info edit round-trips name, aliases, category and description.
+- [ ] Host tab shows every account with auth type and last login source.
+- [ ] Add host / add account / add login record persist and re-render without a reload.
+- [ ] Login records are ordered newest-first and failures use the error color.
+- [ ] Endpoints show target name plus id and preserve URL/credential reference.
+- [ ] YAML tab saves the same document and clears stale detail state after delete.
 - [ ] Invalid YAML shows a diagnostic and does not write.
-- [ ] Delete requires typing the id and offers a backup note.
+- [ ] Delete asks for confirmation and reports the Host error if removal fails.
 - [ ] Production save is denied when `allowUiProductionWrites` is false.
-- [ ] Context preview shows `definedBy` and expands `inputs`/`shadowed`.
-- [ ] Operation preview shows a conflict card for two same-level bindings.
-- [ ] Skill unavailable renders as an error, not as "unknown".
+- [ ] Context preview returns a structured context.
+- [ ] Operation preview resolves a binding or a clear diagnostic.
 - [ ] Language switch between `en` and `zh` updates every visible string.
 - [ ] Light and dark themes both keep contrast on cards and badges.
 - [ ] Keyboard-only navigation reaches every action.
@@ -411,9 +471,12 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 
 ## 13. Out of scope for V1
 
-- Structured forms per record kind.
+- Full CRUD forms for services, deployments, rules and bindings.
+- Editing or deleting individual hosts/accounts/logins from the table rows
+  (add + YAML is the V1 path).
 - YAML syntax highlighting, folding, or diff view.
 - Topology graphs and dependency visualizations.
 - Creating or editing the session default environment.
 - Executing a Skill or showing an operation timeline.
 - Multi-user presence, comments, or audit UI.
+- JumpServer/PAM API synchronization; login data is entered or imported explicitly.

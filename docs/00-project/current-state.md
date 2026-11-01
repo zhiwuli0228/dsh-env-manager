@@ -4,12 +4,12 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**V1 is installed in the `desktop` profile and live-verified; the panel has been rebuilt
-and visually checked on Overview, Records and Context.**
+**V1 is installed in the `desktop` profile and live-verified; the environment detail
+view, host accounts and login audit are implemented and visually checked.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. The
 storage, registry, resolver, router, session store, application service, ten tools and
-same-origin HTTP API are in place, with 34 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 38 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The Host
 tools answer in this session, the HTTP API returns `200` for `meta`, and a
 save/list/remove round-trip through the panel transport succeeded. The sidebar glyph
@@ -20,10 +20,13 @@ props and renders monochrome with `currentColor`; the contract is recorded in
 The panel was rebuilt around the host's visual language: a centered 1080 px column,
 22 px title with a glyph mark, underline tabs, compact stat cards, two-column runtime /
 warnings cards, an empty-registry onboarding card, and a master/detail Records view.
-The old layout used a bare `nav` that host global CSS stretched to full height, producing
-a tall floating tab strip; the new panel uses plugin-owned elements and scoped classes.
-Overview, Records, Context and Operations were visually checked against the live desktop
-window. The editor with a real record still needs a click-through.
+The environment record opens a read-first detail page modeled on an asset-detail layout:
+basic information, access summary, roles, host cards with account tables, newest-first
+login records, endpoints and a raw YAML tab. Basic info can be edited; hosts, accounts and
+login records have inline create forms that save the structured record. A successful
+login record also refreshes the matching account's last-login fields. Overview, Records,
+host accounts, the login-record form, endpoints, basic-info edit and YAML were visually
+checked against the live desktop window.
 
 ## Implemented
 
@@ -66,8 +69,10 @@ Code:
 - [x] Management tools
 - [x] HTTP transport
 - [x] Client configuration UI (slot registration and HTTP round-trip live-verified)
+- [x] Environment detail: hosts, accounts, login audit, endpoints, YAML
+- [x] Structured forms for basic info, host, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (34 passing)
+- [x] Tests (38 passing)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -101,22 +106,28 @@ dsh-env-manager/
 
 ## Known Gaps
 
-- The record editor with real data still needs a click-through in the live window;
-  Overview, Records empty state, Context and Operations were visually checked.
+- The detail view supports create/edit for basic info, hosts, accounts and login records,
+  but row-level edit/delete for hosts, accounts and logins is still YAML-only.
+- Services, deployments, rule profiles and operation bindings are YAML-only; only
+  environments have structured forms.
+- The `oracle1` environment in the `desktop` profile is demo data created to verify account
+  and login rendering; replace or delete it before real use.
 - Light theme contrast has not been checked yet.
 - Runtime probes V4 (approval from a tool body) and V6 (live credential `describe`)
   in `api-verification.md` §4 are not exercised yet.
-- The profile currently has no registry records, so the panel shows empty lists.
 - Memory bridge is a contract and null adapter only; no memory plugin is wired.
 - No cross-process write locking.
 - No operation execution: routing returns the Skill and policy, it does not run them.
 - The panel cannot write production records unless
   `writePolicy.allowUiProductionWrites` is enabled.
+- Login/account data is entered manually or imported as YAML; there is no JumpServer/PAM
+  API synchronization.
 
 ## Next Recommended Work
 
-1. **T23** — visual panel QA: sidebar entry, list/get/save/delete, resolve, route,
-   diagnostics, production denial.
-2. **T02** — live probes V4 and V6, then record results in `api-verification.md`.
-3. Add a small example registry under `examples/` for first-run demonstration.
-4. P1 memory bridge and operation records.
+1. **T23** — complete visual panel QA: sidebar entry, list/get/save/delete, detail tabs,
+   host/account/login forms, resolve, route, production denial.
+2. Row-level delete/edit for hosts, accounts and login records.
+3. **T02** — live probes V4 and V6, then record results in `api-verification.md`.
+4. Add a small example registry under `examples/` for first-run demonstration.
+5. P1 memory bridge and operation records.

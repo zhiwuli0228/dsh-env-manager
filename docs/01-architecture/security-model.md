@@ -48,6 +48,9 @@ credential service is the only component allowed to hold secret values.
 3. The Host never calls `ctx.credentials.resolve(ref)` and never forwards a resolved value to a tool result, diagnostic or log.
 4. Tool and HTTP outputs contain `{ ref, configured, source }` only.
 5. `credentialRef` values are validated against the credential reference pattern if one exists; otherwise a conservative pattern (`^[A-Za-z0-9._:/-]{1,200}$`) is applied.
+6. Host accounts and login records follow the same rule: `Host.accounts[].credentialRef` is a
+   reference, and `LoginRecord` stores username, time, source and result only. Password,
+   private-key, token and session-recording fields are not part of the schema.
 
 ### 3.2 Threat: exfiltration through tool output
 
