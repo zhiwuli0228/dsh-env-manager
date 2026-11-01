@@ -1,56 +1,63 @@
 # Roadmap
 
-## V0.1: Registry and Context Resolution
+Aligned with the brainstorm (§9) and V1 design.
 
-Goal: Provide a working file-based registry and basic context resolution.
+## V0 — Design (current)
 
-Scope:
+- [x] Brainstorm captured
+- [x] Repository and docs hub initialized
+- [x] V1 design suite written
+- [ ] DSH API open questions verified
 
-- JSON/YAML schemas for environment, service, deployment binding, rule profile, operation binding
-- File-based storage layer
-- `env_list`, `env_get`, `env_find` tools
-- Service catalog read tools
-- Deployment binding lookup
-- Basic rule resolver with provenance tracking
-- Context resolver returning Service Context
-- Unit tests for resolver and storage
+## V1 = P0: Registry and Context Resolution
 
-## V0.2: Operation Skill Router
+Goal: a working plugin that any session can query, with deterministic routing.
 
 Scope:
 
-- `env_resolve_operation` tool
-- Match priority and conflict detection
-- Skill availability check
-- Approval policy evaluation
-- Parameter mapping to skill inputs
-- Unit tests for router and conflict detection
+1. TypeScript Host scaffold and build.
+2. Local shared persistence (YAML files).
+3. Manual configuration of environments, hosts, clusters, roles and co-location.
+4. Manual service catalog with Git URLs and artifacts.
+5. Deployment bindings for native, Docker and Kubernetes.
+6. Rule profiles with layered overrides and provenance.
+7. Operation bindings with scoped routing, conflict detection and availability checks.
+8. Read-only tools for all sessions.
+9. Session-scoped default environment.
+10. Minimal Web/Desktop configuration UI with context preview.
 
-## V0.3: Web/Desktop Configuration UI
+Acceptance: AC-01 … AC-08 in `docs/01-architecture/design.md` §14.
 
-Scope:
+## P1: Minimal Experience Loop
 
-- Host configuration panel for environments, services, deployments
-- Rule profile editor with preview
-- Operation binding editor
-- Context preview panel
-- Basic validation and error display
-
-## V0.4: Memory Bridge and Operation Records
+Goal: turn operations into reusable, reviewed knowledge.
 
 Scope:
 
-- Operation Record schema and emission
-- Memory bridge contract with memory plugin
-- Historical observation and playbook lookup
-- Candidate rule/skill change proposals
-- Review queue (non-auto-apply)
+1. Stable contract with the memory plugin.
+2. Memory queries scoped by environment/service/deployment.
+3. Operation Records and sanitized Evidence References.
+4. Candidate knowledge generation.
+5. Rule and Skill improvement proposals in a review queue.
+6. Reliable session-default persistence and recovery.
 
-## V0.5: Optional Remote Adapters (Future)
+Acceptance: AC-09, AC-10.
 
-Scope:
+## V1.1 / V2: Continuous Evolution
 
-- SSH/SFTP host adapter
-- Kubernetes remote adapter
-- Docker remote adapter
-- Log and evidence collection helpers
+- SSH/SFTP adapter.
+- Docker and Kubernetes remote adapters.
+- Log and evidence collection helpers.
+- Automatic operation event capture and log redaction.
+- Fact extraction from Git, Maven, Dockerfile and Helm.
+- Proposal impact analysis, regression checks, publish and rollback.
+- Automatic asset discovery and multi-instance sync.
+- Multi-user collaboration and richer authorization.
+
+## Explicitly Not Committed
+
+- Fully automatic deployment or self-healing.
+- Unreviewed production rule or Skill changes.
+- Audit coverage of every external SSH/browser action.
+- Configuration inference replacing real checks.
+- Building a bastion host, CMDB or scheduling platform.

@@ -6,9 +6,9 @@ DSH Environment Manager (`dsh-env-manager`)
 
 ## Positioning
 
-A DSH (DeepSeek Harness) plugin that gives every session a shared, queryable view of enterprise environments, services, deployments and operation-to-skill bindings.
+A DSH (DeepSeek Harness) plugin that gives every session a shared, queryable context of enterprise environments, services, deployments, rules and operation-to-Skill bindings.
 
-It turns scattered environment facts, service metadata and deployment knowledge into a structured context that Agent tools and UI components can consume.
+It is the "where do I work, what am I touching, which rules apply, which Skill runs it, what have we learned" layer for operational Agents.
 
 ## Core Value
 
@@ -22,12 +22,13 @@ into:
 
 ```text
 structured environment registry + service catalog + deployment bindings
-+ resolvable rules + deterministic skill routing + reusable operation memory
++ resolvable rules with provenance + deterministic Skill routing
++ scoped memory references
 ```
 
 ## Primary Users
 
-- Platform / DevOps engineers
+- Platform and DevOps engineers
 - SREs and operations staff
 - Backend developers deploying to shared environments
 - AI-assisted development users running DSH sessions
@@ -38,53 +39,76 @@ structured environment registry + service catalog + deployment bindings
 
 ```text
 Agent asks: "Where does aicoservice run in test-a?"
-→ Query environment registry
-→ Query service catalog
-→ Match deployment binding
-→ Resolve layered rules
-→ Return structured Service Context
+→ look up environment and service
+→ match the deployment binding
+→ resolve layered rules
+→ return a Service Context with provenance
 ```
 
-### Workflow 2: Route Operation to Skill
+### Workflow 2: Route an Operation to a Skill
 
 ```text
 Agent asks: "Redeploy aicoservice in test-a"
-→ Resolve service context
-→ Match operation binding by scope
-→ Verify skill availability and approval policy
-→ Return skill reference and mapped parameters
+→ resolve the Service Context
+→ match operation bindings by scope
+→ detect conflicts
+→ check Skill availability
+→ return the Skill reference and mapped parameters with policy
 ```
 
-### Workflow 3: Query Historical Memory
+### Workflow 3: Configure the Registry
 
 ```text
-Agent asks: "Have we seen this failure in test-a before?"
-→ Build memory scope from environment/service/deployment
-→ Query memory bridge for observations and playbooks
-→ Return relevant, scoped historical knowledge
+Engineer adds environment, hosts, clusters and roles
+→ adds services with Git URLs and artifacts
+→ adds deployment bindings
+→ adds rule profiles and overrides
+→ previews resolved paths and bindings
 ```
 
-### Workflow 4: Record Operation Event
+### Workflow 4: Accumulate Experience (P1)
 
 ```text
 Operation completes
-→ Record structured Operation Record
-→ Capture evidence references (sanitized)
-→ Generate candidate knowledge or rule change proposal
-→ Push to review queue (do not auto-apply)
+→ emit a redacted operation record
+→ query prior observations for the same scope
+→ propose a rule or Skill change for review
+→ never auto-apply
 ```
 
 ## Core Principles
 
-- **File-based source of truth**: registry, rules and bindings live in durable files.
-- **Credentials are references, not values**: secrets are stored outside this plugin.
-- **Deterministic routing**: operation-to-skill matching is explicit, conflict-aware and auditable.
-- **Safe defaults**: write operations and production access require explicit approval.
-- **Memory bridge, not memory owner**: historical knowledge stays in the memory plugin; this plugin provides scoped references.
+- File-based registry is the source of truth.
+- Credentials are references; values live elsewhere.
+- Skill routing is explicit, deterministic and conflict-aware.
+- Derived values are labelled as derived; only checks can mark them verified.
+- Conflicting or missing data fails loudly.
+- Memory stores the lesson; this plugin stores the context.
+
+## V1 Scope
+
+Delivered:
+
+1. DSH bundle with Host and Client halves.
+2. File-based registry for environments, services, deployments, rules and operation bindings.
+3. Manual configuration through tools and a minimal Web/Desktop UI.
+4. Layered rule resolution with provenance.
+5. Deterministic operation-to-Skill routing with availability and policy checks.
+6. Read-only tools usable from every session.
+7. Session-scoped default environment.
+
+Deferred:
+
+- Remote execution adapters (SSH, Docker, Kubernetes).
+- Automatic deployment or rollback.
+- Automatic fact extraction from repositories or manifests.
+- Memory bridge implementation (contract only in V1).
+- Automatic rule or Skill evolution.
 
 ## Non-goals
 
 - Not a CMDB replacement.
-- Not a secret vault or credential manager.
-- Not a remote execution engine by itself.
+- Not a secret vault.
+- Not a remote execution engine.
 - Not an unsupervised self-modifying rule system.
+- Not a database-backed platform.

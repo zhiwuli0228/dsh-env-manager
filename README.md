@@ -1,67 +1,84 @@
 # DSH Environment Manager
 
-A [DSH (DeepSeek Harness)](https://www.deepseek.com/) plugin that gives every session a shared view of your enterprise environments, services, deployments and operation-to-skill bindings.
+A [DSH (DeepSeek Harness)](https://www.deepseek.com/) plugin that gives every session a shared, queryable view of enterprise environments, services, deployments and operation-to-Skill bindings.
 
-> 中文简介：这是一个 DSH 插件，让每个会话都能按需读取企业运行环境、服务目录、部署实例以及操作与 Skill 的绑定关系。
+Works in DSH Web and Desktop.
+
+> 中文简介：这是一个 DSH 插件，让每个会话都能按需读取企业运行环境、服务目录、部署实例、分层规则以及操作与 Skill 的绑定关系。
 
 ## What it does
 
-- **Environment Registry** – record hosts, clusters, logical roles and access endpoints.
-- **Service Catalog** – keep service metadata, Git URLs, artifacts and rule profiles in one place.
-- **Deployment Binding** – describe which service runs where, whether native, Docker or Kubernetes.
-- **Rule Resolver** – resolve paths, log sources and runtime rules from layered, provenanced templates.
-- **Operation Skill Router** – map an operation (deploy, redeploy, collect-logs, …) to the right Skill for a given context.
-- **Memory Bridge** – feed structured operation records and evidence references into the DSH memory plugin.
+- **Environment Registry** — hosts, clusters, logical roles, access endpoints and co-location in one record.
+- **Service Catalog** — Git URL, default branch, build tool, artifact and rule profile references.
+- **Deployment Binding** — which service runs where, as `native`, `docker` or `kubernetes`, with instance-level variables.
+- **Rule Resolver** — layered, field-level overrides with full provenance: every value explains where it came from and what influenced it.
+- **Operation Skill Router** — maps an operation (deploy, redeploy, collect-logs, …) to exactly one bound Skill, detecting conflicts and enforcing approval policy.
+- **Session Context** — a per-session default environment that never leaks into another session.
+- **Memory Bridge** — a contract for feeding scoped, redacted operation records into the DSH memory plugin (P1).
 
 ## Status
 
-This repository is in early development. The current skeleton provides a standard DSH bundle with both Host and Client entries; it is installable as a local bundle in DSH Web and Desktop.
+**V1 design complete; implementation not started.**
 
-## Install
+The normative design lives in [`docs/01-architecture/design.md`](docs/01-architecture/design.md), with the record schemas in [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md).
 
-1. Clone the repository:
+The repository currently contains the DSH bundle skeleton (Host and Client entries). The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`.
 
-   ```bash
-   git clone https://github.com/<your-org>/dsh-env-manager.git
-   cd dsh-env-manager
-   ```
+## Installation
 
-2. Install the bundle in your DSH profile (run from the checkout directory):
+Use the Harness `plugin_manager` tool:
 
-   ```bash
-   dsh plugin_manager install_bundle --target .
-   ```
+```text
+action: install_bundle
+target: <absolute path to this repository>
+```
 
-   Or use the Harness GUI / `plugin_manager` tool with `action: install_bundle`.
+Then restart DSH if the bundle was already installed.
 
-3. Restart DSH if required.
+To remove it, call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
 
-## File layout
+Registry data is created on first run under the resolved `dataDir`; it is not part of the repository.
+
+## Project layout
 
 ```text
 dsh-env-manager/
-├── index.js          # Host plugin entry
-├── client.js         # Web/Desktop UI client entry
-├── cordis.patch.yml  # Cordis bundle patch
-├── package.json      # Bundle manifest
-├── locale/           # Display metadata
-│   ├── en.json
-│   └── zh.json
-├── icon.svg          # Plugin icon
-├── docs/             # Architecture and planning documents
-└── README.md
+├── index.js              # Host entry shim over lib/index.js
+├── client.js             # Web/Desktop client module
+├── cordis.patch.yml      # Cordis bundle patch
+├── package.json          # Bundle manifest
+├── tsconfig.json         # Host build config (V1)
+├── src/                  # TypeScript Host sources (V1)
+├── lib/                  # Build output (git-ignored)
+├── locale/               # en.json, zh.json
+├── icon.svg
+├── docs/                 # Design, harness and operations docs
+└── tests/                # Vitest tests (V1)
 ```
+
+## Documentation
+
+Start at [`docs/README.md`](docs/README.md).
+
+Key documents:
+
+| Document | Content |
+|---|---|
+| [`docs/00-project/project-brief.md`](docs/00-project/project-brief.md) | positioning and V1 scope |
+| [`docs/01-architecture/design.md`](docs/01-architecture/design.md) | design, algorithms, acceptance criteria |
+| [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md) | record schemas |
+| [`docs/01-architecture/tool-contract.md`](docs/01-architecture/tool-contract.md) | tool surface |
+| [`docs/01-architecture/security-model.md`](docs/01-architecture/security-model.md) | credential and policy controls |
 
 ## Development
 
-- Edit `index.js` to add Host-side tools, services and storage.
-- Edit `client.js` to add UI slots for the Web/Desktop client.
-- Update `locale/*.json` when you change display text.
-- Keep `cordis.patch.yml` and `package.json` in sync with new exports.
+```bash
+npm install
+npm run build
+npm test
+```
 
-## Roadmap
-
-See [docs/01-architecture/DSH_Environment_Service_Memory_Skill_Brainstorm.md](./docs/01-architecture/DSH_Environment_Service_Memory_Skill_Brainstorm.md) for the full brainstorm and V1 scope.
+See [`docs/04-development/development-guide.md`](docs/04-development/development-guide.md).
 
 ## License
 

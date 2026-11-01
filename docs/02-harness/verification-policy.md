@@ -1,44 +1,78 @@
 # Verification Policy
 
-## Required Verification
-
 Every implementation task must include at least one of:
 
-- Unit tests for new pure functions
-- Integration tests for storage or tool functions
-- Manual UI verification checklist
-- Output file contract validation
+- unit tests for pure logic
+- integration tests for storage / registry / tools
+- a manual UI checklist
+- a contract check against a fixture
 
-## Test Categories
+## Required by module
 
-### Resolver Tests
+### `domain`
 
-- Context resolution with full data
-- Context resolution with missing optional data
-- Rule override precedence
-- Variable cycle detection
-- Undefined variable handling
+- Valid record accepted; unknown field rejected
+- Id pattern and `schemaVersion` enforced
+- Discriminated union rejects mismatched runtime/location
 
-### Router Tests
+### `storage`
 
-- Exact match
-- Priority fallback
-- Conflict detection
-- Skill availability failure
-- Approval policy evaluation
+- Atomic write/read round trip
+- No temp file left after success or failure
+- Missing directory handled
+- Invalid YAML skipped with diagnostic, file kept
+- Backup pruning
 
-### Storage Tests
+### `registry`
 
-- Atomic write/read
-- Missing file handling
-- Schema version mismatch
-- Referential integrity (best-effort)
+- Load and lookup
+- Duplicate id detection
+- Broken reference detection for every reference kind
+- Reload after write reflects the change
 
-### UI Tests
+### `resolver`
 
-Manual checklist:
+- Layer precedence
+- Field-level merge
+- Provenance for the worked example
+- Undefined variable, cycle, path traversal, type mismatch
+- Only runtime-applicable log source and class location resolved
 
-- Configuration panel loads
-- Environment/service/deployment CRUD works
-- Rule preview updates correctly
-- Context preview displays expected values
+### `router`
+
+- Every match level
+- Highest-level selection
+- Same-level conflict
+- Skill availability: present, missing, source mismatch, digest mismatch, registry unavailable
+- Production policy and approval defaults
+- Parameter mapping failures
+
+### `session`
+
+- Set, get, clear
+- Cross-session isolation
+- Corrupt state fallback
+
+### `tools`
+
+- Envelope shape
+- Error codes
+- No credential value in serialized output
+- `env_validate` is read-only
+
+### Client UI (manual)
+
+- Panels load with empty and populated registries
+- Create/edit/delete round trip through Host tools
+- Rule preview shows provenance
+- Conflict warning appears for same-level bindings
+- Production actions are visually distinct and confirmed
+- Locale switches between `en` and `zh`
+
+## Evidence to record
+
+For each completed task, `current-state.md` should state what was verified and what remains manual.
+
+## Regression rule
+
+A bugfix must add a test that fails before the fix and passes after it, unless the defect is UI-only.

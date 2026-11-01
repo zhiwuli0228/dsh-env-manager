@@ -4,59 +4,99 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-Initial skeleton pushed to GitHub. Host and Client entries are stubs; core resolvers and routers are not yet implemented.
+**V1 design complete; implementation not started.**
+
+The first implementable design has been derived from the brainstorm and written into
+`docs/01-architecture/`. The repository still contains the initial JavaScript bundle skeleton; it is replaced during V1 implementation (see ADR-0004).
 
 ## Implemented
 
+Documentation and repository:
+
 - [x] GitHub repository initialized
 - [x] DSH bundle manifest (`package.json`, `cordis.patch.yml`)
-- [x] Host plugin entry (`index.js`)
-- [x] Client plugin entry (`client.js`)
+- [x] Host plugin entry stub (`index.js`)
+- [x] Client plugin entry stub (`client.js`)
 - [x] Locale resources (`locale/en.json`, `locale/zh.json`)
 - [x] Plugin icon (`icon.svg`)
 - [x] README, LICENSE, `.gitignore`
-- [x] Docs directory skeleton
+- [x] Docs Harness Context Hub
+- [x] AGENTS.md project rules
+- [x] V1 design suite:
+  - [x] `design.md` — scope, architecture, flows, acceptance criteria
+  - [x] `data-model.md` — record schemas and result types
+  - [x] `tool-contract.md` — Agent and management tools
+  - [x] `storage-contract.md` — persistence, atomicity, sessions
+  - [x] `module-boundaries.md` — ownership and dependency direction
+  - [x] `security-model.md` — credentials, approval, redaction
+  - [x] ADR-0001 … ADR-0008
+
+Code:
+
+- [ ] TypeScript Host scaffold (`src/`, `tsconfig.json`)
+- [ ] Domain schemas and validators
+- [ ] Storage layer
+- [ ] Registry layer
+- [ ] Context resolver
+- [ ] Rule resolver with provenance
+- [ ] Operation Skill router
+- [ ] Session context store
+- [ ] Read tools
+- [ ] Management tools
+- [ ] Client configuration UI
+- [ ] Memory bridge contract and null adapter
+- [ ] Tests
 
 ## Current Constraints
 
-- Host plugin is a stub; no tools registered yet.
-- Client plugin only registers a composer dock icon.
-- No storage implementation.
-- No rule resolver, deployment binding or operation skill router.
-- No memory bridge contract.
+- V1 accepts `schemaVersion: 1` only.
+- No plain-text credentials in registry files.
+- No arbitrary code in rule templates.
+- No remote execution in V1.
+- No production auto-apply.
+- Registry data is git-ignored.
 
 ## Current Directory Plan
 
 ```text
 dsh-env-manager/
-├── index.js
-├── client.js
+├── AGENTS.md
+├── index.js              # host entry shim (V1)
+├── client.js             # client module
 ├── cordis.patch.yml
 ├── package.json
+├── tsconfig.json         # added in V1
+├── src/                  # TypeScript host (V1)
+├── lib/                  # build output, git-ignored
 ├── locale/
 ├── icon.svg
-├── README.md
-├── LICENSE
 ├── docs/
-└── (tests/ to be added)
+├── data/                 # runtime registry data, git-ignored
+└── tests/
 ```
 
 ## Known Gaps
 
-- Environment registry CRUD tools not implemented.
-- Service catalog CRUD tools not implemented.
-- Deployment binding resolution not implemented.
-- Rule resolver and provenance tracking not implemented.
-- Operation skill router and conflict detection not implemented.
-- Memory bridge contract not defined.
-- Web/Desktop configuration UI not implemented.
-- No tests for resolver/router logic.
+- No TypeScript build yet.
+- No persistence yet.
+- No resolver, router or tool implementation.
+- No UI panels.
+- No Skill registry integration; availability is designed but unverified.
+- Memory bridge is a contract only.
+- Open design questions listed in `design.md` §16 remain unverified.
 
 ## Next Recommended Work
 
-1. Define JSON/YAML schemas for environment, service, deployment, rule profile and operation binding.
-2. Implement file-based storage layer.
-3. Implement `env_list`, `env_get`, `env_find` tools.
-4. Implement context resolver and rule resolver with tests.
-5. Implement `env_resolve_operation` router with tests.
-6. Design memory bridge contract with the memory plugin.
+Following brainstorm §13.4 and design §16:
+
+1. Verify the open DSH API questions (data directory, Skill registry, session API, client slot).
+2. Scaffold TypeScript Host and add `zod`, `yaml`, `vitest`.
+3. Implement `domain` schemas and tests.
+4. Implement `storage` with atomic writes and tests.
+5. Implement `registry` with validation and tests.
+6. Implement `resolver` (template engine, layering, provenance) with tests.
+7. Implement `router` (match levels, conflicts, policy) with tests.
+8. Implement `session` store.
+9. Implement tools and register them.
+10. Implement the Client UI (list/edit/preview).
+11. Define the memory bridge contract and null adapter.

@@ -1,31 +1,55 @@
 # Local Run Guide
 
-## Install in DSH Profile
-
-From the project root:
+## Build
 
 ```bash
-dsh plugin_manager install_bundle --target .
+npm install
+npm run build
 ```
 
-Then restart DSH.
+## Install in a DSH Profile
+
+In a DSH session, call the `plugin_manager` tool:
+
+```text
+action: install_bundle
+target: <absolute path to this repository>
+```
+
+Restart DSH if the bundle was already installed before this change.
 
 ## Verify Installation
 
-Check plugin manager for the installed bundle:
+Ask `plugin_manager` for `action: list_bundles`, then confirm the bundle appears.
 
-```bash
-dsh plugin_manager list_bundles
+Then check that the tools are available: ask the Agent to call `env_list`; it should return an empty list rather than an unknown-tool error.
+
+## Where the data lives
+
+The Host reports the resolved `dataDir` once at startup. On first run the directories are created:
+
+```text
+<dataDir>/environments  services  deployments  rules  operations  sessions
 ```
+
+Put a sample environment there or use `env_save`.
+
+## Development loop
+
+1. Edit `src/`.
+2. `npm run build`.
+3. Reinstall the bundle.
+4. Restart DSH (Host code changes need a fresh module generation).
+5. Call the tool again.
+
+`client.js` changes need the same reinstall; they do not require a build.
 
 ## Uninstall
 
-```bash
-dsh plugin_manager remove_bundle --target dsh-env-manager
-```
+Call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
 
-## Client Development
+Registry data under `dataDir` is not removed automatically. Back it up before deleting the profile.
 
-The client entry is `client.js`. It is loaded by the DSH Web/Desktop client.
+## Troubleshooting
 
-To see changes, reinstall the bundle or rely on HMR if supported.
+See `06-operations/troubleshooting.md`.

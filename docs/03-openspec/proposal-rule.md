@@ -25,10 +25,13 @@ List what is explicitly excluded.
 Choose from:
 
 - tools
+- domain
+- config
 - storage
 - registry
 - resolver
 - router
+- session
 - memory-bridge
 - client
 - docs
@@ -42,6 +45,8 @@ State whether the change affects:
 - `data/deployments/*.yaml`
 - `data/rules/*.yaml`
 - `data/operations/*.yaml`
+- `data/sessions/*.json`
+- `schemaVersion` (record compatibility)
 
 ### 7. Constraints
 

@@ -40,11 +40,14 @@ Before implementing any non-trivial change, read:
 5. `docs/02-harness/harness-standard.md`
 6. `docs/04-development/development-guide.md`
 
-For architecture changes, also read:
+For architecture or schema changes, also read:
 
 1. `docs/01-architecture/design.md`
-2. `docs/01-architecture/module-boundaries.md`
-3. `docs/01-architecture/storage-contract.md`
+2. `docs/01-architecture/data-model.md`
+3. `docs/01-architecture/tool-contract.md`
+4. `docs/01-architecture/module-boundaries.md`
+5. `docs/01-architecture/storage-contract.md`
+6. `docs/01-architecture/security-model.md`
 
 For OpenSpec work, also read:
 
@@ -161,16 +164,14 @@ Use:
 
 - Node.js (matching the DSH runtime)
 - ES modules (`import` / `export`)
-- Plain JavaScript for the current skeleton
-- YAML for registry records
-- JSON for structured indexes where needed
+- TypeScript for the Host, compiled to ESM (`src/` → `lib/`)
+- Plain JavaScript for the Client module (`client.js`), no bundler in V1
+- Zod for record and tool schema validation
+- `yaml` for registry files
+- Vitest for tests
 - DSH plugin bundle format (`package.json` + `cordis.patch.yml`)
-- Vitest or the Node.js built-in test runner
 
-Optional, only when justified:
-
-- TypeScript, after a documented migration proposal
-- Zod or a similar validator for schema checking
+The Host/Client split is recorded in `docs/01-architecture/decisions/ADR-0004-typescript-host-js-client.md`. Do not add a client bundler without a new ADR.
 
 Avoid heavy infrastructure and unnecessary runtime dependencies.
 
@@ -192,15 +193,18 @@ dsh-env-manager/
 │   ├── 06-operations/
 │   ├── 07-templates/
 │   └── 99-archive/
-├── index.js              # Host plugin entry
-├── client.js             # Client plugin entry
+├── index.js              # Host entry shim over lib/index.js
+├── client.js             # Client module (plain JS)
 ├── cordis.patch.yml      # Cordis bundle patch
 ├── package.json          # Bundle manifest
+├── tsconfig.json         # Host build config
+├── src/                  # TypeScript Host sources
+├── lib/                  # Build output (git-ignored)
 ├── locale/
 │   ├── en.json
 │   └── zh.json
 ├── icon.svg
-├── data/                 # Runtime registry data (not committed)
+├── data/                 # Runtime registry data (git-ignored)
 └── tests/
 ```
 
@@ -209,6 +213,11 @@ Do not create alternate structures without documenting the change.
 ---
 
 ## 6. Module Boundaries
+
+The normative module list and dependency direction are in
+`docs/01-architecture/module-boundaries.md`. Host modules are `config`, `domain`, `storage`, `registry`, `resolver`, `router`, `session`, `memory-bridge` and `tools`; the Client is a single `client.js`.
+
+The rules below remain binding for the modules they name.
 
 ### 6.1 `tools`
 
@@ -367,6 +376,13 @@ Reads must tolerate missing files and skip invalid records with a warning.
 - Operation bindings must reference an existing environment/service scope when specified.
 - Broken references must be reported, not silently ignored.
 
+### 7.5 Data directory and sessions
+
+- All records live under one configurable `dataDir`.
+- `dataDir` resolution order and the atomic write protocol are defined in `docs/01-architecture/storage-contract.md`.
+- Session state lives under `sessions/` and is never scanned as a registry record.
+- Registry data is git-ignored and must not be committed.
+
 ---
 
 ## 8. Context Resolution Rules
@@ -439,11 +455,11 @@ Rules:
 
 ## 12. Coding Rules
 
-Use modern JavaScript.
+Host code is TypeScript with `strict: true`; the Client is plain JavaScript.
 
 General rules:
 
-- Use ES modules.
+- Use ES modules and explicit types at module boundaries.
 - Prefer `const`.
 - Keep modules small and focused.
 - Prefer explicit data models over loose objects.
@@ -490,6 +506,12 @@ Required tests for relevant changes:
 - Conflict detection
 - Missing Skill failure
 - Approval policy evaluation
+
+### `session`
+
+- Set, get and clear the default environment
+- Isolation between two sessions
+- Corrupt state file falls back to memory
 
 ### `tools`
 
@@ -552,10 +574,15 @@ Do not create oversized OpenSpec changes for trivial bugs.
 
 ## 16. Standard Commands
 
-Validate JavaScript syntax:
+Build the Host:
 
 ```bash
-node --check index.js
+npm run build
+```
+
+Validate the Client module syntax:
+
+```bash
 node --check client.js
 ```
 
@@ -565,23 +592,13 @@ Run tests:
 npm test
 ```
 
-Install as a local DSH bundle:
+Install as a local DSH bundle: in a DSH session, use the `plugin_manager` tool with `action: install_bundle` and the absolute repository path as `target`.
 
-```bash
-dsh plugin_manager install_bundle --target .
-```
+List installed bundles: `plugin_manager` with `action: list_bundles`.
 
-List installed bundles:
+Remove the bundle: `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
 
-```bash
-dsh plugin_manager list_bundles
-```
-
-Remove the bundle:
-
-```bash
-dsh plugin_manager remove_bundle --target dsh-env-manager
-```
+Do not reproduce installation with shell commands; `plugin_manager` performs package installation and bundle selection.
 
 ---
 
@@ -592,7 +609,7 @@ Before considering work complete:
 - [ ] Code is implemented.
 - [ ] Tests are added or updated.
 - [ ] Storage contract changes are documented.
-- [ ] Relevant docs are updated.
+- [ ] Relevant docs are updated, including `docs/01-architecture/` when behavior or schemas changed.
 - [ ] `docs/00-project/current-state.md` is updated.
 - [ ] No plain-text credentials were introduced.
 - [ ] No arbitrary code execution was introduced in rule templates.
