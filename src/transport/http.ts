@@ -75,6 +75,7 @@ function send(res: ServerResponse, status: number, value: unknown) {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(body),
     'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
   })
   res.end(body)
 }

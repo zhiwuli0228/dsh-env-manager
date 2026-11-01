@@ -443,8 +443,9 @@ Rules for the UI:
 - Production-category destructive actions are visually distinct and require
   confirmation.
 
-Details: [ui-design.md](./ui-design.md). The skeleton already registers the sidebar
-entry and a placeholder `main` panel; V1 replaces the placeholder with the real panel.
+Details: [ui-design.md](./ui-design.md). The implemented `client.js` registers the
+sidebar entry and the `main` panel; the panel is the configuration surface described
+above.
 
 ---
 

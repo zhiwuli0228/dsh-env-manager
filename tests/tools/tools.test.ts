@@ -124,6 +124,41 @@ describe('http transport', () => {
       expect(body.ok).toBe(true)
       expect(body.data.counts.environments).toBe(1)
 
+      const save = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-env-manager-request': '1' },
+        body: JSON.stringify({
+          op: 'save',
+          payload: {
+            kind: 'environment',
+            yaml: [
+              'id: http-env',
+              'schemaVersion: 1',
+              'name: HTTP Env',
+              'aliases: []',
+              'category: test',
+              'roles: []',
+              'hosts: []',
+              'clusters: []',
+              'endpoints: []',
+              '',
+            ].join('\n'),
+          },
+        }),
+      })
+      expect(save.status).toBe(200)
+      const saved = (await save.json()) as any
+      expect(saved.data.created).toBe(true)
+      expect(saved.data.id).toBe('http-env')
+
+      const list = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-env-manager-request': '1' },
+        body: JSON.stringify({ op: 'list', payload: { kind: 'environment' } }),
+      })
+      const listed = (await list.json()) as any
+      expect(listed.data.items.map((item: any) => item.id)).toContain('http-env')
+
       const crossOrigin = await fetch(url, {
         method: 'POST',
         headers: {

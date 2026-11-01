@@ -20,8 +20,8 @@ Documentation and repository:
 
 - [x] GitHub repository initialized
 - [x] DSH bundle manifest (`package.json`, `cordis.patch.yml`)
-- [x] Host plugin entry stub (`index.js`)
-- [x] Client plugin entry stub (`client.js`)
+- [x] Host plugin entry shim (`index.js` → `lib/index.js`)
+- [x] Client panel (`client.js`)
 - [x] Locale resources (`locale/en.json`, `locale/zh.json`)
 - [x] Plugin icon (`icon.svg`)
 - [x] README, LICENSE, `.gitignore`
