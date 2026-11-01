@@ -131,8 +131,13 @@ secret `NPM_TOKEN`，并在 publish 前写入 `.npmrc`。当前 workflow 不使�
 3. `npm ci`。
 4. `npm run check`（typecheck + build + test + client 语法检查）。
 5. `npm pack`，生成 `dsh-env-manager-plugin-<version>.tgz`。
-6. 升级 npm CLI，然后用 Trusted Publisher / OIDC 发布到 npm。
-7. 创建 GitHub Release，自动生成 release notes，并上传 tarball。
+6. 查询 npm 上是否已经存在该版本；已存在则跳过 publish，但仍然创建 GitHub Release。
+7. 升级 npm CLI，然后用 Trusted Publisher / OIDC 发布到 npm。
+8. 创建 GitHub Release，自动生成 release notes，并上传 tarball。
+
+第 6 步让 workflow 可以安全地补做 Release：如果某个版本已经在本地手动发布成功，
+但 workflow 在 publish 阶段因“版本已存在”失败，重新手动触发同一个 tag 即可跳过
+publish 并完成 Release，不需要删除或覆盖 npm 版本。
 
 ## 权限
 
@@ -175,7 +180,9 @@ permissions:
 
 - **`private: true` / npm 拒绝发布**：当前 `package.json` 已移除 `private`。
 - **tag 与版本不一致**：先改 `package.json`，提交后再打 tag。
-- **npm 版本已存在**：npm 不允许覆盖同版本；提升版本并重新打 tag，不要重复 publish。
+- **npm 版本已存在**：npm 不允许覆盖同版本。正常发版应提升版本并重新打 tag；
+  如果该版本已手动发布、只缺 GitHub Release，则手动触发同一个 tag，workflow 会
+  跳过 publish 并补建 Release。
 - **`EOTP` / 2FA**：交互式发布需要 OTP；CI 使用 Trusted Publisher。
 - **`ENEEDAUTH`**：没有 token 且 Trusted Publisher 未绑定，或 workflow 缺少
   `id-token: write`。
