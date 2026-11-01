@@ -46,7 +46,7 @@ Put a sample environment there or use `env_save`.
 
 ## Uninstall
 
-Call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
+Call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager-plugin`.
 
 Registry data under `dataDir` is not removed automatically. Back it up before deleting the profile.
 

@@ -1,14 +1,23 @@
 {
-  "name": "dsh-env-manager",
+  "name": "dsh-env-manager-plugin",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Environment registry, service catalog and operation-to-Skill routing for DSH.",
+  "author": "zhiwuli0228",
+  "homepage": "https://github.com/zhiwuli0228/dsh-env-manager#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhiwuli0228/dsh-env-manager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zhiwuli0228/dsh-env-manager/issues"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
   },
   "files": [
     "index.js",
@@ -18,7 +27,8 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/"
   ],
   "keywords": [
     "dsh",
@@ -27,8 +37,14 @@
     "service-registry",
     "ops"
   ],
-  "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.1-rc.5"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -66,7 +82,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm test && node --check client.js",
+    "check": "npm run typecheck && npm run build && npm test && node --check client.js",
     "prepack": "npm run build"
   },
   "main": "index.js",

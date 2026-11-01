@@ -41,7 +41,7 @@ Registry data is untouched by an upgrade. A `schemaVersion` change requires a mi
 
 ## Remove
 
-Call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
+Call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager-plugin`.
 
 Registry data under `dataDir` is not deleted. Back it up if you may reinstall later.
 

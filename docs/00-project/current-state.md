@@ -23,6 +23,14 @@ workspace in the same profile; its full workflow body loads only on invocation. 
 discovery/usage Skill, not an execution Skill or operation binding, and it is removed
 when the plugin is disabled or uninstalled. `config.registerSkill` defaults to `true`.
 
+Release packaging is prepared under the npm name `dsh-env-manager-plugin` because the
+unscoped `dsh-env-manager` npm name is an unrelated existing package. Pushing an
+annotated `v*` tag runs [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
+on `windows-latest`, verifies the tag against `package.json`, runs `npm run check`, packs
+the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Release.
+The first publish must be bootstrapped manually before Trusted Publisher can be bound;
+the exact steps are in [`release.md`](../06-operations/release.md).
+
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
@@ -121,6 +129,8 @@ Code:
 - [x] Operation Skill router
 - [x] Profile-wide discovery Skill (`dsh-env-manager`) registered through `ctx.skills.register()`
 - [x] README documents the bundled Skill lifecycle, scope, opt-out and execution boundary
+- [x] GitHub Actions release pipeline (`.github/workflows/release.yml`) for tagged npm publish
+- [x] Release runbook (`docs/06-operations/release.md`) with Trusted Publisher bootstrap
 - [x] Session context store
 - [x] Application service (`app`)
 - [x] Read tools

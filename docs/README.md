@@ -86,8 +86,9 @@ Also read:
 Also read:
 
 1. `docs/06-operations/deployment-guide.md`
-2. `docs/06-operations/security-policy.md`
-3. `docs/06-operations/troubleshooting.md`
+2. `docs/06-operations/release.md`
+3. `docs/06-operations/security-policy.md`
+4. `docs/06-operations/troubleshooting.md`
 
 ### OpenSpec Work
 
@@ -118,7 +119,7 @@ docs/
 ├── 03-openspec/      # proposal/design/spec/tasks rules
 ├── 04-development/   # coding, testing, local run, dependency rules
 ├── 05-domain/        # environment/service/deployment/rule/binding templates
-├── 06-operations/    # deployment, security, troubleshooting
+├── 06-operations/    # deployment, release, security, troubleshooting
 ├── 07-templates/     # reusable artifact templates
 └── 99-archive/       # obsolete or historical docs
 ```

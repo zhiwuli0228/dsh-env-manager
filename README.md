@@ -143,6 +143,18 @@ Design references:
 
 ## Installation
 
+The npm package is `dsh-env-manager-plugin` (the npm name `dsh-env-manager` is already
+an unrelated package). Install it as a profile bundle; do not install it with
+`npm install -g`.
+
+### From npm (after the first release)
+
+```sh
+dsh plugin --profile <name> add dsh-env-manager-plugin@0.1.0
+```
+
+### From a local checkout
+
 Use the Harness `plugin_manager` tool:
 
 ```text
@@ -162,7 +174,7 @@ config:
 ```
 
 To remove the whole plugin, call `plugin_manager` with `action: remove_bundle` and
-`target: dsh-env-manager`.
+`target: dsh-env-manager-plugin`.
 
 Registry data is created on first run under the resolved `dataDir`; it is not part of the repository.
 
@@ -175,6 +187,7 @@ dsh-env-manager/
 ├── cordis.patch.yml      # Cordis bundle patch
 ├── package.json          # Bundle manifest
 ├── tsconfig.json         # Host build config (V1)
+├── .github/workflows/    # GitHub Actions release pipeline
 ├── src/                  # TypeScript Host sources (V1)
 │   └── skill.ts          # bundled profile-wide discovery Skill
 ├── lib/                  # Build output (git-ignored)
@@ -200,6 +213,23 @@ Key documents:
 | [`docs/01-architecture/ui-design.md`](docs/01-architecture/ui-design.md) | panel design and manual QA |
 | [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) | implementation order |
 | [`docs/01-architecture/security-model.md`](docs/01-architecture/security-model.md) | credential and policy controls |
+| [`docs/06-operations/release.md`](docs/06-operations/release.md) | npm Trusted Publisher and GitHub Release pipeline |
+
+## Release
+
+Pushing an annotated `v*` tag triggers `.github/workflows/release.yml`: it verifies the
+tag matches `package.json`, runs `npm run check`, packs the npm tarball, publishes with
+npm Trusted Publisher (OIDC), and creates a GitHub Release with the tarball attached.
+
+```sh
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+The **first** publish must be bootstrapped manually so the npm package exists; bind
+`zhiwuli0228/dsh-env-manager` + `release.yml` as a Trusted Publisher after that. Full
+steps, permissions and failure modes are in
+[`docs/06-operations/release.md`](docs/06-operations/release.md).
 
 ## Development
 
@@ -210,7 +240,8 @@ npm test
 npm run check
 ```
 
-`npm run check` runs the typecheck, the Vitest suite and `node --check client.js`.
+`npm run check` runs the typecheck, the build, the Vitest suite and
+`node --check client.js`.
 
 See [`docs/04-development/development-guide.md`](docs/04-development/development-guide.md).
 

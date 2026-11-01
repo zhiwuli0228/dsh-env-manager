@@ -89,8 +89,9 @@ For memory bridge work, also read:
 For deployment or operations work, also read:
 
 1. `docs/06-operations/deployment-guide.md`
-2. `docs/06-operations/security-policy.md`
-3. `docs/06-operations/troubleshooting.md`
+2. `docs/06-operations/release.md`
+3. `docs/06-operations/security-policy.md`
+4. `docs/06-operations/troubleshooting.md`
 
 ---
 
@@ -644,7 +645,7 @@ Install as a local DSH bundle: in a DSH session, use the `plugin_manager` tool w
 
 List installed bundles: `plugin_manager` with `action: list_bundles`.
 
-Remove the bundle: `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
+Remove the bundle: `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager-plugin`.
 
 Do not reproduce installation with shell commands; `plugin_manager` performs package installation and bundle selection.
 
