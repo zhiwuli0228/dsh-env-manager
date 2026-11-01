@@ -12,7 +12,7 @@ answers them from the runtime itself so that `detailed-design.md`,
 `tool-contract.md`, `storage-contract.md` and `ui-design.md` describe APIs that exist,
 not APIs that are assumed.
 
-Every finding has an ID (`F1`…`F20`). The design documents reference these IDs.
+Every finding has an ID (`F1`…`F21`). The design documents reference these IDs.
 
 ## 2. Findings
 
@@ -331,6 +331,45 @@ Design consequence:
 - Digest pinning is unsupported. `SkillReference` uses `expectedSource` and
   `expectedProvider`; `expectedDigest` was removed.
 
+### F21 — Runtime Skill registration from a plugin
+
+`ctx.skills.register(skill)` is the official Host API for a plugin-owned runtime Skill:
+
+```ts
+const dispose = ctx.skills.register({
+  name: 'dsh-env-manager',
+  description: '...',
+  whenToUse: '...',
+  content: '# ...',
+  source: 'runtime',
+  invocation: { modelInvocable: true, userInvocable: true },
+})
+```
+
+Evidence: Service contract `skills` (methods `register`, `registerProvider`, `list`,
+`snapshot`, `get`; types `SkillRegistration`, `SkillDefinition`, `SkillSummary`,
+`SkillInvocationPolicy`). The service description states that an unscoped registration
+files into the **global layer**, while a registration made in a scoped context (for
+example an agent preset) files into that scope. The disposer unregisters the provider
+and invalidates catalog caches.
+
+A live registration was verified in the `desktop` profile: after rebuilding and
+reloading `dsh-env-manager`, the Skill catalog added `dsh-env-manager`, and the `skill`
+tool returned the registered content. This is runtime registration, not a filesystem
+`SKILL.md`; no workspace file or separate Skill installation is involved.
+
+Design consequence:
+
+- The bundled `dsh-env-manager` discovery Skill is registered in `apply()` with
+  `ctx.get('skills')`, inside the plugin effect so it is disposed with the fiber.
+- The Skill is visible in the same profile's other workspaces; it remains a catalog
+  summary until invoked, so it does not put the full workflow in every system prompt.
+- `config.registerSkill` defaults to `true`; setting it to `false` suppresses the entry.
+- `ctx.skills` is optional. If the service is absent or lacks `register`, the plugin
+  keeps its tools and panel and skips the Skill.
+- Operation execution still requires an `operationBinding`; the discovery Skill does
+  not execute the routed Skill.
+
 ## 3. Consequences for the V1 design
 
 1. **Tool contract is concrete.** Ten `defineTool` definitions with a parameter DSL,
@@ -365,7 +404,8 @@ Design consequence:
 | `cordis_inspect_query(host, Service, approval)` | approval outcomes, request fields |
 | `cordis_inspect_query(host, Service, credentials)` | describe/resolve split |
 | `cordis_inspect_query(host, Service, fs)` | capability gap (no mkdir/unlink) |
-| `cordis_inspect_query(host, Service, skills)` | `snapshot`/`list`/`get`, `SkillSummary`, no digest |
+| `cordis_inspect_query(host, Service, skills)` | `snapshot`/`list`/`get`/`register`, `SkillRegistration`, no digest |
+| Live `dsh-env-manager` registration | Skill catalog gained `dsh-env-manager`; `skill` tool loaded its content |
 | `cordis_inspect_query(host, Service, webServer)` | route registration, origin |
 | `cordis_inspect_query(client, Slots, listSubTree)` | slot topology and registration fields |
 | `cordis_inspect_query(client, Builtin, listBuiltins)` | dynamic-half builtins (`host.call`) |

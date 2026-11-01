@@ -11,11 +11,17 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 48 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 50 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
 in [`client-ui-integration.md`](../02-harness/client-ui-integration.md).
+
+The plugin also registers a profile-wide **discovery Skill** named `dsh-env-manager` via
+`ctx.skills.register()`. Its catalog entry makes the registry discoverable from any
+workspace in the same profile; its full workflow body loads only on invocation. It is a
+discovery/usage Skill, not an execution Skill or operation binding, and it is removed
+when the plugin is disabled or uninstalled. `config.registerSkill` defaults to `true`.
 
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
@@ -100,7 +106,7 @@ Documentation and repository:
   - [x] `module-boundaries.md` — ownership and dependency direction
   - [x] `ui-design.md` — panel layout, transport, states, i18n, QA checklist
   - [x] `security-model.md` — credentials, approval, HTTP controls, redaction
-  - [x] `api-verification.md` — verified runtime facts F1–F20 and probes V1–V8
+  - [x] `api-verification.md` — verified runtime facts F1–F21 and probes V1–V8
   - [x] `implementation-plan.md` — ordered tasks T01–T24, acceptance, cut line
   - [x] ADR-0001 … ADR-0011
 
@@ -113,6 +119,7 @@ Code:
 - [x] Context resolver
 - [x] Rule resolver with provenance
 - [x] Operation Skill router
+- [x] Profile-wide discovery Skill (`dsh-env-manager`) registered through `ctx.skills.register()`
 - [x] Session context store
 - [x] Application service (`app`)
 - [x] Read tools
@@ -133,7 +140,7 @@ Code:
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (48 passing)
+- [x] Tests (50 passing)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints

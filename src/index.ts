@@ -4,6 +4,7 @@ import { Config, normalizeConfig } from './config.js'
 import { consoleLogger } from './logger.js'
 import { resolveDataDir } from './storage/paths.js'
 import { cleanupTempFiles } from './storage/atomic.js'
+import { createEnvironmentManagerSkill } from './skill.js'
 import { createToolDefinitions } from './tools/tools.js'
 import { registerHttpTransport } from './transport/http.js'
 
@@ -16,6 +17,7 @@ export { Config }
 export interface ApplyConfig {
   dataDir?: string
   maxRecords?: number
+  registerSkill?: boolean
   writePolicy?: {
     allowUiProductionWrites?: boolean
     requireApprovalForDelete?: boolean
@@ -94,7 +96,21 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
       disposeTools.push(ctx.tools.register(definition))
     }
     const disposeHttp = registerHttpTransport(ctx, app, consoleLogger)
+
+    let disposeSkill: (() => void) | undefined
+    if (normalized.registerSkill && skills && typeof skills.register === 'function') {
+      try {
+        disposeSkill = skills.register(createEnvironmentManagerSkill())
+        consoleLogger.debug('Registered discovery skill dsh-env-manager')
+      } catch (error) {
+        consoleLogger.warn(
+          `Could not register discovery skill: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
+
     return () => {
+      disposeSkill?.()
       for (const dispose of disposeTools.splice(0)) dispose()
       disposeHttp()
     }

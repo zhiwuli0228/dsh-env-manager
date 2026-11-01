@@ -39,6 +39,7 @@ import z from '@deepseek-ai/schemastery'
 export const Config = z.object({
   dataDir: z.string().description('Registry directory; relative paths resolve against the profile directory.'),
   maxRecords: z.natural().default(2000),
+  registerSkill: z.boolean().default(true),
   writePolicy: z.object({
     allowUiProductionWrites: z.boolean().default(false),
     requireApprovalForDelete: z.boolean().default(true),
@@ -54,6 +55,7 @@ export const Config = z.object({
 |---|---|---|
 | `dataDir` | profile data dir | Registry root; see §4.1 |
 | `maxRecords` | 2000 | hard cap per record kind; exceeding it fails a write |
+| `registerSkill` | true | register the profile-wide `dsh-env-manager` discovery Skill |
 | `writePolicy.allowUiProductionWrites` | false | allow the HTTP API to write production records |
 | `writePolicy.requireApprovalForDelete` | true | `env_delete` asks the human first |
 | `writePolicy.requireApprovalForProductionSave` | true | `env_save` on a production environment asks first |

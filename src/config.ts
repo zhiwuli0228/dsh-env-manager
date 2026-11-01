@@ -9,6 +9,10 @@ export const Config = z.object({
     .default('')
     .description('Registry directory; relative paths resolve against the profile directory.'),
   maxRecords: z.natural().default(2000),
+  registerSkill: z
+    .boolean()
+    .default(true)
+    .description('Register the profile-wide dsh-env-manager discovery Skill.'),
   writePolicy: z
     .object({
       allowUiProductionWrites: z.boolean().default(false),
@@ -26,6 +30,7 @@ export const Config = z.object({
 export type HostConfig = {
   dataDir: string
   maxRecords: number
+  registerSkill: boolean
   writePolicy: {
     allowUiProductionWrites: boolean
     requireApprovalForDelete: boolean
@@ -41,6 +46,7 @@ export function normalizeConfig(config: unknown): HostConfig {
   return {
     dataDir: parsed.dataDir ?? '',
     maxRecords: parsed.maxRecords ?? 2000,
+    registerSkill: parsed.registerSkill ?? true,
     writePolicy: {
       allowUiProductionWrites: parsed.writePolicy?.allowUiProductionWrites ?? false,
       requireApprovalForDelete: parsed.writePolicy?.requireApprovalForDelete ?? true,

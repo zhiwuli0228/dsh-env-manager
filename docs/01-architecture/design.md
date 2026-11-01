@@ -103,13 +103,36 @@ These DSH services are verified in [api-verification.md](./api-verification.md):
 | `ctx.tools` | register Agent tools (F2–F5) |
 | `ctx.credentials` | `describe(ref)` for status only; `resolve` is never called (F8) |
 | `ctx.approval` | request confirmation for management writes that affect production (F7) |
-| `ctx.skills` | `snapshot()` for Skill availability; no digest (F20) |
+| `ctx.skills` | `snapshot()` for Skill availability; `register()` for the bundled discovery Skill (F20–F21) |
 | `ctx.webServer` | register the plugin HTTP route for the Client (F12) |
 | `profileContext` | `dir` for the default data directory (F10) |
 | Node `fs` | atomic writes and deletes under `dataDir`; `ctx.fs` lacks mkdir/unlink (F9) |
 
 Skill availability degrades to `available: 'unknown'` with `SKILL_REGISTRY_UNAVAILABLE`
 when the catalog is absent or incomplete, rather than silently passing.
+
+### 3.3 Bundled discovery Skill
+
+The Host registers one runtime Skill named `dsh-env-manager` through
+`ctx.skills.register()`. It is **not** an execution Skill and **not** an operation
+binding:
+
+- The registration lives in the plugin's unscoped `apply()` context, so it enters the
+  global Skill layer and is visible to every workspace in the same DSH profile. No
+  workspace `SKILL.md` is required.
+- Its catalog entry is the discovery surface: name, description and `whenToUse`. The full
+  workflow body is loaded only when the model or user invokes the Skill.
+- The workflow walks `env_find` → `env_set_context` → `env_resolve` →
+  `env_resolve_operation`; it does not execute anything.
+- The registration is disposed with the plugin fiber, so disabling or uninstalling the
+  plugin also removes the Skill.
+- `config.registerSkill` (default `true`) can suppress the entry for installations that
+  do not want it.
+- The plugin does not inject a global system-prompt section. Discovery stays in the
+  Skill catalog to avoid imposing environment-manager instructions on unrelated
+  sessions.
+- `ctx.skills` may be unavailable in a minimal Host; the plugin keeps its tools and panel
+  and simply skips Skill registration.
 
 ---
 

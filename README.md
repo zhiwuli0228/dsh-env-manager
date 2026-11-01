@@ -15,6 +15,9 @@ Works in DSH Web and Desktop.
 - **Rule Resolver** — layered, field-level overrides with full provenance: every value explains where it came from and what influenced it.
 - **Operation Skill Router** — maps an operation (deploy, redeploy, collect-logs, …) to exactly one bound Skill, detecting conflicts and enforcing approval policy.
 - **Session Context** — a per-session default environment that never leaks into another session.
+- **Discovery Skill** — a profile-wide `dsh-env-manager` Skill registers with the plugin and
+  makes the registry discoverable from any workspace in the same profile; its full workflow
+  loads only when invoked.
 - **Memory Bridge** — a contract for feeding scoped, redacted operation records into the DSH memory plugin (P1).
 
 ## Status
@@ -22,7 +25,7 @@ Works in DSH Web and Desktop.
 **Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
 implemented and installed in the `desktop` profile.**
 
-- 48 Vitest tests pass; `npm run build` emits `lib/`.
+- 50 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
