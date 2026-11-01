@@ -58,6 +58,47 @@ implemented and installed in the `desktop` profile.**
   V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
 
+## How agents discover the registry
+
+The plugin ships a **discovery Skill** named `dsh-env-manager` as part of the same bundle.
+It is not a separate `SKILL.md`, and it is not installed separately.
+
+How it works:
+
+1. `apply()` registers the Skill through `ctx.skills.register()` from the plugin's
+   unscoped context. DSH files it into the global Skill layer for the current profile.
+2. The Skill catalog carries only the name, description and `whenToUse`. That description
+   is the **proactive mention** that lets a new workspace discover the registry.
+3. The full workflow body is loaded only when the model or user invokes the Skill. It tells
+   the agent to use `env_list` / `env_find` first, then `env_set_context`, `env_resolve`,
+   and `env_resolve_operation`.
+4. The plugin does **not** inject a global system-prompt section. Unrelated coding sessions
+   do not receive environment-manager instructions.
+5. The registration is created inside the plugin effect, so disabling or uninstalling the
+   plugin also removes the Skill.
+6. `registerSkill: false` in the plugin config suppresses the entry without affecting the
+   tools or panel.
+
+Scope and limits:
+
+- **Same DSH profile:** every workspace, including a new empty one, sees the Skill in its
+  catalog; no workspace `AGENTS.md` is required. This was verified from an empty temporary
+  workspace.
+- **Different profile or machine:** the Skill is not shared; install the bundle there.
+- The Skill is **discovery, not execution**. It does not deploy, restart or collect logs.
+  Those actions still need an `operationBinding` that points to an execution Skill.
+- A catalog entry is a trigger surface, not a hard guarantee. Critical operations must still
+  be enforced in the execution Skill or tool layer.
+- Because the Skill is registered by the plugin, its content is versioned with the plugin;
+  there is no workspace copy to drift.
+
+The plugin's own tools remain registered independently of this Skill. The Skill only makes
+the registry discoverable and explains the intended workflow.
+
+> 中文：`dsh-env-manager` 随插件一起注册，**不单独安装**；同一 DSH profile 下的所有工作区
+> 都能在 Skill 目录看到它，正文按需加载；**不注入全局系统提示**。它只负责发现和指导，
+> 不执行部署/重启；真正的执行仍由 `operationBinding` 指向的执行 Skill 完成。
+
 ## Add an environment
 
 1. Open **环境管理器** (Environment Manager); it opens on the **环境 (Environments)** tab.
@@ -111,7 +152,17 @@ target: <absolute path to this repository>
 
 Then restart DSH if the bundle was already installed.
 
-To remove it, call `plugin_manager` with `action: remove_bundle` and `target: dsh-env-manager`.
+The bundle includes the `dsh-env-manager` discovery Skill; there is no separate Skill
+installation step. To suppress only the Skill catalog entry, set `config.registerSkill`
+to `false` while keeping the tools and panel:
+
+```yaml
+config:
+  registerSkill: false
+```
+
+To remove the whole plugin, call `plugin_manager` with `action: remove_bundle` and
+`target: dsh-env-manager`.
 
 Registry data is created on first run under the resolved `dataDir`; it is not part of the repository.
 
@@ -125,6 +176,7 @@ dsh-env-manager/
 ├── package.json          # Bundle manifest
 ├── tsconfig.json         # Host build config (V1)
 ├── src/                  # TypeScript Host sources (V1)
+│   └── skill.ts          # bundled profile-wide discovery Skill
 ├── lib/                  # Build output (git-ignored)
 ├── locale/               # en.json, zh.json
 ├── icon.svg

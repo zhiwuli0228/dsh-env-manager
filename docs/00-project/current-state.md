@@ -120,6 +120,7 @@ Code:
 - [x] Rule resolver with provenance
 - [x] Operation Skill router
 - [x] Profile-wide discovery Skill (`dsh-env-manager`) registered through `ctx.skills.register()`
+- [x] README documents the bundled Skill lifecycle, scope, opt-out and execution boundary
 - [x] Session context store
 - [x] Application service (`app`)
 - [x] Read tools
