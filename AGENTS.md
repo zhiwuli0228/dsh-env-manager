@@ -56,6 +56,11 @@ For runtime API or Client transport questions, also read:
 2. `docs/01-architecture/decisions/ADR-0009-client-host-http-transport.md`
 3. `docs/01-architecture/ui-design.md`
 
+For sidebar, main-panel, or other Client slot changes, also read:
+
+1. `docs/02-harness/client-ui-integration.md`
+2. `docs/01-architecture/ui-design.md` §3.1
+
 For OpenSpec work, also read:
 
 1. `docs/03-openspec/proposal-rule.md`

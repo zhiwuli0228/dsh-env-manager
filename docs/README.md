@@ -39,6 +39,7 @@ Also read:
 
 1. `docs/01-architecture/implementation-plan.md`
 2. `docs/01-architecture/ui-design.md` (Client changes only)
+3. `docs/02-harness/client-ui-integration.md` (sidebar/main slot changes only)
 
 ### Tool Surface Changes
 

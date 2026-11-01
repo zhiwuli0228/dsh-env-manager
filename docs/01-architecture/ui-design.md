@@ -25,8 +25,8 @@ execution button. Every screen answers one question and offers one write action.
 
 ```text
 Sidebar
-└── Environment Manager  (id: env-manager, order 40)
-    └── main panel (key: env-manager)
+└── Environment Manager  (id: dsh-env-manager, order 40)
+    └── main panel (key: dsh-env-manager)
         ├── Overview
         ├── Environments
         ├── Services
@@ -41,6 +41,60 @@ Sidebar
 Sections are a vertical tab strip inside the panel, not separate sidebar entries. The
 sidebar entry is the only global surface; the panel fills the same region as
 `conversation`.
+
+### 3.1 Sidebar slot contract
+
+The sidebar is a host-owned list slot, not a free-form navigation area. The entry must
+follow the installed `sidebar.panellist` contract (verified against
+`@deepseek-ai/dsh-client-ui-sidebar` in this runtime). The full reusable contract is in
+[`client-ui-integration.md`](../02-harness/client-ui-integration.md); the project-specific
+rules are:
+
+1. Register a list entry on the root context:
+
+   ```js
+   ctx.slots.inject('sidebar.panellist', () =>
+     ctx.slots.register({
+       name: 'sidebar.panellist',
+       id: 'dsh-env-manager',
+       order: 40,
+       label: () => t('title'), // thunk: re-read on every locale projection
+     }, SidebarGlyph),
+   )
+   ```
+
+   `name` names the slot for the registration; `id` is the row key and must equal the
+   `main` key. `label` is the row text and tooltip; use a thunk so a language switch does
+   not require re-registration. Do not register a second entry for panel sections.
+
+2. The owner renders the second registration argument inside its own
+   `span.panelGlyph` and passes exactly `{ size, active }`:
+   - `size` is `16` when the sidebar is wide and `18` in the collapsed rail;
+   - `active` is the selected-page state.
+
+   The glyph must render an inline `<svg>` with `viewBox="0 0 20 20"`,
+   `width={size}`, `height={size}`, `fill="none"`, and `stroke="currentColor"`.
+   Use `opacity: 0.72` when `active === false`; do not set a fixed pixel size,
+   background, border, radius, margin, or padding. The host row already supplies the
+   button, hit area, hover, focus, tooltip, and `aria-current`.
+
+3. The glyph is decorative: set `aria-hidden="true"` and do not put an `aria-label` or
+   tooltip on it. The row button owns the accessible name from `label`.
+
+4. Register the page under `main` on the root context with the same key:
+
+   ```js
+   ctx.slots.inject('main', () =>
+     ctx.slots.register({ name: 'main', key: 'dsh-env-manager', inject: () => ({}) }, Panel),
+   )
+   ```
+
+   A sidebar id without a matching `main` key opens an empty page; a `main` key without
+   the sidebar id is unreachable.
+
+5. Keep the glyph monochrome. Brand color belongs to `icon.svg` (the plugin-manager
+   card), not to the sidebar row; the sidebar uses host `currentColor` so light and dark
+   themes stay consistent with shipped icons.
 
 The bundle page (`plugins.bundle.config`, keyed `dsh-env-manager`) shows a read-only
 summary: version, `dataDir`, record counts, last load time, warning count. It links to
@@ -297,7 +351,8 @@ const S = {
 }
 ```
 
-- No inline hex colors except the icon's own brand mark.
+- No inline hex colors except the plugin-manager `icon.svg` brand mark. The sidebar
+  glyph uses `currentColor` only, so it follows the host theme.
 - Radius 8, spacing multiples of 4, body 13 px, mono 12 px.
 - Hover uses `--dsw-alias-bg-layer-2`; focus ring uses `--dsw-alias-brand-primary`.
 
@@ -331,7 +386,10 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 
 ## 12. Manual QA checklist
 
-- [ ] Sidebar icon appears once and selects the panel.
+- [ ] Sidebar icon appears once, at 16 px wide / 18 px collapsed, in `currentColor`,
+      with no filled background, and selects the panel.
+- [ ] The sidebar row shows one label, aligned with the shipped rows, and the active
+      row uses the host highlight rather than plugin-provided styling.
 - [ ] Panel renders with an empty `dataDir` and with 20 records.
 - [ ] Search finds by id, name and alias.
 - [ ] Create → save → list → reopen preserves all values (comments are dropped because

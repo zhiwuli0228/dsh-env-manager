@@ -14,7 +14,7 @@ describe('client module', () => {
     await import('../../client.js')
     expect(loaded?.id).toBe('dsh-env-manager')
     const React = {
-      createElement: () => null,
+      createElement: (type: unknown, props: any, ...children: unknown[]) => ({ type, props, children }),
       useState: () => [undefined, () => undefined],
       useEffect: () => undefined,
       useCallback: (fn: unknown) => fn,
@@ -54,5 +54,23 @@ describe('client module', () => {
     expect(registrations[1].options.inject()).toEqual({})
     expect(typeof registrations[0].component).toBe('function')
     expect(typeof registrations[1].component).toBe('function')
+
+    const glyph = registrations[0].component({ size: 16, active: false })
+    expect(glyph.type).toBe('svg')
+    expect(glyph.props).toMatchObject({
+      viewBox: '0 0 20 20',
+      width: 16,
+      height: 16,
+      fill: 'none',
+      'aria-hidden': true,
+    })
+    expect(glyph.props.style).toMatchObject({ opacity: 0.72, color: 'currentColor' })
+    expect(glyph.props.style).not.toHaveProperty('background')
+    expect(glyph.props.style).not.toHaveProperty('backgroundColor')
+    expect(registrations[0].component({ size: 18, active: true }).props).toMatchObject({
+      width: 18,
+      height: 18,
+      style: { opacity: 1 },
+    })
   })
 })

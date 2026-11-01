@@ -346,17 +346,59 @@ window.__ModuleLoader__.load({
         result ? h('pre', { style: styles.pre }, JSON.stringify(result, null, 2)) : null);
     }
 
-    function EnvManagerIcon() {
+    function EnvManagerIcon(props) {
+      const size =
+        typeof props?.size === 'number' && Number.isFinite(props.size) && props.size > 0
+          ? props.size
+          : 20;
       return h('svg', {
-        viewBox: '0 0 64 64',
-        width: 48,
-        height: 48,
+        viewBox: '0 0 20 20',
+        width: size,
+        height: size,
+        fill: 'none',
         'aria-hidden': true,
-        style: { display: 'block', pointerEvents: 'none' },
+        style: {
+          display: 'block',
+          opacity: props?.active === false ? 0.72 : 1,
+          color: 'currentColor',
+        },
       }, [
-        h('rect', { key: 'bg', x: 2, y: 2, width: 60, height: 60, rx: 14, fill: '#0f766e' }),
-        h('path', { key: 'stack', d: 'M18 20h28v8H18zm0 12h28v8H18z', fill: '#ffffff' }),
-        h('circle', { key: 'dot', cx: 44, cy: 46, r: 6, fill: '#99f6e4' }),
+        h('rect', {
+          key: 'top',
+          x: 2.6,
+          y: 3.2,
+          width: 14.8,
+          height: 5.4,
+          rx: 1.6,
+          stroke: 'currentColor',
+          strokeWidth: 1.3,
+        }),
+        h('rect', {
+          key: 'bottom',
+          x: 2.6,
+          y: 11.4,
+          width: 14.8,
+          height: 5.4,
+          rx: 1.6,
+          stroke: 'currentColor',
+          strokeWidth: 1.3,
+        }),
+        h('circle', { key: 'top-dot', cx: 5.7, cy: 5.9, r: 0.9, fill: 'currentColor' }),
+        h('circle', { key: 'bottom-dot', cx: 5.7, cy: 14.1, r: 0.9, fill: 'currentColor' }),
+        h('path', {
+          key: 'top-line',
+          d: 'M8.6 5.9h5.8',
+          stroke: 'currentColor',
+          strokeWidth: 1.3,
+          strokeLinecap: 'round',
+        }),
+        h('path', {
+          key: 'bottom-line',
+          d: 'M8.6 14.1h5.8',
+          stroke: 'currentColor',
+          strokeWidth: 1.3,
+          strokeLinecap: 'round',
+        }),
       ]);
     }
 

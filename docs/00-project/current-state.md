@@ -12,7 +12,10 @@ storage, registry, resolver, router, session store, application service, ten too
 same-origin HTTP API are in place, with 34 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The Host
 tools answer in this session, the HTTP API returns `200` for `meta`, and a
-save/list/remove round-trip through the panel transport succeeded. Visual layout and
+save/list/remove round-trip through the panel transport succeeded. The sidebar glyph now
+follows the host `sidebar.panellist` contract: it honors the owner's `size`/`active`
+props and renders monochrome with `currentColor`; the contract is recorded in
+[`client-ui-integration.md`](../02-harness/client-ui-integration.md). Visual layout and
 interaction QA in the browser is still pending.
 
 ## Implemented
