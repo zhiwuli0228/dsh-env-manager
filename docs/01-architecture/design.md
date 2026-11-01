@@ -565,7 +565,7 @@ Manifest contract:
 | `@deepseek-ai/schemastery` | `Config` schema | runtime |
 | `@deepseek-ai/dsh-tools` | `defineTool`, tool types | peer |
 | `@deepseek-ai/dsh-llm` | `HarnessError` | peer |
-| `cordis` | `Context` type (type-only) | peer, provided by the Host |
+| `@deepseek-ai/cordis` | `Context` type (type-only) | peer, provided by the Host |
 | `typescript` | build | dev |
 | `vitest` | tests | dev |
 

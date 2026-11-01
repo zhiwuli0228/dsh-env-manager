@@ -4,6 +4,11 @@
 > [`design.md`](design.md) and [`detailed-design.md`](detailed-design.md).
 > Every task ends with a build, its tests, and a documentation touch where behavior
 > changed. Do not reorder P1–P4: each later phase imports the previous one's types.
+>
+> Implementation snapshot (2026-11-01): T01, T03–T18 and the Client portion of T19–T22
+> are implemented; `npm run build` and 33 Vitest tests pass. T02 runtime probes, profile
+> installation, manual panel QA and the final smoke test remain. See
+> [`current-state.md`](../00-project/current-state.md).
 
 ## 1. Deliverable
 
@@ -47,7 +52,7 @@ Dependencies:
 |---|---|---|
 | `@deepseek-ai/dsh-tools` | peer + dev | `0.2.1-rc.5` |
 | `@deepseek-ai/dsh-llm` | peer + dev | `0.2.1-rc.5` |
-| `cordis` | peer + dev (type-only) | matching profile |
+| `@deepseek-ai/cordis` | peer + dev (type-only) | `~4.0.5` |
 | `@deepseek-ai/schemastery` | dependency | `^3.18.5` |
 | `zod` | dependency | `^4` |
 | `yaml` | dependency | `^2` |

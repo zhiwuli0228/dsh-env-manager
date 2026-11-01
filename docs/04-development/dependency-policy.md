@@ -13,7 +13,7 @@ Keep the set minimal and justified:
 Anything else needs a proposal that explains why the standard library and the three
 packages above are insufficient.
 
-DSH-provided packages (`@deepseek-ai/dsh-tools`, `@deepseek-ai/dsh-llm`, `cordis`) are
+DSH-provided packages (`@deepseek-ai/dsh-tools`, `@deepseek-ai/dsh-llm`, `@deepseek-ai/cordis`) are
 peers, supplied by the profile; never bundle them.
 
 ## Development dependencies

@@ -1,0 +1,496 @@
+import { z } from 'zod'
+import { ID_PATTERN, PARAMETER_KEY_PATTERN, SCHEMA_VERSION, WRITE_OPERATIONS } from './constants.js'
+import type {
+  AnyRecord,
+  Environment,
+  RecordKind,
+  RuntimeMode,
+} from './types.js'
+
+export interface RecordIssue {
+  path: string
+  message: string
+}
+
+export type ParseResult<T extends AnyRecord = AnyRecord> =
+  | { ok: true; record: T }
+  | { ok: false; issues: RecordIssue[] }
+
+type Mode = 'read' | 'write'
+type Shape = z.ZodRawShape
+
+const idSchema = z.string().regex(ID_PATTERN, 'Must match ^[a-z0-9][a-z0-9-]{0,62}$')
+const runtimeModeSchema = z.enum(['native', 'docker', 'kubernetes'])
+const timestampSchema = z
+  .string()
+  .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be an ISO-8601 timestamp')
+
+const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
+
+function o(shape: Shape, mode: Mode) {
+  return mode === 'read' ? z.looseObject(shape) : z.strictObject(shape)
+}
+
+function metaShape(input: boolean): Shape {
+  return {
+    id: idSchema,
+    schemaVersion: z.literal(SCHEMA_VERSION),
+    createdAt: input ? timestampSchema.optional() : timestampSchema,
+    updatedAt: input ? timestampSchema.optional() : timestampSchema,
+  }
+}
+
+function logSourceSchema(mode: Mode) {
+  return z.discriminatedUnion('kind', [
+    o({ kind: z.literal('file'), path: z.string().min(1) }, mode),
+    o({ kind: z.literal('container-stdout'), container: z.string().min(1) }, mode),
+    o(
+      {
+        kind: z.literal('pod-logs'),
+        namespace: z.string().min(1),
+        workload: z.string().min(1),
+      },
+      mode,
+    ),
+  ])
+}
+
+function classLocationSchema(mode: Mode) {
+  return o(
+    {
+      kind: z.enum(['build-output', 'deployed-dir', 'jar-entry']),
+      path: z.string().min(1),
+      entryPrefix: z.string().optional(),
+    },
+    mode,
+  )
+}
+
+function ruleOverrideSchema(mode: Mode) {
+  return o(
+    {
+      variables: z.record(z.string().min(1), scalarSchema).optional(),
+      paths: z.record(z.string().min(1), z.string()).optional(),
+      logSources: z
+        .object({
+          native: logSourceSchema(mode).optional(),
+          docker: logSourceSchema(mode).optional(),
+          kubernetes: logSourceSchema(mode).optional(),
+        })
+        .optional(),
+      classLocations: z
+        .object({
+          native: classLocationSchema(mode).optional(),
+          docker: classLocationSchema(mode).optional(),
+          kubernetes: classLocationSchema(mode).optional(),
+        })
+        .optional(),
+    },
+    mode,
+  )
+}
+
+function environmentFields(mode: Mode): Shape {
+  return {
+    name: z.string().min(1),
+    aliases: z.array(z.string().min(1)).default([]),
+    category: z.enum(['dev', 'test', 'staging', 'production', 'custom']),
+    description: z.string().optional(),
+    roles: z
+      .array(
+        o(
+          {
+            id: z.string().min(1),
+            name: z.string().min(1),
+            description: z.string().optional(),
+          },
+          mode,
+        ),
+      )
+      .default([]),
+    hosts: z
+      .array(
+        o(
+          {
+            id: z.string().min(1),
+            name: z.string().min(1),
+            os: z.string().optional(),
+            ip: z.string().optional(),
+            sshPort: z.number().int().min(1).max(65535).optional(),
+            roles: z.array(z.string().min(1)).default([]),
+            credentialRef: z.string().min(1).optional(),
+            note: z.string().optional(),
+          },
+          mode,
+        ),
+      )
+      .default([]),
+    clusters: z
+      .array(
+        o(
+          {
+            id: z.string().min(1),
+            name: z.string().min(1),
+            kind: z.enum(['kubernetes', 'docker']),
+            apiEndpoint: z.string().optional(),
+            namespaces: z.array(z.string().min(1)).optional(),
+            credentialRef: z.string().min(1).optional(),
+            note: z.string().optional(),
+          },
+          mode,
+        ),
+      )
+      .default([]),
+    endpoints: z
+      .array(
+        o(
+          {
+            id: z.string().min(1),
+            kind: z.enum(['ssh', 'web', 'k8s-api', 'docker', 'custom']),
+            hostRef: z.string().min(1).optional(),
+            clusterRef: z.string().min(1).optional(),
+            url: z.string().optional(),
+            port: z.number().int().min(1).max(65535).optional(),
+            credentialRef: z.string().min(1).optional(),
+            note: z.string().optional(),
+          },
+          mode,
+        ),
+      )
+      .default([]),
+    ruleOverrides: ruleOverrideSchema(mode).optional(),
+  }
+}
+
+function serviceFields(mode: Mode): Shape {
+  return {
+    name: z.string().min(1),
+    aliases: z.array(z.string().min(1)).default([]),
+    category: z.string().min(1),
+    description: z.string().optional(),
+    git: o(
+      {
+        url: z.string().min(1),
+        defaultBranch: z.string().min(1).default('main'),
+        modulePath: z.string().optional(),
+      },
+      mode,
+    ),
+    build: o(
+      {
+        tool: z.enum(['maven', 'gradle', 'npm', 'custom']),
+        command: z.string().optional(),
+      },
+      mode,
+    ).optional(),
+    artifact: o(
+      {
+        name: z.string().min(1),
+        path: z.string().optional(),
+      },
+      mode,
+    ).optional(),
+    deployModes: z.array(runtimeModeSchema).min(1),
+    ruleProfileRefs: z.array(z.string().min(1)).default([]),
+  }
+}
+
+function deploymentFields(mode: Mode): Shape {
+  const native = o(
+    {
+      kind: z.literal('native'),
+      hostRef: z.string().min(1),
+      installDir: z.string().optional(),
+      serviceName: z.string().optional(),
+      processMatch: z.string().optional(),
+    },
+    mode,
+  )
+  const docker = o(
+    {
+      kind: z.literal('docker'),
+      hostRef: z.string().min(1),
+      containerName: z.string().optional(),
+      image: z.string().optional(),
+      volumes: z.array(z.string()).optional(),
+    },
+    mode,
+  )
+  const kubernetes = o(
+    {
+      kind: z.literal('kubernetes'),
+      clusterRef: z.string().min(1),
+      namespace: z.string().min(1),
+      workload: o(
+        {
+          kind: z.enum(['Deployment', 'StatefulSet', 'DaemonSet', 'CronJob', 'Pod']),
+          name: z.string().min(1),
+        },
+        mode,
+      ),
+      container: z.string().optional(),
+    },
+    mode,
+  )
+  return {
+    name: z.string().optional(),
+    environmentId: z.string().min(1),
+    serviceId: z.string().min(1),
+    runtimeMode: runtimeModeSchema,
+    location: z.discriminatedUnion('kind', [native, docker, kubernetes]),
+    variables: z.record(z.string().min(1), scalarSchema).optional(),
+    ruleOverrides: ruleOverrideSchema(mode).optional(),
+  }
+}
+
+function ruleProfileFields(mode: Mode): Shape {
+  return {
+    name: z.string().optional(),
+    description: z.string().optional(),
+    variables: z.record(z.string().min(1), scalarSchema).optional(),
+    paths: z.record(z.string().min(1), z.string()).optional(),
+    logSources: z
+      .object({
+        native: logSourceSchema(mode).optional(),
+        docker: logSourceSchema(mode).optional(),
+        kubernetes: logSourceSchema(mode).optional(),
+      })
+      .optional(),
+    classLocations: z
+      .object({
+        native: classLocationSchema(mode).optional(),
+        docker: classLocationSchema(mode).optional(),
+        kubernetes: classLocationSchema(mode).optional(),
+      })
+      .optional(),
+  }
+}
+
+function operationBindingFields(mode: Mode): Shape {
+  return {
+    operation: z.string().min(1),
+    match: o(
+      {
+        environmentId: z.string().min(1).optional(),
+        serviceId: z.string().min(1).optional(),
+        deploymentId: z.string().min(1).optional(),
+        deploymentMode: runtimeModeSchema.optional(),
+        serviceCategory: z.string().min(1).optional(),
+      },
+      mode,
+    ),
+    skill: o(
+      {
+        name: z.string().min(1),
+        expectedSource: z.string().min(1).nullable().optional(),
+        expectedProvider: z.string().min(1).nullable().optional(),
+      },
+      mode,
+    ),
+    parameters: z.record(z.string().regex(PARAMETER_KEY_PATTERN), scalarSchema).optional(),
+    policy: o(
+      {
+        requiresApproval: z.boolean().default(true),
+        allowProduction: z.boolean().default(false),
+      },
+      mode,
+    ),
+    enabled: z.boolean().default(true),
+  }
+}
+
+function fieldsOf(kind: RecordKind, mode: Mode): Shape {
+  switch (kind) {
+    case 'environment':
+      return environmentFields(mode)
+    case 'service':
+      return serviceFields(mode)
+    case 'deployment':
+      return deploymentFields(mode)
+    case 'ruleProfile':
+      return ruleProfileFields(mode)
+    case 'operationBinding':
+      return operationBindingFields(mode)
+  }
+}
+
+export function matchShape(match: Record<string, unknown>): string | null {
+  const keys = Object.keys(match).filter((key) => match[key] !== undefined)
+  const has = (key: string) => keys.includes(key)
+  if (has('deploymentId')) {
+    const allowed = new Set(['deploymentId', 'environmentId', 'serviceId'])
+    return keys.every((key) => allowed.has(key)) ? 'deployment' : null
+  }
+  if (has('environmentId') && has('serviceId')) {
+    const allowed = new Set(['environmentId', 'serviceId'])
+    return keys.every((key) => allowed.has(key)) ? 'environment-service' : null
+  }
+  if (has('serviceId')) {
+    return keys.length === 1 ? 'service' : null
+  }
+  if (has('serviceCategory') && has('deploymentMode')) {
+    return keys.length === 2 ? 'category-mode' : null
+  }
+  if (keys.length === 0) return 'global'
+  return null
+}
+
+function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.RefinementCtx) {
+  const add = (path: string, message: string) =>
+    ctx.addIssue({ code: 'custom', message, path: path ? path.split('.') : [] })
+
+  const unique = (items: Array<{ id: string }>, label: string, path: string) => {
+    const seen = new Set<string>()
+    for (const [index, item] of items.entries()) {
+      if (seen.has(item.id)) add(`${path}[${index}].id`, `Duplicate ${label} id "${item.id}"`)
+      seen.add(item.id)
+    }
+  }
+
+  if (kind === 'environment') {
+    const env = value as unknown as Environment
+    unique(env.roles ?? [], 'role', 'roles')
+    unique(env.hosts ?? [], 'host', 'hosts')
+    unique(env.clusters ?? [], 'cluster', 'clusters')
+    unique(env.endpoints ?? [], 'endpoint', 'endpoints')
+    const roleIds = new Set((env.roles ?? []).map((role) => role.id))
+    for (const [index, host] of (env.hosts ?? []).entries()) {
+      for (const role of host.roles) {
+        if (!roleIds.has(role)) add(`hosts[${index}].roles`, `Unknown role "${role}"`)
+      }
+    }
+    const seenIps = new Set<string>()
+    for (const [index, host] of (env.hosts ?? []).entries()) {
+      if (!host.ip) continue
+      if (seenIps.has(host.ip)) add(`hosts[${index}].ip`, `Duplicate host ip "${host.ip}"`)
+      seenIps.add(host.ip)
+    }
+    const hostIds = new Set((env.hosts ?? []).map((host) => host.id))
+    const clusterIds = new Set((env.clusters ?? []).map((cluster) => cluster.id))
+    for (const [index, endpoint] of (env.endpoints ?? []).entries()) {
+      if (endpoint.hostRef && !hostIds.has(endpoint.hostRef)) {
+        add(`endpoints[${index}].hostRef`, `Unknown host "${endpoint.hostRef}"`)
+      }
+      if (endpoint.clusterRef && !clusterIds.has(endpoint.clusterRef)) {
+        add(`endpoints[${index}].clusterRef`, `Unknown cluster "${endpoint.clusterRef}"`)
+      }
+    }
+  }
+
+  if (kind === 'deployment') {
+    const deployment = value as unknown as {
+      runtimeMode: RuntimeMode
+      location: { kind: RuntimeMode }
+    }
+    if (deployment.runtimeMode !== deployment.location.kind) {
+      add('location.kind', 'location.kind must equal runtimeMode')
+    }
+  }
+
+  if (kind === 'operationBinding') {
+    const binding = value as unknown as {
+      match: Record<string, unknown>
+      parameters?: Record<string, string | number | boolean>
+      operation: string
+      policy: { requiresApproval: boolean; allowProduction: boolean }
+    }
+    if (matchShape(binding.match) === null) {
+      add('match', 'match must be one of: deployment, environment-service, service, category-mode, global')
+    }
+    if (binding.parameters && Object.keys(binding.parameters).length > 50) {
+      add('parameters', 'At most 50 parameters are allowed')
+    }
+  }
+}
+
+const cache = new Map<string, z.ZodType>()
+
+function schemaFor(kind: RecordKind, mode: Mode, input: boolean) {
+  const key = `${kind}:${mode}:${input ? 'input' : 'record'}`
+  const cached = cache.get(key)
+  if (cached) return cached
+  const schema = o({ ...metaShape(input), ...fieldsOf(kind, mode) }, mode).superRefine(
+    (value, ctx) => crossCheck(kind, value as Record<string, unknown>, ctx),
+  )
+  cache.set(key, schema)
+  return schema
+}
+
+function issuesFrom(error: z.ZodError): RecordIssue[] {
+  return error.issues.slice(0, 50).map((issue) => ({
+    path: issue.path.map(String).join('.'),
+    message: issue.message,
+  }))
+}
+
+export function normalizeRecordInput(kind: RecordKind, raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw
+  const value = { ...(raw as Record<string, unknown>) }
+  switch (kind) {
+    case 'environment': {
+      value.aliases ??= []
+      value.roles ??= []
+      value.hosts ??= []
+      value.clusters ??= []
+      value.endpoints ??= []
+      break
+    }
+    case 'service': {
+      value.aliases ??= []
+      value.ruleProfileRefs ??= []
+      break
+    }
+    case 'ruleProfile':
+      break
+    case 'deployment':
+      break
+    case 'operationBinding': {
+      value.enabled ??= true
+      const existing = (value.policy ?? {}) as Record<string, unknown>
+      const operation = typeof value.operation === 'string' ? value.operation : ''
+      value.policy = {
+        requiresApproval: existing.requiresApproval ?? WRITE_OPERATIONS.has(operation),
+        allowProduction: existing.allowProduction ?? false,
+      }
+      break
+    }
+  }
+  return value
+}
+
+export function parseRecordInput(kind: RecordKind, raw: unknown): ParseResult {
+  const result = schemaFor(kind, 'write', true).safeParse(normalizeRecordInput(kind, raw))
+  if (!result.success) return { ok: false, issues: issuesFrom(result.error) }
+  return { ok: true, record: result.data as AnyRecord }
+}
+
+export function parseRecord(kind: RecordKind, raw: unknown): ParseResult {
+  const result = schemaFor(kind, 'write', false).safeParse(raw)
+  if (!result.success) return { ok: false, issues: issuesFrom(result.error) }
+  return { ok: true, record: result.data as AnyRecord }
+}
+
+export function parseRecordLoose(kind: RecordKind, raw: unknown): ParseResult {
+  const result = schemaFor(kind, 'read', false).safeParse(raw)
+  if (!result.success) return { ok: false, issues: issuesFrom(result.error) }
+  return { ok: true, record: result.data as AnyRecord }
+}
+
+export function withTimestamps<T extends { createdAt?: string; updatedAt?: string }>(
+  record: T,
+  previous?: { createdAt: string },
+  now = new Date().toISOString(),
+): T & { createdAt: string; updatedAt: string } {
+  return {
+    ...record,
+    createdAt: previous?.createdAt ?? record.createdAt ?? now,
+    updatedAt: now,
+  }
+}
+
+/** Top-level unknown keys, used for read-side `UNKNOWN_FIELD` warnings. */
+export function unknownTopLevelKeys(kind: RecordKind, raw: unknown): string[] {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return []
+  const allowed = new Set(Object.keys({ ...metaShape(false), ...fieldsOf(kind, 'read') }))
+  return Object.keys(raw).filter((key) => !allowed.has(key))
+}

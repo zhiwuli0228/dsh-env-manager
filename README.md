@@ -18,10 +18,15 @@ Works in DSH Web and Desktop.
 
 ## Status
 
-**V1 complete design; implementation not started.**
+**V1 implementation in progress — Host, tools, HTTP API, panel and tests are in place.**
 
-The design is implementation-ready and verified against the installed DSH runtime
-(`0.2.1-rc.5`):
+- 33 Vitest tests pass; `npm run build` emits `lib/`.
+- Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
+  are implemented.
+- Remaining: install smoke test in a profile, runtime probes V1–V8, manual panel QA.
+- No operation execution: routing returns the bound Skill and policy, it does not run it.
+
+Design references:
 
 - [`docs/01-architecture/design.md`](docs/01-architecture/design.md) — scope, algorithms,
   acceptance criteria;
@@ -31,9 +36,6 @@ The design is implementation-ready and verified against the installed DSH runtim
   ordered tasks and cut line;
 - [`docs/01-architecture/api-verification.md`](docs/01-architecture/api-verification.md) —
   runtime facts and remaining probes.
-
-The repository currently contains the DSH bundle skeleton (Host and Client entries). The
-V1 Host will be implemented in TypeScript under `src/` and compiled to `lib/`.
 
 ## Installation
 
@@ -87,11 +89,13 @@ Key documents:
 ## Development
 
 ```bash
-# Available once T01 adds the build and test scripts.
 npm install
 npm run build
 npm test
+npm run check
 ```
+
+`npm run check` runs the typecheck, the Vitest suite and `node --check client.js`.
 
 See [`docs/04-development/development-guide.md`](docs/04-development/development-guide.md).
 

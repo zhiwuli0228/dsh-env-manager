@@ -9,9 +9,12 @@ Aligned with the brainstorm (§9) and V1 design.
 - [x] V1 design suite written
 - [x] DSH runtime APIs verified (probes V1–V8 remain, tracked in `api-verification.md`)
 
-## V1 = P0: Registry and Context Resolution
+## V1 = P0: Registry and Context Resolution (implementation in progress)
 
 Goal: a working plugin that any session can query, with deterministic routing.
+
+Implemented: Host modules, ten tools, HTTP API, panel, 30 tests. Remaining: profile
+install smoke test, probes V1–V8, manual panel QA.
 
 Scope:
 

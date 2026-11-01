@@ -4,13 +4,15 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**V1 complete design; implementation not started.**
+**V1 implementation in progress — core Host, tools and tests are working; panel and
+install smoke test remain.**
 
-The design is now implementation-ready: runtime APIs were verified against the installed
-DSH release, the module contracts, tool schemas, HTTP transport, UI and build plan are
-written, and the remaining unknowns are tracked as probes rather than open design
-questions. The repository still contains the initial JavaScript bundle skeleton; it is
-replaced during V1 implementation (see ADR-0004 and the implementation plan).
+The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. The
+storage, registry, resolver, router, session store, application service, ten tools and
+same-origin HTTP API are in place, with 33 Vitest tests passing. The Client panel is
+implemented in `client.js`; it still needs manual QA in a live Web/Desktop session.
+Runtime probes V1–V8 are still pending because they require installing the bundle in the
+current profile.
 
 ## Implemented
 
@@ -40,21 +42,21 @@ Documentation and repository:
 
 Code:
 
-- [ ] TypeScript Host scaffold (`src/`, `tsconfig.json`)
-- [ ] Domain schemas and validators
-- [ ] Storage layer
-- [ ] Registry layer
-- [ ] Context resolver
-- [ ] Rule resolver with provenance
-- [ ] Operation Skill router
-- [ ] Session context store
-- [ ] Application service (`app`)
-- [ ] Read tools
-- [ ] Management tools
-- [ ] HTTP transport
-- [ ] Client configuration UI
-- [ ] Memory bridge contract and null adapter
-- [ ] Tests
+- [x] TypeScript Host scaffold (`src/`, `tsconfig.json`, build scripts)
+- [x] Domain schemas and validators
+- [x] Storage layer with atomic writes, backups and session files
+- [x] Registry layer with integrity diagnostics
+- [x] Context resolver
+- [x] Rule resolver with provenance
+- [x] Operation Skill router
+- [x] Session context store
+- [x] Application service (`app`)
+- [x] Read tools
+- [x] Management tools
+- [x] HTTP transport
+- [x] Client configuration UI (manual QA pending)
+- [x] Memory bridge contract and null adapter
+- [x] Tests (33 passing)
 
 ## Current Constraints
 
@@ -87,29 +89,20 @@ dsh-env-manager/
 
 ## Known Gaps
 
-- No TypeScript build yet.
-- No persistence yet.
-- No resolver, router or tool implementation.
-- No HTTP route.
-- No UI panels.
-- Runtime probes V1–V8 in `api-verification.md` §4 are planned, not yet executed
-  against this profile.
-- Memory bridge is a contract only.
+- Runtime probes V1–V8 in `api-verification.md` §4 are still pending; they require
+  installing this bundle in the current profile.
+- The Client panel has not been exercised in a live Web/Desktop session.
+- Memory bridge is a contract and null adapter only; no memory plugin is wired.
 - No cross-process write locking.
+- No operation execution: routing returns the Skill and policy, it does not run them.
+- The panel cannot write production records unless
+  `writePolicy.allowUiProductionWrites` is enabled.
 
 ## Next Recommended Work
 
-Follow `docs/01-architecture/implementation-plan.md`:
-
-1. **T01** — build skeleton: dependencies, `tsconfig.json`, scripts, `.gitignore`.
-2. **T02** — runtime probes V1–V8 and record results in `api-verification.md`.
-3. **T03** — domain schemas and tests.
-4. **T04** — storage with atomic writes and tests.
-5. **T05–T06** — registry and integrity checks.
-6. **T07–T08** — template engine, layering and provenance.
-7. **T09–T10** — router, Skill adapter, policy.
-8. **T11–T12** — session store and application service.
-9. **T13–T17** — the ten tools.
-10. **T18** — HTTP route.
-11. **T19–T22** — Client panel and manual QA.
-12. **T23–T24** — docs, install smoke test.
+1. **T02** — install the bundle and run probes V1–V8; record results in
+   `api-verification.md`.
+2. **T23** — manual panel QA: sidebar entry, list/get/save/delete, resolve, route,
+   diagnostics, production denial.
+3. **T24** — install smoke test and `current-state` update.
+4. P1 memory bridge and operation records.
