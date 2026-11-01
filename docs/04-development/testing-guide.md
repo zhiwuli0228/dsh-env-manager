@@ -25,8 +25,10 @@ tests/
 ├── router/match.test.ts
 ├── router/router.test.ts
 ├── session/session-context.test.ts
+├── app/app.test.ts
 ├── tools/read.test.ts
-└── tools/manage.test.ts
+├── tools/write.test.ts
+└── http/route.test.ts
 ```
 
 ## What to test
@@ -59,21 +61,35 @@ tests/
 - Each match level, in isolation and in combination.
 - Highest level wins; lower levels ignored.
 - Same-level conflict lists all candidates and selects none.
-- Missing skill, source mismatch, digest mismatch.
-- Unknown skill registry degrades to `'unknown'` plus warning.
+- Missing skill, source mismatch, provider mismatch.
+- Unknown/incomplete skill registry degrades to `'unknown'` plus warning.
 - Production denial and `requiresApproval` defaults.
 - Parameter mapping, including failure on unresolved reference.
 
 ### `session`
 - Set, get, clear.
 - Two sessions do not interfere.
-- Corrupt file falls back to memory with `persisted: false`.
+- Corrupt file is treated as "no default" with `persisted: false`.
+
+### `app`
+- Save→get round trip; `created` flag.
+- Delete refused when referenced (`RECORD_IN_USE`).
+- Dry-run writes nothing.
+- UI actor cannot write production by default.
+- `find` matches id, name and alias.
 
 ### `tools`
-- Result envelope shape for success and failure.
+- Success value matches the declared `output.schema`.
+- Failures throw `EnvManagerError` with the expected code.
 - No credential value ever appears in output (assert on serialized JSON).
 - Invalid id error code.
 - `env_validate` does not write.
+- Approval denial produces `POLICY_DENIED` and no file change.
+
+### `http`
+- Missing header → 403; foreign origin → 403; GET → 405; oversize → 413.
+- Unknown op → 400; not found → 404; conflict → 409; production UI write → 403.
+- Success envelope is `{ ok: true, data }` and never leaks a stack.
 
 ## Fixtures
 

@@ -12,8 +12,8 @@ match:
   deploymentMode: kubernetes
 skill:
   name: redeploy-k8s-service
-  expectedSource: null       # optional source constraint
-  expectedDigest: null       # optional digest constraint
+  expectedSource: null       # optional SkillSummary.source constraint
+  expectedProvider: null     # optional SkillSummary.provider constraint
 parameters:
   namespace: ${deployment.location.namespace}
   workload: ${deployment.location.workload.name}

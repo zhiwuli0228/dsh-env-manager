@@ -96,7 +96,7 @@ Higher levels win; same-level ties are conflicts.
 
 ## Skill Reference
 
-A pointer to a DSH Skill: name, optional expected source and digest.
+A pointer to a DSH Skill: name, optional expected source and provider.
 
 It is discovery information, not execution authorization.
 

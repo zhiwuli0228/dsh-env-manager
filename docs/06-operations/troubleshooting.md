@@ -58,7 +58,7 @@ Two enabled bindings match at the same level. Disable one, narrow one, or merge 
 
 ## `SKILL_UNAVAILABLE`
 
-The bound Skill is not registered, or its source/digest does not match. Install or correct the Skill; do not add a fallback binding that changes the environment silently.
+The bound Skill is not registered, or its source/provider does not match. Install or correct the Skill; do not add a fallback binding that changes the environment silently.
 
 ## `POLICY_DENIED`
 
@@ -66,7 +66,22 @@ Either the environment is production and the binding does not allow it, or an ap
 
 ## Session default is not remembered
 
-If the tool reports `persisted: false`, the state file could not be written. Check `dataDir` permissions and the `sessions/` directory. The in-memory value still works for the current session.
+If the tool reports `persisted: false`, the state file could not be written. Check `dataDir` permissions and the `sessions/` directory. The value is kept in a process-local cache, so it still works for this process but is lost on restart.
+
+## Panel says "Cannot reach the Host"
+
+1. Confirm the bundle is active and the Host is running.
+2. Reload the page; the panel uses a same-origin `POST /env-manager/api`.
+3. In the browser console, a 403 means the request header or origin check failed — this is the transport control, not a bug.
+4. A 404 means the route was not registered; reinstall the bundle after a Host rebuild.
+
+## Panel write is denied for a production record
+
+`writePolicy.allowUiProductionWrites` defaults to `false`. Edit the YAML through the Agent (`env_save`, with approval) or change the policy deliberately.
+
+## Panel shows "Unknown" skill availability
+
+The Skill catalog was absent or incomplete when the operation was resolved. Check that the Skill registry is available; the router never assumes a missing catalog means "available".
 
 ## Storage errors
 

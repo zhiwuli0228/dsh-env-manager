@@ -16,6 +16,7 @@ Status:      {status}
 
 - Git: {source.gitUrl} ({source.defaultBranch})
 - Module: {source.modulePath}
+- Artifact: {artifact.name} ({artifact.path})
 
 ## Location
 
@@ -37,7 +38,7 @@ Status:      {status}
 
 ## Credentials
 
-- {ref} — {status}
+- {ref} — configured: {configured} (source: {source})
 
 ## Diagnostics
 

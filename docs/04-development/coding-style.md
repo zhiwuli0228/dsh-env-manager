@@ -7,7 +7,8 @@
 - No `any` at module boundaries. Use `unknown` and validate.
 - Validate all external input (YAML, tool arguments) with Zod.
 - Prefer `readonly` for data that must not be mutated.
-- Return discriminated unions instead of throwing for expected failures:
+- Pure functions (`resolver`, `router`, `domain`) return discriminated unions for
+  expected failures:
 
 ```ts
 type ResolveResult =
@@ -15,7 +16,9 @@ type ResolveResult =
   | { ok: false; diagnostics: Diagnostic[] };
 ```
 
-- Throw only for programmer errors or unexpected I/O failure; catch at the tool boundary.
+- Tool and HTTP boundaries throw `EnvManagerError extends HarnessError`; they never
+  return an `{ ok: false }` value. Catch unexpected errors and wrap them as
+  `INTERNAL_ERROR` with a redacted message.
 - No floating promises. Await or return them.
 
 ## Purity
@@ -45,7 +48,8 @@ type ResolveResult =
 - ES modules; the artifact is the module-loader wrapper.
 - `React.createElement` (`h(...)`), no JSX.
 - No global side effects at module load beyond `load({...})`.
-- Register every slot, listener and style through `ctx.effect` and return cleanup.
+- Register slots with `ctx.slots.inject` (it owns cleanup); wrap any other listener or
+  disposable in `ctx.effect` and return its cleanup.
 - Route visible text through the client locale service.
 
 ## Formatting

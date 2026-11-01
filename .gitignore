@@ -10,6 +10,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# Runtime registry data (never commit environments, hosts or service topology)
+data/
+
 # DSH / Cordis runtime artifacts
 .dsh/
 *.patch.yml.bak

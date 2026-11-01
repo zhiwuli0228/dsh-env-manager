@@ -16,8 +16,11 @@ Operational rules for users and agents. Design rationale is in
 
 1. `category: production` environments are gated.
 2. Operation bindings that target production must set `allowProduction: true` explicitly; otherwise routing fails.
-3. Management writes that affect production records require approval.
-4. A denied approval is final for that attempt; nothing is written.
+3. Management writes that affect production records require approval when performed by
+   the Agent.
+4. The UI writes as actor `'ui'` and is denied for production records unless
+   `writePolicy.allowUiProductionWrites` is enabled.
+5. A denied approval is final for that attempt; nothing is written.
 
 ## 3. Rule templates
 

@@ -21,14 +21,29 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    function Panel() {
+      return h('section', {
+        style: { padding: 24, fontFamily: 'inherit' },
+      }, [
+        h('h2', { key: 'title', style: { margin: '0 0 8px', fontSize: 18 } }, 'DSH Environment Manager'),
+        h('p', { key: 'body', style: { margin: 0, opacity: 0.7 } },
+          'Environment registry, service catalog and operation-to-Skill routing.'),
+      ]);
+    }
+
     return {
       inject: ['slots'],
       apply(ctx) {
-        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-          name: 'conversation.composer.dock',
+        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+          name: 'sidebar.panellist',
           id: 'dsh-env-manager',
-          order: 5,
+          order: 40,
+          label: 'Environment Manager',
         }, EnvManagerIcon));
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main',
+          key: 'dsh-env-manager',
+        }, Panel));
       },
     };
   },

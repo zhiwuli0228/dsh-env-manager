@@ -1,17 +1,21 @@
 # V1 Design
 
-Status: first implementable design, derived from
-[DSH_Environment_Service_Memory_Skill_Brainstorm.md](./DSH_Environment_Service_Memory_Skill_Brainstorm.md).
+Status: V1 design, derived from
+[DSH_Environment_Service_Memory_Skill_Brainstorm.md](./DSH_Environment_Service_Memory_Skill_Brainstorm.md)
+and verified against the DSH runtime in [api-verification.md](./api-verification.md).
 
 Scope of this document: **V1 = P0** from the brainstorm, plus the contracts needed to start P1.
 
 Normative companions:
 
+- [detailed-design.md](./detailed-design.md) — module contracts, algorithms, tool and HTTP specs
 - [data-model.md](./data-model.md) — record schemas and result types
-- [tool-contract.md](./tool-contract.md) — tool surface
+- [tool-contract.md](./tool-contract.md) — model-facing tool surface
 - [storage-contract.md](./storage-contract.md) — persistence rules
 - [module-boundaries.md](./module-boundaries.md) — module ownership
 - [security-model.md](./security-model.md) — credential, policy and redaction rules
+- [ui-design.md](./ui-design.md) — Client panels and transport
+- [implementation-plan.md](./implementation-plan.md) — ordered tasks
 
 ---
 
@@ -65,12 +69,14 @@ These principles are expanded into module rules in
 ```text
 DSH Web / Desktop
   └── Client half (configuration panels, context preview)
-          │  reads/writes through Host tools
+          │  POST /env-manager/api
           ▼
 DSH Host process
+  ├── transport    header/origin checks, op dispatch
   ├── tools        thin request/response layer
+  ├── app          shared use cases
   ├── storage      atomic YAML read/write
-  ├── registry     cached, validated view of storage
+  ├── registry     validated per-request snapshot of storage
   ├── resolver     pure context + rule resolution
   ├── router       pure operation→Skill matching
   ├── session      per-session default environment
@@ -85,22 +91,25 @@ Plugin data directory
 ### 3.1 Host and Client split
 
 - **Host** owns all business logic, validation and persistence.
-- **Client** renders and calls Host tools; it never reads registry files directly and never re-implements resolution.
+- **Client** renders and calls the plugin HTTP API; it never reads registry files directly and never re-implements resolution.
 - The Client plugin remains a plain JavaScript module in V1. The Host is TypeScript compiled to ESM (see [ADR-0004](./decisions/ADR-0004-typescript-host-js-client.md)).
 
 ### 3.2 Host service dependencies
 
-The design assumes these DSH services; exact signatures are verified at implementation time:
+These DSH services are verified in [api-verification.md](./api-verification.md):
 
 | Service | Use |
 |---|---|
-| `ctx.tools` | register Agent tools |
-| `ctx.credentials` | `describe(ref)` for status only; `resolve` is never called by this plugin |
-| `ctx.approval` | request confirmation for management writes that affect production |
-| `ctx.fs` (or Node `fs` when unavailable) | sandbox-aware reads and atomic writes |
-| `ctx.fs.watch` | optional registry reload on external edits |
+| `ctx.tools` | register Agent tools (F2–F5) |
+| `ctx.credentials` | `describe(ref)` for status only; `resolve` is never called (F8) |
+| `ctx.approval` | request confirmation for management writes that affect production (F7) |
+| `ctx.skills` | `snapshot()` for Skill availability; no digest (F20) |
+| `ctx.webServer` | register the plugin HTTP route for the Client (F12) |
+| `profileContext` | `dir` for the default data directory (F10) |
+| Node `fs` | atomic writes and deletes under `dataDir`; `ctx.fs` lacks mkdir/unlink (F9) |
 
-A Skill registry lookup is required for availability checks; it is treated as an open question (§16) and degrades to `available: 'unknown'` with a warning rather than a silent pass.
+Skill availability degrades to `available: 'unknown'` with `SKILL_REGISTRY_UNAVAILABLE`
+when the catalog is absent or incomplete, rather than silently passing.
 
 ---
 
@@ -128,14 +137,15 @@ Full rules in [storage-contract.md](./storage-contract.md). Summary:
 ├── deployments/{id}.yaml
 ├── rules/{id}.yaml
 ├── operations/{id}.yaml
-└── sessions/{sessionId}.json
+├── sessions/{sessionId}.json
+└── .backups/{kind}/{id}/{timestamp}.yaml
 ```
 
-- `<dataDir>` defaults to a DSH profile data location and is configurable.
+- `<dataDir>` defaults to `<profile>/data/dsh-env-manager` and is configurable.
 - Reads and writes go through the storage module; no other module touches files.
-- Writes are atomic (temp file + rename).
+- Writes are atomic (temp file + fsync + rename) with a rolling backup.
 - Invalid or unsupported records are skipped with a diagnostic, never deleted.
-- V1 has no index files. The registry is rebuilt from directory scans on load and on demand.
+- V1 has no index files. A snapshot is loaded per application request and reloaded after a write.
 
 ---
 
@@ -154,7 +164,8 @@ Rules:
 
 - Identifier segments: `[A-Za-z_][A-Za-z0-9_]*`, separated by `.`.
 - No function calls, operators, conditionals, environment variables or command substitution.
-- No escaping or literal `${`; such text is rejected as an undefined variable.
+- No escaping. A lone `$` is literal; a malformed `${…}` (missing `}` or invalid
+  identifier) is `RULE_TEMPLATE_INVALID`.
 - Interpolation is allowed only in string-valued fields (`paths`, `logSources`, `classLocations`, binding parameters).
 
 ### 6.2 Available namespaces
@@ -162,6 +173,7 @@ Rules:
 ```text
 env.id, env.name, env.category
 service.id, service.name, service.category
+service.artifact.name
 deployment.id, deployment.name, deployment.runtimeMode
 deployment.location.*            (runtime-specific: see data-model §5)
 <user variables from rule profiles and overrides>
@@ -202,12 +214,13 @@ Resolution is pure: same inputs, same outputs, no I/O.
 
 `env_resolve` returns only the fields used by the runtime:
 
-- all `paths` fields that the service's rule profiles define (bounded, typically under 20),
+- all `paths` fields defined by any layer (bounded, typically under 20),
 - the `logSources[runtimeMode]` entry,
 - the `classLocations[runtimeMode]` entry,
 - merged `variables`.
 
-Unknown extra path fields are not resolved and therefore cannot trigger undefined-variable errors.
+Only defined fields are evaluated; the resolver never guesses a missing path. A defined
+template that references a name no layer defines is still `RULE_UNDEFINED_VARIABLE`.
 
 ### 6.6 Provenance semantics
 
@@ -271,6 +284,8 @@ Bindings are grouped by how specific their `match` predicate is:
 
 A predicate is eligible only if **every** field it declares matches the resolved context. `deploymentMode` compares against `runtimeMode`; `serviceCategory` compares against the service category.
 
+A `match` that is not one of these five shapes (for example `environmentId` alone) is rejected at record validation; it never reaches routing.
+
 ### 7.2 Conflict rule
 
 If more than one enabled binding is eligible at the highest level, the result is `BINDING_CONFLICT` listing every candidate id, level and skill name. No binding is selected.
@@ -279,19 +294,21 @@ If exactly one binding is eligible at the highest level, lower levels are ignore
 
 ### 7.3 Skill availability
 
-Checks, in order:
+Checks, in order, against `ctx.skills.snapshot({ scope, cwd, signal })`:
 
-1. The Skill name is registered in the DSH Skill registry.
-2. If `expectedSource` is set, the registered source matches.
-3. If `expectedDigest` is set, the digest matches.
+1. The catalog is complete; an incomplete snapshot means the check is inconclusive.
+2. The Skill name is registered.
+3. If `expectedSource` is set, the registered `source` matches.
+4. If `expectedProvider` is set, the registered `provider` matches.
 
 Outcomes:
 
 - pass → `available: true`
 - fail → `SKILL_UNAVAILABLE`, `ok: false`
-- registry not queryable → `available: 'unknown'` plus `SKILL_REGISTRY_UNAVAILABLE` warning, `ok: true` (routing still useful) but the caller is told the check was incomplete
+- registry absent or incomplete → `available: 'unknown'` plus `SKILL_REGISTRY_UNAVAILABLE` warning, `ok: true` (routing still useful) but the caller is told the check was incomplete
 
-The router never substitutes a different Skill.
+Digest pinning is not supported: the DSH catalog exposes no digest. The router never
+substitutes a different Skill.
 
 ### 7.4 Approval policy
 
@@ -333,7 +350,10 @@ If `redeploy-k8s-service` is missing, the result is an error with `SKILL_UNAVAIL
 - `env_set_context` writes `sessions/{sessionId}.json` with `defaultEnvironmentId`.
 - Passing `null` clears the default.
 - `env_get_context` returns the current session's default, if any.
-- If the DSH session API already provides a durable per-session store, it is preferred; the file fallback exists so V1 does not block on that API. The storage location and recovery behavior are an open question (§16).
+- DSH exposes `sessionProjections`, but it requires declared session event types and a
+  closed projection schema, so a standalone bundle cannot use it. V1 writes
+  `sessions/{sessionId}.json`; a projection-based store is a later refinement
+  (detailed-design §9).
 - Session context is isolated: it cannot modify registry files or another session's default.
 
 Tools that need an environment accept an explicit `environmentId`. When omitted, they fall back to the session default and otherwise return a validation error naming both options.
@@ -342,37 +362,44 @@ Tools that need an environment accept an explicit `environmentId`. When omitted,
 
 ## 9. Tool surface
 
-Full schemas in [tool-contract.md](./tool-contract.md).
+Full schemas in [tool-contract.md](./tool-contract.md); the `defineTool` definitions
+are specified in [detailed-design.md](./detailed-design.md) §11.
 
-Read tools (available to every session):
-
-```text
-env_list
-env_get
-env_find
-env_resolve
-env_resolve_operation
-env_get_context
-env_set_context
-```
-
-Management tools (state-changing; production-affecting writes require approval):
-
-```text
-env_save
-env_delete
-env_validate
-```
-
-Result envelope:
+Every tool is registered with `defineTool`:
 
 ```ts
-type ToolResult<T> =
-  | { ok: true; data: T; diagnostics?: Diagnostic[] }
-  | { ok: false; error: { code: string; message: string; details?: unknown } };
+ctx.tools.register(defineTool({
+  name: 'env_list',
+  description: '...',
+  parameters: { kind: { type: 'string', enum: [...] } },
+  output: { schema: { ... }, render: (args, value) => [{ type: 'text', text: '...' }] },
+  async execute(args, exec) { /* returns the declared JSON value */ },
+}))
 ```
 
-Errors never include credential values, file contents or stack traces.
+Read tools:
+
+```text
+env_list, env_get, env_find, env_resolve, env_resolve_operation,
+env_get_context, env_set_context
+```
+
+Management tools (state-changing):
+
+```text
+env_save, env_delete, env_validate
+```
+
+Results:
+
+- Success returns the declared JSON value, validated by DSH against
+  `output.schema`.
+- Expected failures throw `EnvManagerError extends HarnessError`, which carries a
+  stable `code` (`ENV_NOT_FOUND`, `BINDING_CONFLICT`, `POLICY_DENIED`, …) and a
+  message safe to show. There is no `{ ok: false }` value.
+- `env_delete` and production `env_save` ask `ctx.approval`; any outcome other than
+  `allowed-once` denies.
+- Errors never include credential values, file contents or stack traces.
 
 ---
 
@@ -388,26 +415,36 @@ Configuration is possible without the UI:
 
 ### 10.2 V1 UI
 
-A dedicated Environment Manager surface in the DSH Web/Desktop client:
+A dedicated Environment Manager surface in the DSH Web/Desktop client, registered as a
+`sidebar.panellist` entry (id `env-manager`) plus the `main` panel keyed
+`env-manager`:
 
-| Panel | Content |
+| Section | Content |
 |---|---|
-| Environments | list, create, edit hosts/clusters/roles/endpoints |
-| Services | list, create, edit Git/artifact/rule refs |
-| Deployments | list by environment/service, runtime-specific fields |
-| Rule profiles | editor with resolved preview and provenance badges |
-| Operation bindings | editor with match preview and conflict warning |
+| Overview | counts, dataDir, last load, diagnostics summary |
+| Environments | list, create/edit YAML, hosts/clusters/roles/endpoints |
+| Services | list, create/edit YAML, Git/artifact/rule refs |
+| Deployments | list, create/edit YAML, runtime-specific fields |
+| Rule profiles | YAML editor with resolved preview and provenance badges |
+| Operation bindings | YAML editor with match preview and conflict warning |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
+| Operation preview | operation → selected binding, skill availability, policy, parameters |
 | Diagnostics | registry validation results |
 
 Rules for the UI:
 
-- All reads/writes go through Host tools; no direct file access.
+- All reads/writes go through the plugin's same-origin HTTP API
+  (`POST /env-manager/api`, ADR-0009); no direct file access and no second business
+  path.
+- The UI cannot read or write session context in V1; that stays with the agent tools.
+- Records are edited as YAML in V1, validated server-side before writing.
 - Text is routed through the client locale service; `en` and `zh` provided.
 - The UI must show provenance for derived values, not just the final string.
-- Production-category destructive actions are visually distinct and require confirmation.
+- Production-category destructive actions are visually distinct and require
+  confirmation.
 
-The exact client slot for a full-page panel is chosen at implementation time from the live slot tree. The V1 composer decoration from the skeleton is removed or kept only as an entry point.
+Details: [ui-design.md](./ui-design.md). The skeleton already registers the sidebar
+entry and a placeholder `main` panel; V1 replaces the placeholder with the real panel.
 
 ---
 
@@ -436,7 +473,11 @@ Summary; details in [security-model.md](./security-model.md).
 
 - `credentialRef` only; status via `ctx.credentials.describe`, never `resolve`.
 - Production write operations denied unless `allowProduction: true`.
-- Management writes affecting production records require `ctx.approval`.
+- Tool management writes affecting production records require `ctx.approval`.
+- UI writes run as actor `'ui'` and are denied for production unless
+  `writePolicy.allowUiProductionWrites` is enabled.
+- The `/env-manager/api` route requires a custom header and a same-origin `Origin`;
+  no CORS headers are sent.
 - Rule resolution rejects cycles, undefined variables and path traversal.
 - Diagnostics and logs must be redacted before emission.
 - Fail closed on conflicts, missing Skills and broken references.
@@ -445,7 +486,10 @@ Summary; details in [security-model.md](./security-model.md).
 
 ## 13. Error handling
 
-- Tool failures return the envelope in §9, never a thrown string.
+- Tool failures throw `EnvManagerError extends HarnessError`; DSH records the stable
+  `{ name, code }` and shows the message. A bare string is never thrown.
+- HTTP failures return `{ ok: false, error: { code, message, details? } }` with a
+  status from [detailed-design.md](./detailed-design.md) §12.2.
 - Registry load failures produce diagnostics and keep serving the records that are valid.
 - Resolution failures name the field and the offending variable.
 - Router failures list candidate bindings.
@@ -465,7 +509,7 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-05 | `env_resolve_operation` returns the bound Skill and mapped parameters for test-a redeploy | yes | router test |
 | AC-06 | Two same-level bindings produce a conflict error | yes | router conflict test |
 | AC-07 | Two sessions share data but keep different defaults | yes | session store test |
-| AC-08 | Credential query returns ref and status only | yes | tool output test |
+| AC-08 | Credential query returns ref, configured and source only | yes | tool output test |
 | AC-09 | A completed log check stores a sanitized summary and evidence refs | P1 | memory bridge contract test |
 | AC-10 | A rule change derived from experience becomes a pending proposal | P1 | proposal queue test |
 
@@ -505,33 +549,55 @@ dsh-env-manager/
 
 `files` in `package.json` includes `index.js`, `lib/`, `client.js`, `cordis.patch.yml`, `locale/`, `icon.svg`, `README.md`, `LICENSE`.
 
+Manifest contract:
+
+- `dsh.bundle.patch: ./cordis.patch.yml` registers the Host plugin.
+- `dsh.client: { platform: 'web', immediately: true }` loads the Client half in Web and
+  Desktop. It declares no `inject` dependency on a conversation UI package, because the
+  panel lives in the shell's sidebar/main slots, not the composer dock.
+
 ### 15.4 Dependencies
 
 | Package | Purpose | Scope |
 |---|---|---|
-| `zod` | record and tool schema validation | runtime |
-| `yaml` | YAML parse/serialize with good TypeScript types | runtime |
+| `zod` | record validation | runtime |
+| `yaml` | YAML parse/serialize | runtime |
+| `@deepseek-ai/schemastery` | `Config` schema | runtime |
+| `@deepseek-ai/dsh-tools` | `defineTool`, tool types | peer |
+| `@deepseek-ai/dsh-llm` | `HarnessError` | peer |
+| `cordis` | `Context` type (type-only) | peer, provided by the Host |
 | `typescript` | build | dev |
 | `vitest` | tests | dev |
 
-Adding any other dependency follows `docs/04-development/dependency-policy.md`.
+Peer packages are provided by the DSH profile; the plugin must not bundle them.
+Version alignment is pinned to the runtime release (`0.2.1-rc.5` at design time) and
+checked during T01. Adding any other dependency follows
+`docs/04-development/dependency-policy.md`.
 
 ---
 
 ## 16. Open questions
 
-| # | Question | Verification |
-|---|---|---|
-| 1 | Exact plugin data directory (config default and permissions) | inspect DSH app/plugin context API at implementation |
-| 2 | Whether `ctx.fs` is usable from a plugin for arbitrary absolute data paths | inspect `fs` service and sandbox policy |
-| 3 | DSH Skill registry lookup API (names, source, digest) | inspect Skill service / package docs |
-| 4 | Durable per-session metadata API | inspect Session service |
-| 5 | Exact client slot for a full-page settings panel | `cordis_inspect_query` client `Slots.listSubTree` |
-| 6 | Remote/typert mechanism for Client→Host management calls | inspect `clientModules` and generated Remote namespace |
-| 7 | Memory plugin public contract ownership | coordinate with memory plugin owner |
-| 8 | Whether `ctx.credentials.describe` covers all credential kinds used here | inspect credential service types |
+The eight integration questions from the first draft are resolved in
+[api-verification.md](./api-verification.md):
 
-Each item is resolved before the corresponding implementation task starts; none blocks writing the registry, resolver or router in isolation.
+| # | Question | Resolution |
+|---|---|---|
+| 1 | Plugin data directory | `profileContext.dir` → `<dir>/data/dsh-env-manager` (F10) |
+| 2 | `ctx.fs` for data paths | unusable for create/delete; use Node fs under `dataDir` (F9) |
+| 3 | Skill registry API | `ctx.skills.snapshot`; source/provider checks, no digest (F20) |
+| 4 | Durable session metadata | V1 file store; projection is a later refinement (F11) |
+| 5 | Client slot for a panel | `sidebar.panellist` + `main` keyed `env-manager` (F15) |
+| 6 | Client→Host calls | plugin-owned HTTP route, ADR-0009 (F14) |
+| 7 | Memory plugin contract | still owned by the memory plugin; null adapter until P1 |
+| 8 | `credentials.describe` coverage | presence/source/writability, no value (F8) |
+
+Remaining, none blocking V1:
+
+- The memory plugin's public contract (P1).
+- Cross-process write locking for a shared `dataDir`.
+- A session-event projection instead of the session file.
+- Client bundling if the UI outgrows a single plain-JS module.
 
 ---
 

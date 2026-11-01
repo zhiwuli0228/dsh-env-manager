@@ -23,41 +23,60 @@
 
 ```text
 src/
-├── index.ts            # apply(): wiring and tool registration
-├── config.ts           # plugin config schema
+├── index.ts            # apply(): wiring, tools, HTTP route
+├── config.ts           # schemastery Config
+├── logger.ts           # ctx logger wrapper
 ├── domain/
 │   ├── types.ts        # interfaces and enums
-│   ├── schemas.ts      # Zod schemas
-│   └── constants.ts    # operation ids, limits
+│   ├── schemas.ts      # Zod schemas, parseRecord
+│   ├── constants.ts    # operation ids, limits, patterns
+│   └── errors.ts       # EnvManagerError, codes
 ├── storage/
-│   ├── paths.ts        # dataDir resolution
-│   ├── atomic.ts       # temp+rename write
-│   ├── records.ts      # read/write one record
-│   └── sessions.ts     # session state files
+│   ├── paths.ts        # dataDir resolution, id/path guards
+│   ├── atomic.ts       # temp+fsync+rename write, backups
+│   ├── records.ts      # read/write/delete one record
+│   ├── sessions.ts     # session state files
+│   └── layout.ts       # directory creation, tmp cleanup
 ├── registry/
-│   ├── registry.ts     # load, lookup, reload
-│   └── validation.ts   # referential integrity
+│   ├── registry.ts     # load, snapshot, lookup, reload
+│   ├── aliases.ts      # alias index
+│   └── integrity.ts    # referential integrity diagnostics
 ├── resolver/
-│   ├── template.ts     # ${...} parsing and resolution
-│   ├── layers.ts       # merge with precedence
-│   ├── provenance.ts   # provenance construction
-│   └── context.ts      # ServiceContext assembly
+│   ├── template.ts     # ${...} parsing and substitution
+│   ├── graph.ts        # reference graph, cycles
+│   ├── layers.ts       # build ordered layers
+│   ├── merge.ts        # field-level merge
+│   ├── context.ts      # ServiceContext assembly
+│   └── provenance.ts   # provenance construction
 ├── router/
 │   ├── match.ts        # match level classification
 │   ├── router.ts       # selection, conflicts
+│   ├── skills.ts       # SkillDirectory adapter
 │   ├── policy.ts       # approval and production rules
 │   └── parameters.ts   # parameter mapping
 ├── session/
 │   └── session-context.ts
-├── memory-bridge/
-│   ├── contract.ts
-│   └── null-adapter.ts
+├── app/
+│   ├── app.ts          # use cases shared by tools and HTTP
+│   └── actor.ts        # 'agent' | 'ui' policy
 ├── tools/
-│   ├── read.ts         # env_list/get/find/resolve/... 
-│   ├── manage.ts       # env_save/env_delete/env_validate
-│   └── envelope.ts     # result envelope + redaction
-└── logger.ts
+│   ├── define.ts       # shared schemas and render helpers
+│   ├── approval.ts     # ctx.approval wrapper
+│   ├── read.ts         # env_list/get/find/get_context
+│   ├── resolve.ts      # env_resolve/resolve_operation
+│   ├── write.ts        # env_save/delete/set_context
+│   └── validate.ts     # env_validate
+├── transport/
+│   ├── route.ts        # webServer registration, body handling
+│   ├── auth.ts         # header, origin, size checks
+│   ├── ops.ts          # op table → app calls
+│   └── envelope.ts     # { ok, data } / { ok:false, error }
+└── memory-bridge/
+    ├── contract.ts
+    └── null-adapter.ts
 ```
+
+`logger.ts` sits at the root because every module may log; it must not import them.
 
 ## `tests/`
 
@@ -69,7 +88,9 @@ tests/
 ├── resolver/
 ├── router/
 ├── session/
+├── app/
 ├── tools/
+├── http/
 └── fixtures/
 ```
 

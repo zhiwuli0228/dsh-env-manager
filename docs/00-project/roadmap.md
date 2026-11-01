@@ -2,12 +2,12 @@
 
 Aligned with the brainstorm (§9) and V1 design.
 
-## V0 — Design (current)
+## V0 — Design (complete)
 
 - [x] Brainstorm captured
 - [x] Repository and docs hub initialized
 - [x] V1 design suite written
-- [ ] DSH API open questions verified
+- [x] DSH runtime APIs verified (probes V1–V8 remain, tracked in `api-verification.md`)
 
 ## V1 = P0: Registry and Context Resolution
 

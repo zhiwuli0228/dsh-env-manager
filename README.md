@@ -18,11 +18,22 @@ Works in DSH Web and Desktop.
 
 ## Status
 
-**V1 design complete; implementation not started.**
+**V1 complete design; implementation not started.**
 
-The normative design lives in [`docs/01-architecture/design.md`](docs/01-architecture/design.md), with the record schemas in [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md).
+The design is implementation-ready and verified against the installed DSH runtime
+(`0.2.1-rc.5`):
 
-The repository currently contains the DSH bundle skeleton (Host and Client entries). The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`.
+- [`docs/01-architecture/design.md`](docs/01-architecture/design.md) — scope, algorithms,
+  acceptance criteria;
+- [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) —
+  module contracts, storage, tools, HTTP;
+- [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) —
+  ordered tasks and cut line;
+- [`docs/01-architecture/api-verification.md`](docs/01-architecture/api-verification.md) —
+  runtime facts and remaining probes.
+
+The repository currently contains the DSH bundle skeleton (Host and Client entries). The
+V1 Host will be implemented in TypeScript under `src/` and compiled to `lib/`.
 
 ## Installation
 
@@ -66,13 +77,17 @@ Key documents:
 |---|---|
 | [`docs/00-project/project-brief.md`](docs/00-project/project-brief.md) | positioning and V1 scope |
 | [`docs/01-architecture/design.md`](docs/01-architecture/design.md) | design, algorithms, acceptance criteria |
+| [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) | module contracts, tools, HTTP transport |
 | [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md) | record schemas |
-| [`docs/01-architecture/tool-contract.md`](docs/01-architecture/tool-contract.md) | tool surface |
+| [`docs/01-architecture/tool-contract.md`](docs/01-architecture/tool-contract.md) | model-facing tool surface |
+| [`docs/01-architecture/ui-design.md`](docs/01-architecture/ui-design.md) | panel design and manual QA |
+| [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) | implementation order |
 | [`docs/01-architecture/security-model.md`](docs/01-architecture/security-model.md) | credential and policy controls |
 
 ## Development
 
 ```bash
+# Available once T01 adds the build and test scripts.
 npm install
 npm run build
 npm test

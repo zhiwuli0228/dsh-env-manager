@@ -46,6 +46,8 @@ location:
   hostRef: host-001
   installDir: /opt/company/services/aicoservice
   serviceName: aicoservice.service
+createdAt: 2026-11-01T03:00:00.000Z
+updatedAt: 2026-11-01T03:00:00.000Z
 ```
 
 ## Docker
@@ -61,6 +63,8 @@ location:
   hostRef: host-001
   containerName: aicoservice
   image: registry.example.internal/team/aicoservice:latest
+createdAt: 2026-11-01T03:00:00.000Z
+updatedAt: 2026-11-01T03:00:00.000Z
 ```
 
 ## Notes

@@ -25,12 +25,14 @@ Related: [data-model.md](./data-model.md), [design.md](./design.md) §5.
 
 Precedence:
 
-1. Plugin config `dataDir`, when set (absolute path or path relative to the plugin workspace).
-2. A DSH-provided profile data directory, when the plugin context exposes one.
+1. Plugin config `dataDir`, when set (absolute path or path relative to the profile directory).
+2. `profileContext.dir` → `<dir>/data/dsh-env-manager`.
 3. `$DSH_PROFILE_DIR/data/dsh-env-manager`.
 4. `<working directory>/data/dsh-env-manager` as a last resort for development only.
 
-The chosen path is reported once at startup as an `info` diagnostic so a user can find the files. Items 2 and 3 are verified during implementation (design §16, open question 1).
+The chosen path is memoized, reported once at startup, and shown in the UI overview. It
+is never derived from model input. Resolution order and fallbacks are implemented in
+`src/storage/paths.ts` (detailed-design §4.1).
 
 ### 1.2 Creation
 
@@ -47,7 +49,7 @@ The chosen path is reported once at startup as an `info` diagnostic so a user ca
 | Line endings | LF on write; CRLF tolerated on read |
 | Format | YAML 1.2 |
 | Extension | `.yaml` for records, `.json` for session state |
-| Name | `{id}.yaml`, where `id` matches `^[a-z0-9][a-z0-9-]{0,63}$` |
+| Name | `{id}.yaml`, where `id` matches `^[a-z0-9][a-z0-9-]{0,62}$` |
 | Extra files | Ignored unless they match the extension; ignored files are not deleted |
 
 A record file whose `id` differs from its filename is reported by `env_validate` and treated as invalid on load.
@@ -65,9 +67,11 @@ createdAt: 2026-11-01T03:00:00.000Z
 updatedAt: 2026-11-01T03:00:00.000Z
 ```
 
-- `createdAt` is set by storage on create and preserved on update.
+- `createdAt` is set by storage on create.
 - `updatedAt` is set by storage on every successful write.
-- Callers cannot supply these values through tools; they are ignored if present.
+- A write input may include both fields; storage overrides them. `createdAt` is
+  preserved from the existing file on update, so a caller cannot rewrite history.
+- The stored record always contains both fields.
 
 ---
 
@@ -76,18 +80,22 @@ updatedAt: 2026-11-01T03:00:00.000Z
 ```text
 1. Serialize the record to YAML.
 2. Validate the serialized document by parsing it back and running schema validation.
-3. Write to `{target}.tmp-{random}` in the same directory.
-4. Flush and close.
-5. Rename over the target (atomic on the same volume).
-6. On any failure, delete the temp file and return the original record unchanged.
-7. Reload the affected registry entry.
+3. Open `.${id}.${pid}.${randomUUID()}.tmp` in the target directory.
+4. Write UTF-8, fsync, close.
+5. Copy the previous file into `.backups/<kind>/<id>/<timestamp>.yaml`, prune to 5.
+6. Rename over the target (atomic on the same volume).
+7. On a caught failure before rename, delete the temp file and leave the target intact.
 ```
 
 Constraints:
 
 - Never write directly to the target file.
-- Never leave a temp file behind on success or on a caught failure.
+- Never leave a temp file behind on success or on a caught failure. A crash can leave
+  one; startup removes `*.tmp` older than one hour.
+- A backup failure does not fail the write; it is reported as a warning.
 - Never delete a record file that failed to parse; surface a diagnostic instead.
+- Storage does not reload the registry; the application layer does after a successful
+  write.
 
 ---
 
@@ -110,12 +118,12 @@ If a directory is unreadable, the loader returns an empty map plus an error diag
 
 ## 6. Registry lifecycle
 
-- `registry.load()` scans all five record directories.
-- `registry.reload()` re-scans; used after every write and after `env_validate` if a change is detected.
-- The registry is an in-memory cache; it is never persisted.
-- V1 has no index files. A scan of a few hundred small YAML files is fast enough; this is revisited only with measured need.
-
-Optional external edit detection uses `ctx.fs.watch` where available; otherwise a reload happens on the next tool call after a recorded mtime change (implementation detail, not a contract).
+- V1 loads the registry at the start of every application request.
+- Concurrent requests share one in-flight load.
+- A successful write triggers a reload before the request returns.
+- The registry is an in-memory snapshot; it is never persisted.
+- V1 has no index files and no watcher. A scan of a few hundred small YAML files is
+  fast enough; an mtime-keyed cache is added only with measured need.
 
 ---
 
@@ -138,9 +146,13 @@ Rules:
 
 - Written atomically with the same protocol as records.
 - A missing file means "no default".
-- A corrupt file is ignored with `SESSION_CONTEXT_UNPERSISTED` and the in-memory value is used for the current session.
+- A corrupt file is treated as "no default" and reported as `persisted: false`; it is
+  not deleted, so the user can inspect it.
+- A process-local cache mirrors the last value so a failed write still works until
+  restart (detailed-design §9).
 - Session files are not registry records and are never scanned into the registry.
-- If the DSH session API offers a durable store, it is preferred and this file becomes a fallback.
+- V1 uses this file store; a projection over the durable session log is a later
+  refinement (detailed-design §9).
 
 ---
 
@@ -161,7 +173,7 @@ This split keeps a single bad file from making the whole registry unusable.
 V1 keeps one rolling backup per write:
 
 ```text
-.backups/{type}/{id}.{timestamp}.yaml
+.backups/{kind}/{id}/{timestamp}.yaml
 ```
 
 - At most 5 backups per record; older ones are pruned.

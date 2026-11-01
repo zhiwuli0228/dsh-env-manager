@@ -8,8 +8,13 @@ Keep the set minimal and justified:
 |---|---|
 | `zod` | schema validation for records and tool inputs |
 | `yaml` | YAML parse/serialize with typed results |
+| `@deepseek-ai/schemastery` | `Config` schema for the Host plugin |
 
-Anything else needs a proposal that explains why the standard library and the two packages above are insufficient.
+Anything else needs a proposal that explains why the standard library and the three
+packages above are insufficient.
+
+DSH-provided packages (`@deepseek-ai/dsh-tools`, `@deepseek-ai/dsh-llm`, `cordis`) are
+peers, supplied by the profile; never bundle them.
 
 ## Development dependencies
 

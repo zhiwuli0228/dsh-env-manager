@@ -16,6 +16,18 @@ Restart DSH if needed.
 1. Ask `plugin_manager` for `action: list_bundles` and confirm the bundle appears.
 2. Confirm it is active, not `overridden` or `restart-required`.
 3. Call `env_list` from the Agent; a fresh install returns an empty list.
+4. Open the **Environment Manager** entry in the sidebar and confirm the Overview
+   counts render.
+5. Optional transport check:
+
+   ```bash
+   curl -s -X POST http://127.0.0.1:<port>/env-manager/api \
+     -H 'content-type: application/json' \
+     -H 'x-env-manager-request: 1' \
+     -d '{"op":"meta"}'
+   ```
+
+   Without the header the route returns 403; that is the expected control.
 
 ## Upgrade
 

@@ -65,6 +65,8 @@ Forbidden:
 
 - A path may reference another path; cycles are errors.
 - Undefined references are errors, not empty strings.
+- The only valid form is `${identifier(.identifier)*}`, capped at 2048 characters;
+  anything else (missing brace, operators, spaces) is `RULE_TEMPLATE_INVALID`.
 - Resolved paths containing `..` are rejected.
 - `classLocations` distinguishes build output, deployed directories and jar entries.
 - Only the deployment's `runtimeMode` entry is resolved by `env_resolve`.

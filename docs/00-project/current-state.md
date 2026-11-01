@@ -4,10 +4,13 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**V1 design complete; implementation not started.**
+**V1 complete design; implementation not started.**
 
-The first implementable design has been derived from the brainstorm and written into
-`docs/01-architecture/`. The repository still contains the initial JavaScript bundle skeleton; it is replaced during V1 implementation (see ADR-0004).
+The design is now implementation-ready: runtime APIs were verified against the installed
+DSH release, the module contracts, tool schemas, HTTP transport, UI and build plan are
+written, and the remaining unknowns are tracked as probes rather than open design
+questions. The repository still contains the initial JavaScript bundle skeleton; it is
+replaced during V1 implementation (see ADR-0004 and the implementation plan).
 
 ## Implemented
 
@@ -24,12 +27,16 @@ Documentation and repository:
 - [x] AGENTS.md project rules
 - [x] V1 design suite:
   - [x] `design.md` — scope, architecture, flows, acceptance criteria
-  - [x] `data-model.md` — record schemas and result types
-  - [x] `tool-contract.md` — Agent and management tools
-  - [x] `storage-contract.md` — persistence, atomicity, sessions
+  - [x] `detailed-design.md` — module contracts, algorithms, storage, tools, HTTP
+  - [x] `data-model.md` — record schemas, results, diagnostics catalogue
+  - [x] `tool-contract.md` — ten model-facing tools with DSL schemas and errors
+  - [x] `storage-contract.md` — dataDir resolution, atomicity, sessions, backups
   - [x] `module-boundaries.md` — ownership and dependency direction
-  - [x] `security-model.md` — credentials, approval, redaction
-  - [x] ADR-0001 … ADR-0008
+  - [x] `ui-design.md` — panel layout, transport, states, i18n, QA checklist
+  - [x] `security-model.md` — credentials, approval, HTTP controls, redaction
+  - [x] `api-verification.md` — verified runtime facts F1–F20 and probes V1–V8
+  - [x] `implementation-plan.md` — ordered tasks T01–T24, acceptance, cut line
+  - [x] ADR-0001 … ADR-0009
 
 Code:
 
@@ -41,8 +48,10 @@ Code:
 - [ ] Rule resolver with provenance
 - [ ] Operation Skill router
 - [ ] Session context store
+- [ ] Application service (`app`)
 - [ ] Read tools
 - [ ] Management tools
+- [ ] HTTP transport
 - [ ] Client configuration UI
 - [ ] Memory bridge contract and null adapter
 - [ ] Tests
@@ -55,6 +64,7 @@ Code:
 - No remote execution in V1.
 - No production auto-apply.
 - Registry data is git-ignored.
+- DSH peer packages are not bundled; they resolve from the profile.
 
 ## Current Directory Plan
 
@@ -80,23 +90,26 @@ dsh-env-manager/
 - No TypeScript build yet.
 - No persistence yet.
 - No resolver, router or tool implementation.
+- No HTTP route.
 - No UI panels.
-- No Skill registry integration; availability is designed but unverified.
+- Runtime probes V1–V8 in `api-verification.md` §4 are planned, not yet executed
+  against this profile.
 - Memory bridge is a contract only.
-- Open design questions listed in `design.md` §16 remain unverified.
+- No cross-process write locking.
 
 ## Next Recommended Work
 
-Following brainstorm §13.4 and design §16:
+Follow `docs/01-architecture/implementation-plan.md`:
 
-1. Verify the open DSH API questions (data directory, Skill registry, session API, client slot).
-2. Scaffold TypeScript Host and add `zod`, `yaml`, `vitest`.
-3. Implement `domain` schemas and tests.
-4. Implement `storage` with atomic writes and tests.
-5. Implement `registry` with validation and tests.
-6. Implement `resolver` (template engine, layering, provenance) with tests.
-7. Implement `router` (match levels, conflicts, policy) with tests.
-8. Implement `session` store.
-9. Implement tools and register them.
-10. Implement the Client UI (list/edit/preview).
-11. Define the memory bridge contract and null adapter.
+1. **T01** — build skeleton: dependencies, `tsconfig.json`, scripts, `.gitignore`.
+2. **T02** — runtime probes V1–V8 and record results in `api-verification.md`.
+3. **T03** — domain schemas and tests.
+4. **T04** — storage with atomic writes and tests.
+5. **T05–T06** — registry and integrity checks.
+6. **T07–T08** — template engine, layering and provenance.
+7. **T09–T10** — router, Skill adapter, policy.
+8. **T11–T12** — session store and application service.
+9. **T13–T17** — the ten tools.
+10. **T18** — HTTP route.
+11. **T19–T22** — Client panel and manual QA.
+12. **T23–T24** — docs, install smoke test.

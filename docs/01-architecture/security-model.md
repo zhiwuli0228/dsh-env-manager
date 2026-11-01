@@ -25,14 +25,17 @@ Related: [AGENTS.md](../../AGENTS.md) §3, [security-policy.md](../06-operations
 ## 2. Trust boundaries
 
 ```text
-Agent/model  ──tools──▶  Host plugin  ──files──▶  plugin data dir
-                              │
-                              ├──describe──▶  DSH credential service
-                              ├──request───▶  DSH approval service
-                              └──lookup────▶  DSH Skill registry
+Browser (Client half) ──HTTP──▶ Host transport ──▶ app ──files──▶ plugin data dir
+                                      │
+Agent/model ──tools──▶ Host tools ────┤
+                                      ├──describe──▶  DSH credential service
+                                      ├──request───▶  DSH approval service
+                                      └──lookup────▶  DSH Skill registry
 ```
 
-The model is untrusted input. Registry content is user-maintained and semi-trusted. The DSH credential service is the only component allowed to hold secret values.
+Two untrusted input paths exist: the model through tools, and the browser page through
+the local HTTP route. Registry content is user-maintained and semi-trusted. The DSH
+credential service is the only component allowed to hold secret values.
 
 ---
 
@@ -41,9 +44,9 @@ The model is untrusted input. Registry content is user-maintained and semi-trust
 ### 3.1 Rules
 
 1. Registry records store only `credentialRef` strings.
-2. The Host calls `ctx.credentials.describe(ref)` to obtain status: `configured`, `missing` or `unavailable`.
+2. The Host calls `ctx.credentials.describe(ref)` and keeps only `{ configured, source?, writable }`.
 3. The Host never calls `ctx.credentials.resolve(ref)` and never forwards a resolved value to a tool result, diagnostic or log.
-4. Tool outputs contain `{ ref, status }` only.
+4. Tool and HTTP outputs contain `{ ref, configured, source }` only.
 5. `credentialRef` values are validated against the credential reference pattern if one exists; otherwise a conservative pattern (`^[A-Za-z0-9._:/-]{1,200}$`) is applied.
 
 ### 3.2 Threat: exfiltration through tool output
@@ -52,7 +55,7 @@ Mitigation: a single formatting layer for tool results strips any field named `v
 
 ### 3.3 Threat: credential reference confusion
 
-A user may point a production deployment at a test credential. V1 cannot detect this; the status is reported as `configured` without revealing which secret it is. Operational review is required; this is documented as a residual risk.
+A user may point a production deployment at a test credential. V1 cannot detect this; the result reports `configured: true` without revealing which secret it is. Operational review is required; this is documented as a residual risk.
 
 ---
 
@@ -67,15 +70,35 @@ A user may point a production deployment at a test credential. V1 cannot detect 
 
 ### 4.2 Management writes
 
-`env_save` / `env_delete` request approval through `ctx.approval` when the write affects a production environment:
+Tool writes (`env_save` / `env_delete`) request approval through `ctx.approval` when the write affects a production environment:
 
 - creating/updating an environment with `category: production`;
 - creating/updating a deployment or operation binding whose environment is production;
 - deleting any environment, deployment or binding that resolves to production.
 
-Denied approval returns `POLICY_DENIED`; nothing is written.
+Denied approval returns `POLICY_DENIED`; nothing is written. An approval outcome other
+than `allowed-once` (`rejected`, `cancelled`, `unavailable`) denies.
 
-### 4.3 Threat: approval bypass
+UI writes (`record.save` / `record.remove`) run with actor `'ui'`:
+
+- production saves are denied unless `writePolicy.allowUiProductionWrites` is true;
+- delete requires `confirm: true` and a second, explicit confirmation in the panel;
+- the UI never sends an approval request (it has no agent); it is policy-gated instead.
+
+### 4.3 Local HTTP route
+
+`POST /env-manager/api` is reachable only with:
+
+- `x-env-manager-request: 1`;
+- `Content-Type: application/json`;
+- an `Origin` equal to `ctx.webServer.getOrigin()` when the header is present;
+- a body no larger than 2 MiB.
+
+No CORS headers are sent, so a cross-origin page cannot preflight the custom header.
+The route reads no cookie and no credential. It returns only registry data that a
+`env_get`/`env_list` call could also return, plus derived context.
+
+### 4.4 Threat: approval bypass
 
 A caller could edit YAML files directly, outside the tools. V1 cannot prevent this; file access is governed by the DSH sandbox and OS permissions. The design documents this as a deliberate boundary: the plugin is a context manager, not a policy enforcement point for the filesystem.
 
@@ -91,6 +114,8 @@ Controls:
 4. Cyclic references are errors with the cycle path.
 5. Resolved paths are rejected if any segment is `..`.
 6. Resolved values are not executed, only returned.
+7. Template syntax is restricted to `${identifier(.identifier)*}` with a 2048-character
+   cap; anything else is `RULE_TEMPLATE_INVALID`.
 
 Threat: a malicious rule profile could point at sensitive directories to make the Agent read them later. Mitigation: the plugin never reads the resolved paths itself in V1; it only returns them. Future adapters that read paths must add their own path allowlist.
 
@@ -125,10 +150,14 @@ The redaction function is shared and unit-tested.
 | Skill missing or mismatched | `SKILL_UNAVAILABLE`, no fallback |
 | Skill registry unreachable | resolve with `available: 'unknown'` + warning |
 | Production without `allowProduction` | `POLICY_DENIED` |
-| Missing credential | status `missing`, warning; operation still resolves |
+| Missing credential | `configured: false`, warning; operation still resolves |
 | Broken reference | error from `env_validate`, skipped on read |
 | Invalid record | skipped on read with diagnostic |
 | Approval denied | `POLICY_DENIED`, no write |
+| UI production write without `allowUiProductionWrites` | `POLICY_DENIED`, no write |
+| Missing transport header or foreign origin | `FORBIDDEN`, no routing |
+| Body over 2 MiB | 413, no parsing |
+| Record cap exceeded | `RECORD_LIMIT_EXCEEDED`, no write |
 
 ---
 
@@ -152,3 +181,8 @@ Requirements for P1:
 3. A correct Skill binding can still be used for an unsafe action; policy is necessary but not sufficient.
 4. Internal hostnames/IPs in registry files may leak if the repository or data directory is shared carelessly. Registry data must not be committed to Git.
 5. Operation history in P1 may capture sensitive command text if redaction is incomplete.
+6. The local HTTP route trusts the page origin and a custom header; a script running in
+   the DSH page (extension, devtools) can call it. It can read registry data the user
+   can already see, and write only as the `ui` actor under §4.2.
+7. `ctx.fs.watch` is not used in V1, so an external edit is picked up on the next
+   request rather than immediately; a stale resolve cannot outlive one request.

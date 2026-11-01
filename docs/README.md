@@ -22,8 +22,23 @@ Also read:
 
 1. `docs/01-architecture/design.md`
 2. `docs/01-architecture/data-model.md`
-3. `docs/01-architecture/module-boundaries.md`
-4. `docs/01-architecture/storage-contract.md`
+3. `docs/01-architecture/detailed-design.md`
+4. `docs/01-architecture/module-boundaries.md`
+5. `docs/01-architecture/storage-contract.md`
+
+### Runtime API Questions
+
+Also read:
+
+1. `docs/01-architecture/api-verification.md`
+2. `docs/01-architecture/decisions/ADR-0009-client-host-http-transport.md`
+
+### Implementation Work
+
+Also read:
+
+1. `docs/01-architecture/implementation-plan.md`
+2. `docs/01-architecture/ui-design.md` (Client changes only)
 
 ### Tool Surface Changes
 
@@ -31,6 +46,7 @@ Also read:
 
 1. `docs/01-architecture/tool-contract.md`
 2. `docs/01-architecture/data-model.md`
+3. `docs/01-architecture/detailed-design.md` §11
 
 ### Resolver / Rule Work
 
@@ -103,9 +119,13 @@ docs/
 |---|---|
 | `architecture-overview.md` | layers, components, request flows |
 | `design.md` | V1 scope, algorithms, acceptance criteria |
+| `detailed-design.md` | module contracts, algorithms, tool/HTTP specs, tests |
 | `data-model.md` | record schemas and result types |
-| `tool-contract.md` | tool inputs, outputs, errors |
+| `tool-contract.md` | model-facing tool inputs, outputs, errors |
 | `storage-contract.md` | files, atomicity, sessions, migration |
 | `module-boundaries.md` | module ownership and dependencies |
+| `ui-design.md` | panels, transport, states, i18n, QA checklist |
 | `security-model.md` | credential, policy and redaction controls |
-| `decisions/ADR-*.md` | accepted decisions |
+| `api-verification.md` | verified DSH runtime facts and open probes |
+| `implementation-plan.md` | ordered tasks, acceptance, cut line |
+| `decisions/ADR-*.md` | accepted decisions (ADR-0009 = UI transport) |

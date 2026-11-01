@@ -4,22 +4,22 @@ Status: normative for V1.
 
 Modules are directories under `src/` (Host, TypeScript). The Client half is a single `client.js` module at the repository root.
 
-Related: [design.md](./design.md) §3, [storage-contract.md](./storage-contract.md), [tool-contract.md](./tool-contract.md).
+Related: [design.md](./design.md) §3, [detailed-design.md](./detailed-design.md) §2, [storage-contract.md](./storage-contract.md), [tool-contract.md](./tool-contract.md).
 
 ---
 
 ## 1. Dependency direction
 
 ```text
-tools ──▶ resolver ──▶ registry ──▶ storage ──▶ fs
-  │           │            │
-  │           └──▶ domain ◀┘
-  │
-  ├──▶ router ──▶ resolver (context only)
-  ├──▶ session ──▶ storage
-  └──▶ memory-bridge ──▶ (external contract)
+tools ────────┐
+              ├──▶ app ──▶ resolver ──▶ registry ──▶ storage ──▶ fs
+transport ────┘      │          │            │
+                     │          └──▶ domain ◀┘
+                     ├──▶ router ──▶ resolver (context only)
+                     ├──▶ session ──▶ storage
+                     └──▶ memory-bridge ──▶ (external contract)
 
-client ──▶ host tools only
+client ──▶ transport (HTTP) ──▶ app
 ```
 
 Rules:
@@ -28,9 +28,12 @@ Rules:
 - `storage` depends on `domain`.
 - `registry` depends on `storage` and `domain`.
 - `resolver` and `router` depend on `domain` and `registry` types, never on `storage` or `tools`.
-- `tools` may depend on everything above.
-- No module imports `tools` except the Host entry point (`src/index.ts`).
-- `client.js` depends on Host tools, never on `src/` modules.
+- `app` composes storage, registry, resolver, router, session and config; it is the only
+  module that knows all of them.
+- `tools` and `transport` depend on `app` and `domain`; neither contains business logic
+  and neither imports the other.
+- No module imports `tools` or `transport` except the Host entry point (`src/index.ts`).
+- `client.js` depends on the HTTP API, never on `src/` modules.
 
 Cycles are forbidden. A cycle means the boundary is wrong.
 
@@ -167,7 +170,29 @@ Forbidden:
 
 ---
 
-## 8. `memory-bridge`
+## 8. `app`
+
+Owns the use cases. One function per tool and per HTTP operation.
+
+Responsibilities:
+
+- Compose storage, registry, resolver, router and session for a request.
+- Apply the record cap, actor policy and dry-run.
+- Reload the registry after a successful write.
+- Return domain results or throw `EnvManagerError`.
+
+Forbidden:
+
+- Tool registration or HTTP parsing.
+- Rendering text for the model or the UI.
+- Re-implementing resolution, routing or persistence.
+
+`app` is the only module both `tools` and `transport` call, so the two surfaces cannot
+drift.
+
+---
+
+## 9. `memory-bridge`
 
 Owns the optional P1 integration.
 
@@ -185,27 +210,48 @@ Forbidden:
 
 ---
 
-## 9. `tools`
+## 10. `tools`
 
 Owns the Agent-facing surface.
 
 Responsibilities:
 
-- Register tools with `ctx.tools.register`.
-- Validate inputs with Zod.
-- Map module results to the tool envelope.
+- Register `defineTool` definitions with `ctx.tools.register`.
+- Declare parameter and output schemas.
 - Apply approval gates for management writes.
-- Redact output.
+- Map `app` results to the declared JSON value and `render` text.
+- Throw `EnvManagerError` for expected failures.
 
 Forbidden:
 
 - Business logic beyond orchestration.
 - Direct file access.
-- Re-implementing resolution.
+- Re-implementing resolution, routing or persistence.
 
 ---
 
-## 10. `config`
+## 11. `transport`
+
+Owns the Client-facing HTTP surface.
+
+Responsibilities:
+
+- Register and dispose the `/env-manager/api` route.
+- Enforce method, content type, request header, origin and body limits.
+- Map `{ op, payload }` to `app` calls.
+- Map `EnvManagerError` codes to status codes.
+- Log writes with actor, op, kind, id and outcome.
+
+Forbidden:
+
+- Business logic.
+- Reading credentials.
+- CORS headers or cookie handling.
+- Serving files or static assets.
+
+---
+
+## 12. `config`
 
 Owns plugin configuration.
 
@@ -222,38 +268,39 @@ Forbidden:
 
 ---
 
-## 11. `client.js`
+## 13. `client.js`
 
 Owns the Web/Desktop surface.
 
 Allowed:
 
 - Render panels and forms.
-- Call Host tools.
-- Use the client locale service.
+- Call the plugin HTTP API.
+- Use the client locale, slots and theme services.
 - Register slots and clean up on unmount.
 
 Forbidden:
 
 - Reading or writing registry files.
 - Re-implementing rule resolution or routing.
-- Holding durable state outside Host tools.
+- Holding durable state outside the Host.
 - Global side effects at module load.
 
 ---
 
-## 12. Host entry
+## 14. Host entry
 
 `src/index.ts` is the only place that wires modules together.
 
 Responsibilities:
 
-- Read config, build storage/registry/resolver/router/session.
+- Read config, build storage/registry/resolver/router/session/app.
 - Register tools and their cleanup.
+- Register the HTTP route and its cleanup.
 - Register the Client module metadata.
 - Log the resolved data directory once.
 
 Forbidden:
 
 - Business logic.
-- Direct tool implementations.
+- Direct tool or transport implementations.

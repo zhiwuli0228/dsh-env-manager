@@ -1,413 +1,438 @@
 # Tool Contract (V1)
 
-Status: normative for V1.
-
-This document defines the Agent tools exposed by DSH Environment Manager. Schemas are expressed as TypeScript types for readability; the implementation validates the same shapes with Zod.
-
----
+> Status: normative model-facing contract. Registration mechanics are in
+> [`api-verification.md`](api-verification.md) F2–F5; implementation in
+> [`detailed-design.md`](detailed-design.md) §11.
+> An implementation whose tool schema differs from this document is a bug in one of
+> them; update both in the same change.
 
 ## 1. Conventions
 
-### 1.1 Result envelope
+### 1.1 Registration
 
-Every tool returns JSON:
+Every tool is a `defineTool` definition registered on `ctx.tools` during `apply`:
 
 ```ts
-type ToolResult<T> =
-  | { ok: true; data: T; diagnostics?: Diagnostic[] }
-  | { ok: false; error: ToolError };
+ctx.tools.register(defineTool({
+  name, description, parameters,
+  output: { schema, render },
+  async execute(args, exec) { /* returns the declared JSON value */ },
+}))
+```
 
-interface ToolError {
-  code: string;          // see data-model §11
-  message: string;       // human readable, no secrets
-  details?: Record<string, unknown>;
+- The tool name is stable and matches `^env_[a-z_]+$`.
+- `parameters` uses DSH's value-schema DSL, not raw JSON Schema. Property-level
+  `required: true` marks required arguments. `additionalProperties` must be explicit.
+- `output.schema` is the enforced JSON Schema subset: `type`, `oneOf`, `properties`,
+  `required`, `additionalProperties`, `items`, `enum`, `const` plus annotations.
+- `render(args, value)` returns `ContentBlock[]`. V1 emits exactly one text block: a
+  one-line summary plus the ids a human needs. The canonical JSON value is what the
+  model receives.
+- Descriptions start with the decision rule ("Use when …"), not with a restatement of
+  the name.
+
+### 1.2 Errors
+
+Success returns the declared value. Every expected failure throws:
+
+```ts
+class EnvManagerError extends HarnessError {
+  constructor(code: ErrorCode, message: string, details?: JsonValue)
 }
 ```
 
-### 1.2 Rules
+`HarnessError` is imported from `@deepseek-ai/dsh-llm` and constructed as
+`super(message, code)`. DSH records `{ name, code }` beside the message, so the model
+and the UI can branch on `code` without parsing text.
 
-- Tool handlers are thin: validate → call module → format.
-- Tools never read files directly; they use `registry` / `storage`.
-- Tools never return credential values; only `{ ref, status }`.
-- Tools never return absolute file contents or stack traces.
-- Response size is bounded: list tools cap at 200 items and include `truncated: true` when capped.
-- `environmentId` may be omitted where allowed; the session default is then used. If neither exists, the error names both options.
+Rules:
 
-### 1.3 Registration
+- No tool returns `{ ok: false }`.
+- No tool throws a bare string.
+- Messages never contain a credential value, a file body, or a stack trace.
+- Unexpected exceptions are wrapped as `INTERNAL_ERROR` with a redacted message.
+- A cancelled call surfaces DSH's own abort error; do not translate it.
 
-Tools are registered with `ctx.tools.register(...)` inside `apply`, and their cleanup is returned through `ctx.effect`.
+Codes are defined in [`data-model.md`](data-model.md) §11.
 
----
+### 1.3 Approval
+
+| Tool | Approval |
+|---|---|
+| `env_delete` | always, when `confirm: true` and `writePolicy.requireApprovalForDelete` |
+| `env_save` | when the record is a production environment, or a deployment whose environment is production, and `writePolicy.requireApprovalForProductionSave` |
+| everything else | no |
+
+Approval uses `ctx.approval.request` with the executing agent, the tool name, the call
+id, an English `reason`, and a localized `displayReason`. Only `'allowed-once'` grants;
+`'rejected'`, `'cancelled'` and `'unavailable'` all become `POLICY_DENIED`.
+
+A session-scoped tool invoked without `exec.agent` fails with
+`SESSION_CONTEXT_UNAVAILABLE`; it never guesses a session.
+
+### 1.4 Session default
+
+`env_resolve`, `env_resolve_operation` and `env_set_context` operate on the calling
+agent's session. When `environmentId` is omitted, the order is:
+
+1. the explicit argument;
+2. the session default (`sessions/<sessionId>.json`);
+3. `config.defaults.environmentId`;
+4. `INVALID_ARGUMENT` naming both ways to supply an environment.
+
+### 1.5 Shared value shapes
+
+```ts
+interface Diagnostic {
+  severity: 'info' | 'warning' | 'error'
+  code: string
+  message: string
+  file?: string
+  path?: string
+}
+
+interface RecordSummary {
+  kind: RecordKind
+  id: string
+  name: string
+  summary?: string        // kind-specific one-liner
+}
+
+interface WarningList { warnings: Diagnostic[] }
+```
+
+`RecordKind = 'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding'`.
 
 ## 2. Read tools
 
 ### 2.1 `env_list`
 
-Purpose: list environments visible in the profile.
-
-Input:
+Use when the caller needs an inventory or wants to discover ids before a specific call.
 
 ```ts
-interface EnvListInput {
-  category?: EnvironmentCategory;
-  query?: string;        // matches name or alias, case-insensitive
-  limit?: number;        // default 50, max 200
+parameters: {
+  kind: {
+    type: 'string',
+    required: false,
+    enum: ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'],
+    description: 'Restrict to one record kind.',
+  },
+  query: {
+    type: 'string',
+    required: false,
+    description: 'Case-insensitive match over id, name and alias.',
+  },
 }
 ```
 
-Output:
+Returns:
 
-```ts
-interface EnvironmentSummary {
-  environmentId: string;
-  name: string;
-  aliases: string[];
-  category: EnvironmentCategory;
-  hostCount: number;
-  clusterCount: number;
-  serviceCount: number;  // distinct services with deployments here
-  roleIds: string[];
-}
-
-interface EnvListData {
-  environments: EnvironmentSummary[];
-  truncated: boolean;
-}
+```json
+{ "items": [ { "kind": "environment", "id": "test-a", "name": "Test A", "summary": "test · 2 hosts" } ],
+  "warnings": [] }
 ```
 
-Errors: `RECORD_INVALID` diagnostics are returned in `diagnostics`, not as failure.
+- Sorted by kind, then id.
+- An empty registry is `{ "items": [], "warnings": [] }`, not an error.
+- Registry diagnostics are summarized in `warnings` (at most 20, with a count of the
+  rest).
+
+Errors: `INVALID_ARGUMENT` for an unknown `kind`.
+
+Render: `"5 environments, 2 services (2 warnings)."`
 
 ### 2.2 `env_get`
 
-Purpose: read one environment, including topology and credential status.
-
-Input:
+Use when the caller already has an id and needs the full record.
 
 ```ts
-interface EnvGetInput {
-  environmentId: string;
+parameters: {
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  id: { type: 'string', required: true, description: 'Record id, e.g. test-a.' },
 }
 ```
 
-Output:
+Returns:
 
-```ts
-interface EnvironmentDetail {
-  environmentId: string;
-  name: string;
-  aliases: string[];
-  category: EnvironmentCategory;
-  description?: string;
-  roles: LogicalRole[];
-  hosts: HostView[];
-  clusters: ClusterView[];
-  endpoints: EndpointView[];
-  ruleOverrides?: RuleOverride;
-  deployments: DeploymentSummary[];
-}
-
-interface HostView {
-  id: string;
-  name: string;
-  os?: string;
-  ip?: string;
-  sshPort?: number;
-  roles: string[];
-  credential?: CredentialStatus;
-}
-
-interface ClusterView {
-  id: string;
-  name: string;
-  kind: 'kubernetes' | 'docker';
-  apiEndpoint?: string;
-  namespaces?: string[];
-  credential?: CredentialStatus;
-}
-
-interface EndpointView {
-  id: string;
-  kind: string;
-  hostRef?: string;
-  clusterRef?: string;
-  url?: string;
-  port?: number;
-  credential?: CredentialStatus;
-}
-
-interface DeploymentSummary {
-  deploymentId: string;
-  serviceId: string;
-  runtimeMode: RuntimeMode;
-  name?: string;
-}
+```json
+{ "record": { "id": "test-a", "schemaVersion": 1, "...": "..." },
+  "yaml": "id: test-a\n..." }
 ```
 
-Errors: `ENV_NOT_FOUND`.
+- `record` is the parsed document; `yaml` is the on-disk text (helpful for edits).
+- Unknown fields in the file are preserved in both.
+
+Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
+`RULE_PROFILE_NOT_FOUND`, `BINDING_NOT_FOUND` depending on `kind`; `INVALID_ARGUMENT`
+for a malformed id (fails before any I/O).
+
+Render: `"environment test-a (Test A), updated 2026-11-01."`
 
 ### 2.3 `env_find`
 
-Purpose: search across environments, services, hosts and endpoints.
-
-Input:
+Use when the caller has a name or fragment and wants candidate ids. Prefer this over
+guessing an id.
 
 ```ts
-interface EnvFindInput {
-  query: string;         // required, min length 2
-  kinds?: Array<'environment' | 'service' | 'host' | 'cluster' | 'endpoint'>;
-  limit?: number;        // default 30, max 100
+parameters: {
+  query: {
+    type: 'string',
+    required: true,
+    description: 'Fragment of an id, name, alias or category (min 2 characters).',
+  },
 }
 ```
 
-Output:
+Returns:
 
-```ts
-interface EnvFindHit {
-  kind: 'environment' | 'service' | 'host' | 'cluster' | 'endpoint';
-  id: string;
-  label: string;
-  environmentId?: string;
-  matchedOn: 'name' | 'alias' | 'id' | 'ip' | 'url';
-}
-
-interface EnvFindData {
-  hits: EnvFindHit[];
-  truncated: boolean;
-}
+```json
+{ "hits": [ { "kind": "service", "id": "aicoservice", "name": "Aico Service", "field": "alias" } ] }
 ```
 
-Matching is literal, case-insensitive substring. No fuzzy scoring in V1.
+- Matching is case-insensitive over `id`, `name`, `aliases`, `category`.
+- Ranked: exact id, prefix id, name, alias, category. At most 25 hits.
+- No hit is not an error.
+
+Errors: `INVALID_ARGUMENT` when `query` is shorter than 2 characters.
+
+Render: `"3 matches for \"aico\"."`
 
 ### 2.4 `env_resolve`
 
-Purpose: build the Service Context for a service in an environment.
-
-Input:
+Use when the caller needs concrete paths, log sources, class locations or variables
+for a service in an environment. This is the authoritative answer; do not reconstruct
+paths from templates.
 
 ```ts
-interface EnvResolveInput {
-  environmentId?: string;
-  serviceId: string;
-  deploymentId?: string;
+parameters: {
+  environmentId: { type: 'string', required: false, description: 'Defaults to the session environment.' },
+  serviceId: { type: 'string', required: true },
+  deploymentId: {
+    type: 'string',
+    required: false,
+    description: 'Required when the service has more than one binding in the environment; a single binding is selected automatically.',
+  },
 }
 ```
 
-Resolution of `environmentId`:
+Returns the Service Context from `data-model.md` §8.2, including `provenance` and
+`warnings`.
 
-1. Explicit value wins.
-2. Otherwise the session default.
-3. Otherwise `ENV_NOT_FOUND` with a message naming both options.
+Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
+`DEPLOYMENT_AMBIGUOUS` (lists candidates), `RULE_*`, `PARAMETER_RESOLUTION_FAILED`.
 
-`deploymentId`:
-
-- Explicit value wins.
-- Omitted and exactly one binding matches → used.
-- Omitted and several bindings match → `DEPLOYMENT_AMBIGUOUS` listing ids, runtime modes and names.
-
-Output: `ServiceContext` (see [data-model.md](./data-model.md) §8.2).
-
-Errors:
-
-- `ENV_NOT_FOUND`
-- `SERVICE_NOT_FOUND`
-- `DEPLOYMENT_NOT_FOUND`
-- `DEPLOYMENT_AMBIGUOUS`
-- `RULE_*` for template failures
-
-Note: rule failures are errors because the caller asked for resolved values. The response still includes whatever fields resolved successfully.
+Render: `"Resolved aicoservice in test-a (kubernetes): 7 paths, 2 variables, 1 warning."`
 
 ### 2.5 `env_resolve_operation`
 
-Purpose: route an operation to its bound Skill and map parameters.
-
-Input:
+Use before acting: ask which Skill handles an operation for this context and what
+parameters it expects. This tool **does not execute** the Skill.
 
 ```ts
-interface EnvResolveOperationInput {
-  environmentId?: string;
-  serviceId: string;
-  deploymentId?: string;
-  operation: string;     // standard id or custom id
+parameters: {
+  operation: {
+    type: 'string',
+    required: true,
+    description: 'deploy | redeploy | restart | rollback | collect-logs | health-check | … (standard id or a bound custom id).',
+  },
+  environmentId: { type: 'string', required: false },
+  serviceId: { type: 'string', required: false },
+  deploymentId: { type: 'string', required: false },
 }
 ```
 
-Output: `OperationResolution` (see [data-model.md](./data-model.md) §8.3).
+- At least one of `serviceId` / `deploymentId` is required; `environmentId` falls back
+  to the session default.
 
-Behavior:
+Returns `OperationResolution` from `data-model.md` §8.3:
 
-- Resolves the context first; context-resolution errors propagate.
-- Selects the highest eligible match level; conflicts are errors.
-- Checks Skill availability as described in design §7.3.
-- Evaluates policy as described in design §7.4.
-- Never returns a Skill name when `ok` is false.
+```json
+{
+  "ok": true,
+  "operation": "redeploy",
+  "requested": { "environmentId": "test-a", "serviceId": "aicoservice", "deploymentId": "deploy-001" },
+  "matchedBindingId": "binding-001",
+  "matchLevel": "environment-service",
+  "skill": { "name": "redeploy-k8s-service", "available": true, "source": "project-dsh", "provider": "dsh-skills" },
+  "parameters": { "namespace": "dv-sop", "workload": "aicoservice", "cluster": "k8s-01" },
+  "policy": { "requiresApproval": true, "allowProduction": false },
+  "diagnostics": []
+}
+```
 
-Errors:
+Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
+`DEPLOYMENT_AMBIGUOUS`, `BINDING_NOT_FOUND`, `BINDING_CONFLICT` (lists every candidate),
+`SKILL_UNAVAILABLE`, `POLICY_DENIED`, `OPERATION_UNKNOWN`, `PARAMETER_RESOLUTION_FAILED`.
 
-- context errors as in `env_resolve`
-- `BINDING_CONFLICT`
-- `SKILL_UNAVAILABLE`
-- `POLICY_DENIED`
-- `PARAMETER_RESOLUTION_FAILED`
+Incomplete Skill catalog: `skill.available: "unknown"` plus a
+`SKILL_REGISTRY_UNAVAILABLE` warning; the call still succeeds.
+
+Render: `"redeploy aicoservice/test-a → redeploy-k8s-service (approval required)."`
 
 ### 2.6 `env_get_context`
 
-Purpose: read the session default environment.
-
-Input: none.
-
-Output:
+Use to check what environment the current session defaults to.
 
 ```ts
-interface SessionContextData {
-  defaultEnvironmentId?: string;
-  updatedAt?: string;
-  persisted: boolean;
-}
+parameters: {}
 ```
 
-`persisted: false` means the value is in memory only; a warning diagnostic `SESSION_CONTEXT_UNPERSISTED` is included.
+Returns:
+
+```json
+{ "sessionId": "01J…", "defaultEnvironmentId": "test-a", "persisted": true }
+```
+
+Errors: `SESSION_CONTEXT_UNAVAILABLE` when there is no owning agent.
+
+Render: `"Session default: test-a."`
 
 ### 2.7 `env_set_context`
 
-Purpose: set or clear the session default environment.
-
-Input:
+Use when the user says "work on test-a" and later calls should omit `environmentId`.
 
 ```ts
-interface EnvSetContextInput {
-  environmentId: string | null;
+parameters: {
+  environmentId: {
+    oneOf: [{ type: 'string' }, { type: 'null' }],
+    required: true,
+    description: 'Environment id, or null to clear the session default.',
+  },
 }
 ```
 
-Output: `SessionContextData`.
+Returns the same shape as `env_get_context`. Writing an unknown environment fails with
+`ENV_NOT_FOUND`.
 
-Validation: the environment must exist (`ENV_NOT_FOUND`). Passing `null` clears.
+A file write failure returns `persisted: false` plus a `SESSION_CONTEXT_UNPERSISTED`
+warning; it does not throw, because the process-local cache still honors the choice for
+this process.
 
-Isolation: only the current session is affected.
-
----
+Render: `"Session default set to test-a."` / `"Session default cleared."`
 
 ## 3. Management tools
 
-Management tools change registry state. They validate before writing and never write partial records.
-
 ### 3.1 `env_save`
 
-Purpose: create or replace one record.
-
-Input:
+Use to create or replace a record. Prefer `env_get` first, edit the YAML, then save the
+whole record; do not send a partial patch.
 
 ```ts
-type EnvSaveInput =
-  | { type: 'environment'; record: Environment }
-  | { type: 'service'; record: Service }
-  | { type: 'deployment'; record: DeploymentBinding }
-  | { type: 'rule-profile'; record: RuleProfile }
-  | { type: 'operation-binding'; record: OperationBinding };
+parameters: {
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  record: {
+    type: 'json',
+    required: true,
+    description: 'Complete record; id and schemaVersion are required. Host timestamps are set by the plugin and ignored if supplied.',
+  },
+  dryRun: {
+    type: 'boolean',
+    required: false,
+    description: 'Validate and report without writing.',
+  },
+}
+```
+
+Returns:
+
+```json
+{ "id": "test-a", "kind": "environment", "created": false, "dryRun": false,
+  "warnings": [ { "severity": "warning", "code": "CREDENTIAL_MISSING", "message": "…" } ] }
 ```
 
 Behavior:
 
-- Validates the record against its schema and referential integrity (§12 of data-model).
-- `createdAt` is preserved on update; `updatedAt` is refreshed.
-- Writes atomically.
-- Reloads the registry entry on success.
+- Zod validation, id/filename equality, record cap, then atomic write, then reload.
+- `created` is `true` only when no file existed before.
+- Broken references after the write are returned as warnings; the write is not rolled
+  back because the record itself is valid.
+- Production records require approval unless the config disables it.
 
-Output:
+Errors: `RECORD_INVALID` (with `details.issues`), `RECORD_LIMIT_EXCEEDED`,
+`RECORD_TOO_LARGE`, `STORAGE_UNWRITABLE`, `POLICY_DENIED`.
 
-```ts
-interface EnvSaveData {
-  type: string;
-  id: string;
-  created: boolean;
-  warnings: Diagnostic[];
-}
-```
-
-Policy:
-
-- If the record is production-affecting (an environment with `category: production`, or a deployment/binding that resolves to one), the Host requests approval through `ctx.approval` before writing. A denied approval returns `POLICY_DENIED`.
-- Non-production writes do not prompt.
+Render: `"Saved environment test-a (updated, 1 warning)."`
 
 ### 3.2 `env_delete`
 
-Purpose: delete one record by id.
-
-Input:
+Use only when the user explicitly asks to remove a record.
 
 ```ts
-interface EnvDeleteInput {
-  type: 'environment' | 'service' | 'deployment' | 'rule-profile' | 'operation-binding';
-  id: string;
+parameters: {
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  id: { type: 'string', required: true },
+  confirm: {
+    type: 'boolean',
+    required: true,
+    description: 'false checks references only; true deletes after approval.',
+  },
 }
+```
+
+Returns:
+
+```json
+{ "id": "test-a", "kind": "environment", "deleted": true, "blockers": [] }
 ```
 
 Behavior:
 
-- Refuses to delete a record still referenced by another record: `RECORD_IN_USE` with the referencing ids.
-- Production-affecting deletion requires approval.
-- Deletes the file and reloads.
+- `confirm: false` never deletes; it returns `blockers` describing references.
+- `confirm: true` asks for approval, then refuses with `RECORD_IN_USE` when referenced.
+- A backup copy is written before the unlink.
 
-Output:
+Errors: not found by kind, `RECORD_IN_USE`, `POLICY_DENIED`, `STORAGE_UNWRITABLE`.
 
-```ts
-interface EnvDeleteData {
-  type: string;
-  id: string;
-  deleted: boolean;
-}
-```
+Render: `"Deleted environment test-a (backup kept)."`
 
 ### 3.3 `env_validate`
 
-Purpose: validate the whole registry and report problems.
-
-Input:
+Use after hand-editing YAML or before trusting a resolve result.
 
 ```ts
-interface EnvValidateInput {
-  fix?: boolean;         // V1 only accepts false; reserved
+parameters: {}
+```
+
+Returns:
+
+```json
+{
+  "ok": false,
+  "counts": {
+    "environment": 2, "service": 1, "deployment": 1,
+    "ruleProfile": 1, "operationBinding": 2
+  },
+  "diagnostics": [
+    { "severity": "error", "code": "RULE_PROFILE_NOT_FOUND",
+      "message": "service aicoservice references unknown rule profile java-commn",
+      "file": "services/aicoservice.yaml", "path": "ruleProfileRefs[0]" }
+  ]
 }
 ```
 
-Output:
+- Always succeeds at the tool level; `ok: false` is a report, not a failure.
+- Read-only: no write, no reload side effect beyond the normal request load.
 
-```ts
-interface EnvValidateData {
-  records: number;
-  valid: number;
-  invalid: number;
-  diagnostics: Diagnostic[];
-}
-```
+Render: `"Registry invalid: 2 errors, 1 warning."`
 
-Checks:
+## 4. Cross-tool rules
 
-- schema validity
-- unique ids and matching file names
-- referential integrity (data-model §12)
-- unreachable rule profiles (defined but never referenced) as `info`
-- operation bindings that can never match (empty service/global mismatch) as `warning`
-- duplicate host IPs within one environment
-- production bindings with `allowProduction: false` as `info` (expected, not an error)
-
-`env_validate` never writes.
-
----
-
-## 4. Data transfer notes
-
-- `Host`, `Service`, etc. in tool inputs use the same shapes as [data-model.md](./data-model.md); extra fields are rejected.
-- Timestamps in inputs are ignored on create and overwritten on update.
-- `schemaVersion` is optional in inputs and forced to `1`.
-- Ids are validated by pattern; ids are never derived from user text automatically.
-
----
+1. **Ids are data, not paths.** A tool never accepts a filesystem path.
+2. **No credentials.** `credentialRef` status is reported as
+   `{ ref, configured, source }`; values are never resolved.
+3. **No execution.** No tool runs a Skill, a shell command, or a network request.
+4. **Determinism.** Same registry and inputs produce the same result; no random ids,
+   no wall-clock ordering.
+5. **Read-only means read-only.** `env_validate`, `env_get_context`, `env_list`,
+   `env_get`, `env_find`, `env_resolve`, `env_resolve_operation` never write a file.
+6. **Fail closed.** A conflict, missing Skill, broken reference or production denial is
+   an error, never a fallback.
 
 ## 5. Non-goals for V1 tools
 
-- No remote command execution.
-- No credential value read.
-- No bulk import/export.
-- No history or undo.
-- No search ranking beyond literal substring.
+- Executing an operation or invoking a Skill.
+- Writing operation records to memory.
+- Bulk import/export.
+- Editing plugin configuration.
+- Reading or writing session context for a session other than the caller's.
+- Any network or shell access.

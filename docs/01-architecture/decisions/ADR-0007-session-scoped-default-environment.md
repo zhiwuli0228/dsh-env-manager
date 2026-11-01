@@ -18,7 +18,8 @@ Users work in one environment at a time and do not want to repeat "test-a" in ev
 ## Consequences
 
 - Two sessions can target different environments concurrently (AC-07).
-- Storage is a small JSON file per session, or the DSH session store when available.
+- Storage is a small JSON file per session under `<dataDir>/sessions/`; the DSH
+  projection store is not usable from a standalone bundle (`api-verification.md` F11).
 - A session without a default must pass `environmentId` explicitly; the error names both options.
 
 ## Alternatives Considered

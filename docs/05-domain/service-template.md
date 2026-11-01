@@ -21,7 +21,7 @@ build:
 
 artifact:
   name: aicoservice.jar
-  path: ${paths.serviceHome}/lib/${artifact.name}
+  path: ${paths.serviceHome}/lib/${service.artifact.name}
 
 deployModes: [native, docker, kubernetes]
 ruleProfileRefs: [java-common, company-default]   # order matters; later wins

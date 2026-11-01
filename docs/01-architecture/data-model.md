@@ -14,7 +14,7 @@ TypeScript declarations below are the source of truth for the Host implementatio
 
 ### 1.1 Identifiers
 
-- Pattern: `^[a-z0-9][a-z0-9-]{0,63}$`
+- Pattern: `^[a-z0-9][a-z0-9-]{0,62}$` (1–63 characters).
 - One namespace per record type: environment ids, service ids, deployment ids, rule profile ids and operation binding ids are unique within their own type.
 - A record's `id` must equal its file name without extension.
 
@@ -37,6 +37,8 @@ interface RecordMeta {
 ### 1.4 Validation policy
 
 - Unknown fields are rejected on write (`RECORD_INVALID`).
+- On read, unknown fields are preserved and reported as `UNKNOWN_FIELD` warnings, so a
+  hand-edited file is inspectable before it is fixed.
 - Records with an unknown `schemaVersion` are skipped on read with a warning diagnostic.
 - Records failing schema validation are skipped on read with a warning; they are not deleted.
 - No field may contain a plain-text secret. `credentialRef` is a reference only.
@@ -406,8 +408,8 @@ interface OperationMatch {
 
 interface SkillReference {
   name: string;
-  expectedSource?: string | null;
-  expectedDigest?: string | null;
+  expectedSource?: string | null;    // SkillSummary.source, e.g. project-dsh
+  expectedProvider?: string | null;  // SkillSummary.provider
 }
 
 interface OperationPolicy {
@@ -424,6 +426,19 @@ interface OperationBinding extends RecordMeta {
   enabled: boolean;
 }
 ```
+
+`match` must be one of five shapes; any other combination is `RECORD_INVALID`:
+
+| Shape | Level |
+|---|---|
+| `{ deploymentId }` plus optional `environmentId`/`serviceId` | `deployment` |
+| `{ environmentId, serviceId }` | `environment-service` |
+| `{ serviceId }` | `service` |
+| `{ serviceCategory, deploymentMode }` | `category-mode` |
+| `{}` | `global` |
+
+`environmentId` alone, `deploymentMode` alone, or `environmentId` + `deploymentMode` are
+invalid: they would create a sixth level with no defined precedence.
 
 ### 7.1 Standard operation ids
 
@@ -451,7 +466,7 @@ match:
 skill:
   name: redeploy-k8s-service
   expectedSource: null
-  expectedDigest: null
+  expectedProvider: null
 parameters:
   namespace: ${deployment.location.namespace}
   workload: ${deployment.location.workload.name}
@@ -485,11 +500,21 @@ interface ProvenanceInput {
 }
 
 interface ProvenanceEntry {
-  field: string;                 // e.g. paths.applicationLog
+  field: string;                 // e.g. paths.applicationLog, logSources.kubernetes.namespace
   definedBy: RuleSource;         // layer that supplied the winning template
   inputs: ProvenanceInput[];     // referenced fields and their winning sources
   shadowed: RuleSource[];        // lower-priority definitions that lost
-  value: string | LogSource | ClassLocation;
+  value: string | number | boolean;
+}
+
+interface ResolvedField<T> {
+  value: T;
+  provenance: ProvenanceEntry;
+}
+
+interface ResolvedStructured<T> {
+  value: T;
+  provenance: ProvenanceEntry[];  // one entry per property
 }
 ```
 
@@ -498,14 +523,10 @@ interface ProvenanceEntry {
 ### 8.2 Service Context
 
 ```ts
-interface ResolvedField<T> {
-  value: T;
-  provenance: ProvenanceEntry;
-}
-
 interface CredentialStatus {
   ref: string;
-  status: 'configured' | 'missing' | 'unavailable';
+  configured: boolean;
+  source?: string;           // where the value lives, e.g. profile-vault
 }
 
 interface ServiceContext {
@@ -514,6 +535,7 @@ interface ServiceContext {
   environmentCategory: EnvironmentCategory;
   serviceId: string;
   serviceName: string;
+  serviceCategory: string;
   deploymentId: string;
   deploymentName?: string;
   runtimeMode: RuntimeMode;
@@ -522,11 +544,15 @@ interface ServiceContext {
     defaultBranch?: string;
     modulePath?: string;
   };
+  artifact?: {
+    name: string;
+    path?: string;
+  };
   location: DeploymentLocation;
-  variables: Record<string, string | number | boolean>;
+  variables: Record<string, ResolvedField<string | number | boolean>>;
   paths: Record<string, ResolvedField<string>>;
-  logSource?: ResolvedField<LogSource>;
-  classLocation?: ResolvedField<ClassLocation>;
+  logSource?: ResolvedStructured<LogSource>;
+  classLocation?: ResolvedStructured<ClassLocation>;
   ruleProfiles: string[];
   status: Status;
   credentials: CredentialStatus[];
@@ -543,14 +569,15 @@ interface Diagnostic {
   code: string;
   severity: Severity;
   message: string;
-  field?: string;
+  file?: string;                 // registry-relative file name
+  path?: string;                 // field path, e.g. ruleProfileRefs[0]
   details?: Record<string, unknown>;
 }
 
 interface ResolvedSkillReference {
   name: string;
   source?: string | null;
-  digest?: string | null;
+  provider?: string | null;
   available: boolean | 'unknown';
 }
 
@@ -578,7 +605,8 @@ interface OperationResolution {
 ```ts
 interface SessionContext {
   sessionId: string;
-  defaultEnvironmentId?: string;
+  defaultEnvironmentId: string | null;
+  persisted: boolean;
   updatedAt: string;
 }
 ```
@@ -617,24 +645,37 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 | `ENV_NOT_FOUND` | error | Environment id does not exist |
 | `SERVICE_NOT_FOUND` | error | Service id does not exist |
 | `DEPLOYMENT_NOT_FOUND` | error | Deployment id does not exist |
+| `HOST_NOT_FOUND` | error | Deployment host reference is missing in the environment |
+| `CLUSTER_NOT_FOUND` | error | Deployment cluster reference is missing in the environment |
+| `RULE_PROFILE_NOT_FOUND` | error | `ruleProfileRefs` names a missing profile |
 | `DEPLOYMENT_AMBIGUOUS` | error | No deployment id given and several bindings match |
+| `DUPLICATE_ID` | warning | Two files declare the same id; the later file is skipped |
+| `BINDING_NOT_FOUND` | error | No operation binding matches the context |
 | `RECORD_INVALID` | error | Record failed schema validation |
 | `RECORD_IN_USE` | error | Record is still referenced and cannot be deleted |
-| `INVALID_ARGUMENT` | error | Tool input failed validation |
+| `RECORD_LIMIT_EXCEEDED` | error | Record count would exceed `maxRecords` |
+| `RECORD_TOO_LARGE` | error | Serialized record exceeds 1 MiB |
+| `INVALID_ARGUMENT` | error | Tool or request input failed validation |
+| `FORBIDDEN` | error | Request rejected by transport policy |
 | `STORAGE_UNWRITABLE` | error | Data directory cannot be written |
 | `SCHEMA_UNSUPPORTED` | warning | Unknown `schemaVersion`, record skipped |
+| `UNKNOWN_FIELD` | warning | Read-only: a field outside the schema is present |
+| `RULE_TEMPLATE_INVALID` | error | Malformed `${...}` or identifier |
 | `RULE_UNDEFINED_VARIABLE` | error | Template references an unknown field |
 | `RULE_CYCLE` | error | Template variable cycle |
 | `RULE_PATH_TRAVERSAL` | error | Resolved path contains `..` |
 | `RULE_TYPE_MISMATCH` | error | Template used where a non-string value is required |
+| `OPERATION_UNKNOWN` | error | Operation is neither standard nor bound |
 | `BINDING_CONFLICT` | error | Multiple bindings at the highest match level |
-| `SKILL_UNAVAILABLE` | error | Skill not registered or source/digest mismatch |
+| `SKILL_UNAVAILABLE` | error | Skill not registered, or source/provider mismatch |
 | `SKILL_REGISTRY_UNAVAILABLE` | warning | Skill registry cannot be queried; availability unknown |
 | `POLICY_DENIED` | error | Production policy or approval policy rejects the operation |
 | `PARAMETER_RESOLUTION_FAILED` | error | Parameter template failed to resolve |
 | `CREDENTIAL_MISSING` | warning | `credentialRef` has no configured value |
 | `MEMORY_BRIDGE_UNAVAILABLE` | warning | Memory plugin not installed |
+| `SESSION_CONTEXT_UNAVAILABLE` | error | A session-scoped tool ran without an owning agent |
 | `SESSION_CONTEXT_UNPERSISTED` | warning | Session state could not be written |
+| `INTERNAL_ERROR` | error | Unexpected failure, message redacted |
 
 ---
 

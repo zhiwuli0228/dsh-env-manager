@@ -43,11 +43,18 @@ Before implementing any non-trivial change, read:
 For architecture or schema changes, also read:
 
 1. `docs/01-architecture/design.md`
-2. `docs/01-architecture/data-model.md`
-3. `docs/01-architecture/tool-contract.md`
-4. `docs/01-architecture/module-boundaries.md`
-5. `docs/01-architecture/storage-contract.md`
-6. `docs/01-architecture/security-model.md`
+2. `docs/01-architecture/detailed-design.md`
+3. `docs/01-architecture/data-model.md`
+4. `docs/01-architecture/tool-contract.md`
+5. `docs/01-architecture/module-boundaries.md`
+6. `docs/01-architecture/storage-contract.md`
+7. `docs/01-architecture/security-model.md`
+
+For runtime API or Client transport questions, also read:
+
+1. `docs/01-architecture/api-verification.md`
+2. `docs/01-architecture/decisions/ADR-0009-client-host-http-transport.md`
+3. `docs/01-architecture/ui-design.md`
 
 For OpenSpec work, also read:
 
@@ -215,7 +222,7 @@ Do not create alternate structures without documenting the change.
 ## 6. Module Boundaries
 
 The normative module list and dependency direction are in
-`docs/01-architecture/module-boundaries.md`. Host modules are `config`, `domain`, `storage`, `registry`, `resolver`, `router`, `session`, `memory-bridge` and `tools`; the Client is a single `client.js`.
+`docs/01-architecture/module-boundaries.md`. Host modules are `config`, `domain`, `storage`, `registry`, `resolver`, `router`, `session`, `app`, `tools`, `transport` and `memory-bridge`; the Client is a single `client.js`.
 
 The rules below remain binding for the modules they name.
 
@@ -226,9 +233,9 @@ DSH Tool function layer only.
 Allowed:
 
 - Request validation
-- Response formatting
-- Calling resolver/router functions
-- Emitting operation records
+- Output schema and `render` declaration
+- Calling `app` use cases
+- Approval gates for management writes
 
 Forbidden:
 
@@ -307,7 +314,23 @@ Must not:
 - Access credential values
 - Write operation records directly
 
-### 6.6 `memory-bridge`
+### 6.6 `app`
+
+Use-case layer shared by tools and the HTTP transport.
+
+Responsibilities:
+
+- Compose storage, registry, resolver, router and session
+- Apply record caps, actor policy and dry-run
+- Reload the registry after a write
+- Throw `EnvManagerError` for expected failures
+
+Must not:
+
+- Register tools or parse HTTP
+- Re-implement resolution, routing or persistence
+
+### 6.7 `memory-bridge`
 
 Optional integration with the memory plugin.
 
@@ -323,7 +346,23 @@ Must not:
 - Modify registry files
 - Auto-apply proposals
 
-### 6.7 `client`
+### 6.8 `transport`
+
+Local HTTP surface for the Client panel.
+
+Responsibilities:
+
+- Register and dispose `POST /env-manager/api`
+- Enforce method, header, origin and size controls
+- Map `{ op, payload }` to `app` calls and codes to statuses
+
+Must not:
+
+- Contain business logic
+- Read credentials
+- Send CORS or cookie headers
+
+### 6.9 `client`
 
 Web/Desktop UI.
 
@@ -337,6 +376,7 @@ Must not:
 
 - Contain business logic that belongs in `resolver` or `router`
 - Access storage directly
+- Call tools instead of the plugin HTTP API
 
 ---
 
@@ -419,7 +459,8 @@ Validation must detect:
 
 - undefined variables;
 - cyclic references;
-- dangerous path traversal (`..`) in resolved paths.
+- dangerous path traversal (`..`) in resolved paths;
+- malformed syntax (only `${identifier(.identifier)*}`, max 2048 characters).
 
 ---
 
@@ -468,6 +509,8 @@ General rules:
 - Return safe error messages to the UI.
 - Keep resolver and router logic pure and testable.
 - Keep tool functions thin.
+- Throw `EnvManagerError extends HarnessError` for expected tool/HTTP failures; never
+  return an `{ ok: false }` value or a bare string.
 - Handle unexpected YAML gracefully.
 - Do not make network calls unless explicitly required.
 
@@ -511,7 +554,7 @@ Required tests for relevant changes:
 
 - Set, get and clear the default environment
 - Isolation between two sessions
-- Corrupt state file falls back to memory
+- Corrupt state file is treated as "no default" with `persisted: false`
 
 ### `tools`
 

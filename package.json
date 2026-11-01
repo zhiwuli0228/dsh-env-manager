@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "DSH Environment Manager plugin for web and desktop.",
+  "description": "Environment registry, service catalog and operation-to-Skill routing for DSH.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -14,6 +14,7 @@
     "index.js",
     "client.js",
     "cordis.patch.yml",
+    "lib/",
     "locale/*.json",
     "icon.svg",
     "README.md",
@@ -34,10 +35,7 @@
     },
     "client": {
       "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-conversation"
-      ]
+      "immediately": true
     }
   }
 }
