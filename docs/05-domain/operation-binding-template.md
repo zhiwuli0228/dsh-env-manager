@@ -9,7 +9,6 @@ operation: redeploy          # standard id or custom id
 match:
   environmentId: test-a
   serviceId: aicoservice
-  deploymentMode: kubernetes
 skill:
   name: redeploy-k8s-service
   expectedSource: null       # optional SkillSummary.source constraint
@@ -37,6 +36,8 @@ updatedAt: 2026-11-01T03:00:00.000Z
 | `global` | none (empty `match: {}`) |
 
 Every declared selector must match. The highest eligible level wins. Two eligible bindings at the same level are a conflict, never a coin flip.
+
+A `match` must be exactly one of these five shapes. For example `environmentId` alone, or `environmentId` + `deploymentMode`, is invalid (`RECORD_INVALID`).
 
 ## Standard operations
 

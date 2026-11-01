@@ -462,7 +462,6 @@ operation: redeploy
 match:
   environmentId: test-a
   serviceId: aicoservice
-  deploymentMode: kubernetes
 skill:
   name: redeploy-k8s-service
   expectedSource: null
