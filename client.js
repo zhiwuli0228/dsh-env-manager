@@ -396,7 +396,16 @@ window.__ModuleLoader__.load({
         ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
           id: 'dsh-env-manager',
           order: 40,
-          label: t('title'),
+          label: () => {
+            let active = lang;
+            try {
+              const id = String(ctx.locale?.getLocale?.().active || '');
+              if (id) active = id.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+            } catch (error) {
+              // Keep the browser-derived fallback.
+            }
+            return MESSAGES[active].title;
+          },
         }, EnvManagerIcon));
         ctx.slots.inject('main', () => ctx.slots.register({
           key: 'dsh-env-manager',

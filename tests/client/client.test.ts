@@ -42,9 +42,10 @@ describe('client module', () => {
     mod.apply(ctx)
     expect(injected).toEqual(['sidebar.panellist', 'main'])
     expect(registrations.map((item) => item.options)).toEqual([
-      { id: 'dsh-env-manager', order: 40, label: expect.stringMatching(/Environment Manager|环境管理器/) },
+      { id: 'dsh-env-manager', order: 40, label: expect.any(Function) },
       { key: 'dsh-env-manager' },
     ])
+    expect(registrations[0].options.label()).toMatch(/Environment Manager|环境管理器/)
     expect(typeof registrations[0].component).toBe('function')
     expect(typeof registrations[1].component).toBe('function')
   })
