@@ -341,16 +341,16 @@ Design consequence:
 
 ## 4. Remaining verification tasks (implementation phase)
 
-| ID | Verify | Fallback |
-|---|---|---|
-| V1 | `profileContext.dir` present and writable | `$DSH_PROFILE_DIR`, then `<cwd>/data` |
-| V2 | `slots.register` accepts `main` with `key` | register under `main.conversation` |
-| V3 | `fetch('/env-manager/api')` works from the bundle | fall back to Remote when DSH exposes runtime descriptors |
-| V4 | `approval.request` from a tool body resolves | show a UI confirmation and deny without approval |
-| V5 | Output schema accepts `additionalProperties: true` objects | annotation-only schema |
-| V6 | `CredentialRef` accepts a plain string at runtime | import the branded factory |
-| V7 | Directory watcher parity on Windows | reload per request (already the V1 plan) |
-| V8 | `webServer` route prefix does not collide with shell routes | choose a more specific prefix |
+| ID | Verify | Fallback | Status |
+|---|---|---|---|
+| V1 | `profileContext.dir` present and writable | `$DSH_PROFILE_DIR`, then `<cwd>/data` | Fallback active: this runtime exposes `DSH_PROFILE_DIR` but not `profileContext.dir` |
+| V2 | `slots.register` accepts `main` with `key` | register under `main.conversation` | Verified by inspect: `main` registration requires only `key` |
+| V3 | `fetch('/env-manager/api')` works from the bundle | fall back to Remote when DSH exposes runtime descriptors | Pending profile install |
+| V4 | `approval.request` from a tool body resolves | show a UI confirmation and deny without approval | Implemented fail-closed; pending live call |
+| V5 | Output schema accepts `additionalProperties: true` objects | annotation-only schema | Verified locally: all ten schemas pass `assertObjectJsonSchema` |
+| V6 | `CredentialRef` accepts a plain string at runtime | import the branded factory | Implemented with string refs; pending live `describe` call |
+| V7 | Directory watcher parity on Windows | reload per request (already the V1 plan) | Reload-per-request implemented |
+| V8 | `webServer` route prefix does not collide with shell routes | choose a more specific prefix | `/env-manager/api` selected; pending live route listing |
 
 ## 5. Evidence index
 

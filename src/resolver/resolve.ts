@@ -219,7 +219,7 @@ export function resolveContext(input: ResolveInput): ResolveResult {
       }
       const value = direct ?? values.join('')
       if (key.startsWith('paths.')) {
-        if (String(value).split('/').includes('..')) {
+        if (String(value).replace(/\\/g, '/').split('/').includes('..')) {
           throw new EnvManagerError(
             'RULE_PATH_TRAVERSAL',
             `Resolved path for ${key} contains ".."`,
