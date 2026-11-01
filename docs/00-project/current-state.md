@@ -40,6 +40,12 @@ completed successfully. The 0.1.0 publish itself was bootstrapped manually; the 
 detected the existing version, skipped npm publish, and created the Release. Later versions
 use npm Trusted Publisher/OIDC through the same workflow.
 
+**Plugin directory:** submitted to
+[`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+as PR [#11185](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/11185)
+(`data/plugins/zhiwuli0228__dsh-env-manager.yml`, category `dev`). The repository has the
+`dsh-plugin` topic; the listing is pending CI/review.
+
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
