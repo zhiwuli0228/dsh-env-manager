@@ -18,12 +18,14 @@ Works in DSH Web and Desktop.
 
 ## Status
 
-**V1 implementation in progress — Host, tools, HTTP API, panel and tests are in place.**
+**V1 is implemented and installed in the `desktop` profile.**
 
 - 34 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
-- Remaining: install smoke test in a profile, runtime probes V1–V8, manual panel QA.
+- Live verification: tools answer in-session, `meta` returns `200`, the panel transport
+  round-trips save/list/remove, and both slot registrations are active.
+- Remaining: visual panel QA and the live approval/credential probes V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
 
 Design references:

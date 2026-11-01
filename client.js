@@ -393,23 +393,40 @@ window.__ModuleLoader__.load({
         } catch (error) {
           // Locale registration is best-effort; the panel has its own fallback.
         }
-        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-          id: 'dsh-env-manager',
-          order: 40,
-          label: () => {
-            let active = lang;
-            try {
-              const id = String(ctx.locale?.getLocale?.().active || '');
-              if (id) active = id.toLowerCase().startsWith('zh') ? 'zh' : 'en';
-            } catch (error) {
-              // Keep the browser-derived fallback.
-            }
-            return MESSAGES[active].title;
-          },
-        }, EnvManagerIcon));
-        ctx.slots.inject('main', () => ctx.slots.register({
-          key: 'dsh-env-manager',
-        }, Panel));
+        ctx.slots.inject('sidebar.panellist', () => {
+          try {
+            return ctx.slots.register({
+              name: 'sidebar.panellist',
+              id: 'dsh-env-manager',
+              order: 40,
+              label: () => {
+                let active = lang;
+                try {
+                  const id = String(ctx.locale?.getLocale?.().active || '');
+                  if (id) active = id.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+                } catch (error) {
+                  // Keep the browser-derived fallback.
+                }
+                return MESSAGES[active].title;
+              },
+            }, EnvManagerIcon);
+          } catch (error) {
+            console.warn('[dsh-env-manager] sidebar entry unavailable:', error);
+            return () => undefined;
+          }
+        });
+        ctx.slots.inject('main', () => {
+          try {
+            return ctx.slots.register({
+              name: 'main',
+              key: 'dsh-env-manager',
+              inject: () => ({}),
+            }, Panel);
+          } catch (error) {
+            console.warn('[dsh-env-manager] main panel unavailable:', error);
+            return () => undefined;
+          }
+        });
       },
     };
   },

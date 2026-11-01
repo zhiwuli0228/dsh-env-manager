@@ -5,9 +5,10 @@
 > Every task ends with a build, its tests, and a documentation touch where behavior
 > changed. Do not reorder P1–P4: each later phase imports the previous one's types.
 >
-> Implementation snapshot (2026-11-01): T01, T03–T18 and the Client portion of T19–T22
-> are implemented; `npm run build` and 34 Vitest tests pass. T02 runtime probes, profile
-> installation, manual panel QA and the final smoke test remain. See
+> Implementation snapshot (2026-11-01): T01, T03–T22 are implemented; `npm run build` and
+> 34 Vitest tests pass. The bundle is installed in the `desktop` profile and live-verified
+> for tools, HTTP API and slot registration. T02 live approval/credential probes, visual
+> panel QA and the final smoke checklist remain. See
 > [`current-state.md`](../00-project/current-state.md).
 
 ## 1. Deliverable

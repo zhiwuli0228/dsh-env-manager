@@ -4,15 +4,16 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**V1 implementation in progress — core Host, tools and tests are working; panel and
-install smoke test remain.**
+**V1 is installed in the `desktop` profile and live-verified; visual QA of the panel
+remains.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. The
 storage, registry, resolver, router, session store, application service, ten tools and
 same-origin HTTP API are in place, with 34 Vitest tests passing. The Client panel is
-implemented in `client.js`; it still needs manual QA in a live Web/Desktop session.
-Runtime probes V1–V8 are still pending because they require installing the bundle in the
-current profile.
+implemented in `client.js` and its sidebar/main slot registrations are live. The Host
+tools answer in this session, the HTTP API returns `200` for `meta`, and a
+save/list/remove round-trip through the panel transport succeeded. Visual layout and
+interaction QA in the browser is still pending.
 
 ## Implemented
 
@@ -54,9 +55,10 @@ Code:
 - [x] Read tools
 - [x] Management tools
 - [x] HTTP transport
-- [x] Client configuration UI (manual QA pending)
+- [x] Client configuration UI (slot registration and HTTP round-trip live-verified)
 - [x] Memory bridge contract and null adapter
 - [x] Tests (34 passing)
+- [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
 
@@ -89,9 +91,10 @@ dsh-env-manager/
 
 ## Known Gaps
 
-- Runtime probes V1–V8 in `api-verification.md` §4 are still pending; they require
-  installing this bundle in the current profile.
-- The Client panel has not been exercised in a live Web/Desktop session.
+- Panel visual layout and interaction QA in the browser is still pending.
+- Runtime probes V4 (approval from a tool body) and V6 (live credential `describe`)
+  in `api-verification.md` §4 are not exercised yet.
+- The profile currently has no registry records, so the panel shows empty lists.
 - Memory bridge is a contract and null adapter only; no memory plugin is wired.
 - No cross-process write locking.
 - No operation execution: routing returns the Skill and policy, it does not run them.
@@ -100,9 +103,8 @@ dsh-env-manager/
 
 ## Next Recommended Work
 
-1. **T02** — install the bundle and run probes V1–V8; record results in
-   `api-verification.md`.
-2. **T23** — manual panel QA: sidebar entry, list/get/save/delete, resolve, route,
+1. **T23** — visual panel QA: sidebar entry, list/get/save/delete, resolve, route,
    diagnostics, production denial.
-3. **T24** — install smoke test and `current-state` update.
+2. **T02** — live probes V4 and V6, then record results in `api-verification.md`.
+3. Add a small example registry under `examples/` for first-run demonstration.
 4. P1 memory bridge and operation records.
