@@ -6,7 +6,7 @@
 > changed. Do not reorder P1–P4: each later phase imports the previous one's types.
 >
 > Implementation snapshot (2026-11-01): T01, T03–T18 and the Client portion of T19–T22
-> are implemented; `npm run build` and 33 Vitest tests pass. T02 runtime probes, profile
+> are implemented; `npm run build` and 34 Vitest tests pass. T02 runtime probes, profile
 > installation, manual panel QA and the final smoke test remain. See
 > [`current-state.md`](../00-project/current-state.md).
 

@@ -9,7 +9,7 @@ install smoke test remain.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. The
 storage, registry, resolver, router, session store, application service, ten tools and
-same-origin HTTP API are in place, with 33 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 34 Vitest tests passing. The Client panel is
 implemented in `client.js`; it still needs manual QA in a live Web/Desktop session.
 Runtime probes V1–V8 are still pending because they require installing the bundle in the
 current profile.
@@ -56,7 +56,7 @@ Code:
 - [x] HTTP transport
 - [x] Client configuration UI (manual QA pending)
 - [x] Memory bridge contract and null adapter
-- [x] Tests (33 passing)
+- [x] Tests (34 passing)
 
 ## Current Constraints
 

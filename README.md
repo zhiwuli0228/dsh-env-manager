@@ -20,7 +20,7 @@ Works in DSH Web and Desktop.
 
 **V1 implementation in progress — Host, tools, HTTP API, panel and tests are in place.**
 
-- 33 Vitest tests pass; `npm run build` emits `lib/`.
+- 34 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - Remaining: install smoke test in a profile, runtime probes V1–V8, manual panel QA.
