@@ -56,6 +56,18 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
             const info = await credentials.describe(ref)
             return { configured: info.configured, source: info.source }
           },
+          async set(ref: string, value: string) {
+            if (typeof credentials.set !== 'function') {
+              throw new Error('the credential service is not writable')
+            }
+            await credentials.set(ref, value)
+          },
+          async unset(ref: string) {
+            if (typeof credentials.unset !== 'function') {
+              throw new Error('the credential service is not writable')
+            }
+            await credentials.unset(ref)
+          },
         }
       : null,
     logger: consoleLogger,

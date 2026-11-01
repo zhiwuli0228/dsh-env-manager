@@ -479,6 +479,8 @@ export interface SkillDirectory {
 
 export interface CredentialDirectory {
   describe(ref: string): Promise<{ configured: boolean; source?: string }>
+  set(ref: string, value: string): Promise<void>
+  unset(ref: string): Promise<void>
 }
 
 export interface RegistrySnapshot {

@@ -378,6 +378,63 @@ export class App {
     }
   }
 
+  /**
+   * Store one SSH/web credential in the DSH credential service and return only
+   * its reference. Registry YAML must never contain the value itself.
+   */
+  async setCredential(ref: string, value: string): Promise<{ ref: string; configured: boolean }> {
+    const cleanRef = String(ref || '').trim()
+    if (!/^env-manager\/[A-Za-z0-9._-]{1,80}\/[A-Za-z0-9._-]{1,80}$/.test(cleanRef)) {
+      throw new EnvManagerError(
+        'INVALID_ARGUMENT',
+        'Credential ref must look like env-manager/<environmentId>/<accountId>',
+      )
+    }
+    if (typeof value !== 'string' || value.length === 0 || value.length > 8192) {
+      throw new EnvManagerError('INVALID_ARGUMENT', 'Credential value must be between 1 and 8192 characters')
+    }
+    if (!this.options.credentials) {
+      throw new EnvManagerError(
+        'CREDENTIAL_UNAVAILABLE',
+        'The DSH credential service is unavailable; the password was not stored',
+      )
+    }
+    try {
+      await this.options.credentials.set(cleanRef, value)
+    } catch {
+      this.options.logger.warn(`Credential write failed for ${cleanRef}`)
+      throw new EnvManagerError(
+        'CREDENTIAL_WRITE_FAILED',
+        'Could not store the credential in the DSH credential service',
+      )
+    }
+    return { ref: cleanRef, configured: true }
+  }
+
+  /** Remove a credential owned by this plugin; other namespaces are rejected. */
+  async unsetCredential(ref: string): Promise<{ ref: string; removed: true }> {
+    const cleanRef = String(ref || '').trim()
+    if (!/^env-manager\/[A-Za-z0-9._-]{1,80}\/[A-Za-z0-9._-]{1,80}$/.test(cleanRef)) {
+      throw new EnvManagerError(
+        'INVALID_ARGUMENT',
+        'Credential ref must look like env-manager/<environmentId>/<accountId>',
+      )
+    }
+    if (!this.options.credentials) {
+      throw new EnvManagerError('CREDENTIAL_UNAVAILABLE', 'The DSH credential service is unavailable')
+    }
+    try {
+      await this.options.credentials.unset(cleanRef)
+    } catch {
+      this.options.logger.warn(`Credential delete failed for ${cleanRef}`)
+      throw new EnvManagerError(
+        'CREDENTIAL_WRITE_FAILED',
+        'Could not remove the credential from the DSH credential service',
+      )
+    }
+    return { ref: cleanRef, removed: true }
+  }
+
   async resolve(request: ResolveRequest): Promise<ResolveOutcome> {
     const snapshot = await this.snapshot()
     const environment = lookupByRef(snapshot, 'environment', request.environmentId)

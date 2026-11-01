@@ -19,7 +19,9 @@ execution button. Every screen answers one question and offers one write action.
 - Only `slots` and `locale` services (F16).
 - All data through `POST /env-manager/api` (F14, ADR-0009).
 - All colors from `--dsw-alias-*` tokens (F17).
-- No credential value is ever displayed or requested.
+- No credential value is rendered or persisted. The new-environment form may collect a
+  password transiently and send it once to the Host, which forwards it to
+  `ctx.credentials.set`; the registry keeps only `credentialRef`.
 
 ## 3. Information architecture
 
@@ -204,11 +206,18 @@ sidebar:
 
 - A kind segmented control: Environments, Services, Deployments, Rule Profiles,
   Operation Bindings.
-- `New record` loads the kind template into the editor; `Refresh` reloads the list.
+- On Environments, the primary action is `New environment`: one form collects the
+  environment name (optional id and category), host IP/SSH port, login username and
+  password, then creates the environment, its first host, account and SSH endpoint in
+  one save. The password is sent once to `credential` and is never put into YAML. The
+  generated credential ref is `env-manager/<environmentId>/<accountId>`.
+- `New record` still loads the kind template into the YAML editor for advanced use;
+  `Refresh` reloads the list.
 - Environments use a master/detail flow: the left card lists environments (name, id,
   `category · hosts · accounts · login records`); selecting one opens a read-first detail
   view (§6.3). The other four kinds remain YAML editor only.
-- Empty lists show a dashed empty state with a short hint, not a blank card.
+- Empty lists show a dashed empty state with a short hint, not a blank card. The empty
+  editor offers `New environment` directly.
 - There is no search box in V1; the `record.find` HTTP operation remains available to
   future screens.
 
@@ -254,7 +263,9 @@ Environment overview | Hosts & logins | Login records | Endpoints | YAML
 
 ### 6.4 YAML record editor
 
-Services, deployments, rule profiles and operation bindings, plus a new environment:
+Services, deployments, rule profiles and operation bindings; a new environment can still
+be created from its YAML template through `New record` when the guided form is not
+enough:
 
 ```text
 test-a                                  [Save] [Delete]
@@ -424,6 +435,7 @@ EnvManagerPanel
 ├── SectionContent
 │   ├── OverviewView (stat cards, runtime, warnings, onboarding)
 │   ├── RecordsView
+│   │   ├── EnvironmentWizard (guided create: name/id/category/IP/port/user/password)
 │   │   ├── EnvironmentList ── EnvironmentRow
 │   │   ├── EnvironmentDetail
 │   │   │   ├── DetailHeader (back, identity, actions)
@@ -434,7 +446,7 @@ EnvManagerPanel
 │   │   │   ├── LoginTable + LoginForm
 │   │   │   ├── EndpointTable
 │   │   │   └── YamlEditor
-│   │   └── YamlRecordEditor (service/deployment/rule/binding/new environment)
+│   │   └── YamlRecordEditor (service/deployment/rule/binding/template environment)
 │   ├── ContextView ── ResultBlock
 │   └── OperationsView ── ResultBlock
 └── Toast / ErrorBox
@@ -451,6 +463,8 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 - [ ] The sidebar row shows one label, aligned with the shipped rows, and the active
       row uses the host highlight rather than plugin-provided styling.
 - [ ] Panel renders with an empty `dataDir` and with several environments.
+- [ ] `New environment` creates one environment, host, account and SSH endpoint; the
+      YAML contains the credential reference and never the password.
 - [ ] Environment list summary shows hosts, accounts and login records.
 - [ ] Detail back link returns to the list and keeps the Records tab selected.
 - [ ] Basic info edit round-trips name, aliases, category and description.

@@ -27,6 +27,8 @@ function statusFor(code: string): number {
       return 413
     case 'POLICY_DENIED':
       return 403
+    case 'CREDENTIAL_UNAVAILABLE':
+      return 503
     case 'INVALID_ARGUMENT':
     case 'RECORD_INVALID':
     case 'RULE_TEMPLATE_INVALID':
@@ -201,6 +203,10 @@ export function registerHttpTransport(ctx: any, app: App, logger: Logger): () =>
       case 'validate':
       case 'diagnostics':
         return app.validate()
+      case 'credential':
+        return app.setCredential(String(payload.ref ?? ''), typeof payload.value === 'string' ? payload.value : '')
+      case 'credentialUnset':
+        return app.unsetCredential(String(payload.ref ?? ''))
       case 'resolve':
         return app.resolve({
           environmentId: String(payload.environmentId ?? ''),

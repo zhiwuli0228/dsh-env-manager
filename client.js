@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
         context: 'Context',
         operations: 'Operations',
         overviewHint: 'Registry health and the latest validation run.',
-        recordsHint: 'Inspect hosts, accounts and login audit, or edit the raw YAML.',
+        recordsHint: 'Inspect hosts, accounts and login audit, or add a complete environment.',
         contextHint: 'Resolve layered variables and inspect their provenance.',
         operationsHint: 'Resolve the Skill bound to an operation and context.',
         refresh: 'Refresh',
@@ -37,9 +37,9 @@ window.__ModuleLoader__.load({
         validationFailed: 'Registry has errors',
         noDiagnostics: 'No diagnostics.',
         selectRecord: 'Select a record from the list.',
-        selectRecordHint: 'Choose a record to edit its YAML, or create one from a template.',
+        selectRecordHint: 'Choose a record to edit its YAML, or add an environment.',
         emptyRecords: 'No records yet',
-        emptyRecordsHint: 'Create one from a template, or refresh.',
+        emptyRecordsHint: 'Add an environment, or refresh.',
         emptyRegistry: 'Empty registry',
         gettingStarted: 'Get started',
         gettingStartedHint: 'Register an environment first, then its services, deployments and operation bindings. Context resolution and routing become available as soon as records exist.',
@@ -133,6 +133,16 @@ window.__ModuleLoader__.load({
         confirmDelete: 'Delete this record? A backup is kept.',
         loading: 'Loading…',
         panelUnavailable: 'The panel API is unavailable.',
+        newEnvironment: 'New environment',
+        newEnvironmentHint: 'Register the environment, its SSH host and first login account in one step.',
+        environmentIdOptional: 'Environment id (optional)',
+        password: 'Password',
+        passwordStoredHint: 'The password is stored in the DSH credential service. YAML keeps only the credential reference.',
+        createEnvironment: 'Create environment',
+        credentialRefAuto: 'Credential ref (auto)',
+        fillEnvironmentFields: 'Fill in name, IP, port, username and password.',
+        envIdExists: 'That environment id already exists.',
+        environmentCreated: 'Environment created',
       },
       zh: {
         title: '环境管理器',
@@ -142,7 +152,7 @@ window.__ModuleLoader__.load({
         context: '上下文',
         operations: '操作',
         overviewHint: '注册表健康状态与最近一次校验结果。',
-        recordsHint: '查看主机、账号与登录审计，或直接编辑 YAML。',
+        recordsHint: '查看主机、账号与登录审计，或新建一套完整环境。',
         contextHint: '解析分层变量，并查看每个值的来源。',
         operationsHint: '解析操作在指定上下文下绑定的 Skill。',
         refresh: '刷新',
@@ -165,9 +175,9 @@ window.__ModuleLoader__.load({
         validationFailed: '注册表存在错误',
         noDiagnostics: '无诊断信息。',
         selectRecord: '请选择一条记录。',
-        selectRecordHint: '从左侧选择记录编辑 YAML，或从模板新建。',
+        selectRecordHint: '从左侧选择记录编辑 YAML，或直接新建环境。',
         emptyRecords: '暂无记录',
-        emptyRecordsHint: '从模板新建一条，或刷新列表。',
+        emptyRecordsHint: '新建一套环境，或刷新列表。',
         emptyRegistry: '注册表为空',
         gettingStarted: '开始使用',
         gettingStartedHint: '先注册环境，再补充服务、部署和操作绑定；有记录后即可解析上下文和路由操作。',
@@ -261,6 +271,16 @@ window.__ModuleLoader__.load({
         confirmDelete: '删除该记录？会保留备份。',
         loading: '加载中…',
         panelUnavailable: '面板 API 不可用。',
+        newEnvironment: '新建环境',
+        newEnvironmentHint: '一次填写环境、SSH 主机和首个登录账号，创建后直接进入详情。',
+        environmentIdOptional: '环境 ID（可选）',
+        password: '密码',
+        passwordStoredHint: '密码写入 DSH 凭据库，YAML 只保存凭据引用，不保存明文。',
+        createEnvironment: '创建环境',
+        credentialRefAuto: '凭据引用（自动）',
+        fillEnvironmentFields: '请填写环境名称、IP、端口、登录用户名和密码。',
+        envIdExists: '该环境 ID 已存在。',
+        environmentCreated: '环境已创建',
       },
     };
     const lang = String(navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
@@ -280,6 +300,22 @@ window.__ModuleLoader__.load({
     };
     function categoryLabel(value) {
       return (CATEGORY_LABELS[lang] || CATEGORY_LABELS.en)[value] || value || '—';
+    }
+    function slugify(value) {
+      return String(value || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 63);
+    }
+    function stableSlug(value, prefix) {
+      const slug = slugify(value);
+      if (slug) return slug;
+      let hash = 7;
+      for (const char of String(value || '')) {
+        hash = ((hash * 31) + char.codePointAt(0)) >>> 0;
+      }
+      return prefix + '-' + hash.toString(36);
     }
     function formatTime(value) {
       if (!value) return t('never');
@@ -456,6 +492,7 @@ window.__ModuleLoader__.load({
 .dem-detail-stat b{display:block;font-size:18px;line-height:1.2;font-weight:650;font-variant-numeric:tabular-nums}
 .dem-detail-stat span{display:block;color:var(--dsw-alias-label-secondary);font-size:11px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dem-inline-form{border:1px dashed var(--dsw-alias-border-l1);border-radius:10px;padding:12px;background:var(--dsw-alias-bg-layer-2);display:flex;flex-direction:column;gap:12px}
+.dem-wizard .dem-inline-form{margin-top:14px}
 .dem-inline-form .dem-textarea-sm{min-height:64px}
 .dem-form-foot{display:flex;justify-content:flex-end;gap:8px}
 .dem-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--dsw-alias-label-secondary);white-space:nowrap}
@@ -507,6 +544,9 @@ window.__ModuleLoader__.load({
           type: props.type || 'text',
           value: props.value,
           placeholder: props.placeholder || '',
+          required: props.required || false,
+          autoComplete: props.autoComplete || 'off',
+          inputMode: props.inputMode,
           onChange: (event) => props.onChange(event.target.value),
         }));
     }
@@ -1171,12 +1211,120 @@ window.__ModuleLoader__.load({
         body);
     }
 
+    function EnvironmentWizard(props) {
+      const [form, setForm] = useState({
+        name: '',
+        id: '',
+        category: 'test',
+        ip: '',
+        sshPort: '22',
+        username: '',
+        password: '',
+      });
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState(null);
+      const field = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
+      const envId = stableSlug(String(form.id || '').trim() || form.name, 'env');
+      const accountId = stableSlug(form.username, 'user');
+      const credentialRef = 'env-manager/' + envId + '/' + accountId;
+      const credentialPreview = String(form.name || form.id || '').trim() && String(form.username || '').trim()
+        ? credentialRef
+        : 'env-manager/<environment>/<account>';
+
+      const submit = async () => {
+        const name = String(form.name || '').trim();
+        const ip = String(form.ip || '').trim();
+        const port = Number(form.sshPort || 22);
+        const username = String(form.username || '').trim();
+        const password = String(form.password || '');
+        if (!name || !ip || !username || !password || !Number.isInteger(port) || port < 1 || port > 65535) {
+          setError({ message: t('fillEnvironmentFields') });
+          return;
+        }
+        if ((props.existingIds || []).includes(envId)) {
+          setError({ message: t('envIdExists') });
+          return;
+        }
+        setSaving(true);
+        setError(null);
+        try {
+          await props.onCredential(credentialRef, password);
+          await props.onCreate({
+            id: envId,
+            schemaVersion: 1,
+            name,
+            aliases: [],
+            category: form.category || 'test',
+            description: '',
+            roles: [],
+            hosts: [{
+              id: 'host-01',
+              name,
+              ip,
+              sshPort: port,
+              adminUser: username,
+              isActive: true,
+              credentialRef,
+              accounts: [{
+                id: accountId,
+                username,
+                purpose: 'ssh login',
+                protocol: 'ssh',
+                port,
+                authType: 'password',
+                credentialRef,
+              }],
+            }],
+            clusters: [],
+            endpoints: [{
+              id: 'ssh-host-01',
+              kind: 'ssh',
+              hostRef: 'host-01',
+              port,
+              credentialRef,
+            }],
+            loginRecords: [],
+          });
+        } catch (next) {
+          setError(next);
+          setSaving(false);
+        }
+      };
+
+      return h('div', { className: 'dem-card dem-wizard' },
+        h('div', { className: 'dem-section-head' },
+          h('div', null,
+            h('h3', { className: 'dem-section-title' }, t('newEnvironment')),
+            h('p', { className: 'dem-hint' }, t('newEnvironmentHint')))),
+        h('div', { className: 'dem-inline-form' },
+          h('div', { className: 'dem-form-grid dem-form-grid-3' },
+            h(Field, { label: t('name'), value: form.name, onChange: field('name'), placeholder: 'oracle-prod', required: true }),
+            h(Field, { label: t('environmentIdOptional'), value: form.id, onChange: field('id'), placeholder: t('optional') }),
+            h(Select, {
+              label: t('category'), value: form.category, onChange: field('category'),
+              options: ['dev', 'test', 'staging', 'production', 'custom'].map((value) => ({ value, label: categoryLabel(value) })),
+            }),
+            h(Field, { label: t('ipAddress'), value: form.ip, onChange: field('ip'), placeholder: '10.20.30.41', required: true }),
+            h(Field, { label: t('sshPort'), value: form.sshPort, onChange: field('sshPort'), type: 'number', inputMode: 'numeric', required: true }),
+            h(Field, { label: t('loginUser'), value: form.username, onChange: field('username'), placeholder: 'root', required: true, autoComplete: 'username' }),
+            h(Field, { label: t('password'), value: form.password, onChange: field('password'), type: 'password', required: true, autoComplete: 'new-password' }),
+            h('div', { className: 'dem-field' },
+              h('span', { className: 'dem-label' }, t('credentialRefAuto')),
+              h('div', { className: 'dem-code-inline' }, credentialPreview))),
+          h('p', { className: 'dem-hint' }, t('passwordStoredHint')),
+          h(ErrorBox, { error }),
+          h('div', { className: 'dem-form-foot' },
+            h(Button, { onClick: props.onCancel, disabled: saving }, t('cancel')),
+            h(Button, { onClick: submit, variant: 'primary', disabled: saving }, t('createEnvironment')))));
+    }
+
     function Records() {
       const [kind, setKind] = useState('environment');
       const [items, setItems] = useState([]);
       const [selected, setSelected] = useState(null);
       const [record, setRecord] = useState(null);
       const [yaml, setYaml] = useState('');
+      const [creating, setCreating] = useState(false);
       const [error, setError] = useState(null);
       const [message, setMessage] = useState(null);
 
@@ -1195,6 +1343,7 @@ window.__ModuleLoader__.load({
         setSelected(null);
         setRecord(null);
         setYaml('');
+        setCreating(false);
         setMessage(null);
       }, [kind, load]);
 
@@ -1212,10 +1361,48 @@ window.__ModuleLoader__.load({
       };
 
       const startNew = () => {
+        setCreating(false);
         setSelected(null);
         setRecord(null);
         setYaml(TEMPLATES[kind] || '');
         setMessage(null);
+      };
+
+      const startWizard = () => {
+        setSelected(null);
+        setRecord(null);
+        setYaml('');
+        setError(null);
+        setMessage(null);
+        setCreating(true);
+      };
+
+      const saveCredential = async (ref, value) => {
+        await call('credential', { ref, value });
+      };
+
+      const createEnvironment = async (nextRecord) => {
+        let result;
+        try {
+          setError(null);
+          result = await call('save', { kind: 'environment', record: nextRecord });
+        } catch (next) {
+          const ref = nextRecord.hosts && nextRecord.hosts[0] && nextRecord.hosts[0].credentialRef;
+          if (ref) await call('credentialUnset', { ref }).catch(() => {});
+          setError(next);
+          throw next;
+        }
+        setMessage(t('environmentCreated') + ': ' + result.id);
+        setCreating(false);
+        await load('environment');
+        setSelected(result.id);
+        try {
+          const fresh = await call('get', { kind: 'environment', id: result.id });
+          setRecord(fresh.record || null);
+          setYaml(fresh.yaml);
+        } catch (next) {
+          setError(next);
+        }
       };
 
       const closeDetail = () => {
@@ -1280,7 +1467,8 @@ window.__ModuleLoader__.load({
             h('h2', { className: 'dem-section-title' }, t('records')),
             h('p', { className: 'dem-hint' }, t('recordsHint'))),
           h('div', { className: 'dem-actions' },
-            h(Button, { onClick: startNew, variant: 'primary' }, t('newRecord')),
+            kind === 'environment' ? h(Button, { onClick: startWizard, variant: 'primary' }, t('newEnvironment')) : null,
+            h(Button, { onClick: startNew }, t('newRecord')),
             h(Button, { onClick: () => load(kind) }, t('refresh')))),
         h('div', { className: 'dem-subtabs', role: 'group' }, KINDS.map((item) =>
           h('button', {
@@ -1302,7 +1490,14 @@ window.__ModuleLoader__.load({
             onSaveRecord: saveRecord,
             onRemove: remove,
           })
-          : h('div', { className: 'dem-record-layout' },
+          : kind === 'environment' && creating
+            ? h(EnvironmentWizard, {
+              existingIds: items.map((item) => item.id),
+              onCredential: saveCredential,
+              onCreate: createEnvironment,
+              onCancel: () => setCreating(false),
+            })
+            : h('div', { className: 'dem-record-layout' },
             h('div', { className: 'dem-card dem-list-card' },
               h('div', { className: 'dem-list-head' },
                 h('span', { className: 'dem-list-title' }, t(KIND_LABEL[kind])),
@@ -1342,7 +1537,8 @@ window.__ModuleLoader__.load({
                 h('div', { className: 'dem-empty' },
                   h('strong', null, t('selectRecord')),
                   h('span', null, t('selectRecordHint')),
-                  h(Button, { onClick: startNew, variant: 'primary' }, t('newRecord'))))));
+                  h(Button, { onClick: kind === 'environment' ? startWizard : startNew, variant: 'primary' },
+                    kind === 'environment' ? t('newEnvironment') : t('newRecord'))))));
     }
 
     function ContextView() {

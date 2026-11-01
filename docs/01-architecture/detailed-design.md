@@ -583,6 +583,8 @@ interface App {
   validate(): Promise<ValidationReport>
   resolve(input: ResolveRequest): Promise<ResolveResult>
   route(input: RouteRequest): Promise<OperationResolution>
+  setCredential(ref: string, value: string): Promise<{ ref: string; configured: true }>
+  unsetCredential(ref: string): Promise<{ ref: string; removed: true }>
   getContext(sessionId: string): Promise<SessionContext>
   setContext(sessionId: string, environmentId: string | null): Promise<SessionContext>
 }
@@ -609,9 +611,15 @@ Rules:
 - `Actor` is `'agent' | 'ui'`; the UI actor cannot write production unless
   `writePolicy.allowUiProductionWrites` is true.
 - `resolve` fills `context.credentials` through an injected
-  `CredentialDirectory { describe(ref): Promise<{ configured, source? }> }`. The Host
+  `CredentialDirectory { describe(ref); set(ref, value); unset(ref) }`. The Host
   adapter calls `ctx.credentials.describe`; tests use a fake. A missing ref yields
   `{ ref, configured: false }` plus `CREDENTIAL_MISSING`; no value is ever requested.
+- `setCredential` accepts only `env-manager/<environmentId>/<accountId>` refs and a
+  non-empty value, forwards them to `ctx.credentials.set`, and returns only
+  `{ ref, configured: true }`. It never writes the value to a record or log.
+  `unsetCredential` uses the same namespace check and calls `ctx.credentials.unset`.
+  A missing service yields `CREDENTIAL_UNAVAILABLE`; provider failures yield
+  `CREDENTIAL_WRITE_FAILED` without exposing the provider message to the UI.
 
 ## 11. Tools
 
@@ -780,7 +788,9 @@ ctx.webServer.register({ kind: 'prefix', path: '/env-manager/api', handler })
 - Request header `x-env-manager-request: 1` required, otherwise 403.
 - If an `Origin` header is present it must equal `ctx.webServer.getOrigin()`,
   otherwise 403. No CORS headers are ever sent.
-- The handler never reads cookies or credentials.
+- The handler never reads cookies or credentials. A credential value may appear only in
+  the `credential` request body, is forwarded directly to the credential service and is
+  never logged or echoed.
 
 ### 12.2 Envelope
 
@@ -804,23 +814,24 @@ Failure:
 
 Status map: `INVALID_ARGUMENT` 400, `POLICY_DENIED`/`FORBIDDEN` 403, `*_NOT_FOUND` 404,
 `RECORD_IN_USE`/`BINDING_CONFLICT`/`DEPLOYMENT_AMBIGUOUS` 409, `RECORD_INVALID`/
-`RULE_*`/`PARAMETER_*` 422, anything else 500. The body always carries the code; the
-status is for tooling.
+`RULE_*`/`PARAMETER_*` 422, `CREDENTIAL_UNAVAILABLE` 503, anything else 500 (including
+`CREDENTIAL_WRITE_FAILED`). The body always carries the code; the status is for tooling.
 
 ### 12.3 Operations
 
 | op | payload | data |
 |---|---|---|
 | `meta` | — | dataDir, version, counts, warnings |
-| `record.list` | `{ kind }` | summaries |
-| `record.get` | `{ kind, id }` | `{ record, yaml }` |
-| `record.find` | `{ query }` | hits |
-| `record.save` | `{ kind, yaml, dryRun? }` | save result |
-| `record.remove` | `{ kind, id, confirm?, dryRun? }` | remove result |
-| `record.validate` | — | validation report |
-| `context.resolve` | `{ environmentId, serviceId, deploymentId? }` | context |
-| `operation.resolve` | `{ operation, environmentId, serviceId, deploymentId? }` | resolution |
-| `diagnostics` | — | registry diagnostics |
+| `list` | `{ kind }` | summaries |
+| `get` | `{ kind, id }` | `{ record, yaml }` |
+| `find` | `{ query }` | hits |
+| `save` | `{ kind, record?, yaml?, dryRun? }` | save result |
+| `remove` | `{ kind, id, confirm?, dryRun? }` | remove result |
+| `validate` | — | validation report |
+| `resolve` | `{ environmentId, serviceId, deploymentId? }` | context |
+| `route` | `{ operation, environmentId, serviceId, deploymentId? }` | resolution |
+| `credential` | `{ ref, value }` | `{ ref, configured }` |
+| `credentialUnset` | `{ ref }` | `{ ref, removed }` |
 
 The UI cannot read or write session context; that is agent-only in V1 (§9).
 
@@ -831,6 +842,9 @@ The UI cannot read or write session context; that is agent-only in V1 (§9).
 - production environment save is denied unless `allowUiProductionWrites`;
 - `record.remove` requires `confirm: true` unless `dryRun: true`;
 - every write is logged with actor, op, kind, id and outcome (no record content).
+
+`credential` and `credentialUnset` are UI-only, restricted to the `env-manager/`
+namespace and never write to the registry. They log only the ref and outcome.
 
 ## 13. Client module
 

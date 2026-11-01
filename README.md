@@ -21,7 +21,7 @@ Works in DSH Web and Desktop.
 
 **V1 is implemented and installed in the `desktop` profile.**
 
-- 38 Vitest tests pass; `npm run build` emits `lib/`.
+- 41 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - Live verification: tools answer in-session, `meta` returns `200`, the panel transport
@@ -29,9 +29,26 @@ Works in DSH Web and Desktop.
 - The environment detail view shows basic information, access summary, host account
   tables, login audit records, endpoints and raw YAML; basic info can be edited, and
   hosts, accounts and login records have inline create forms.
+- `New environment` creates the environment, first host, account and SSH endpoint in one
+  form. The password is written to the DSH credential service and the YAML stores only
+  `env-manager/<environmentId>/<accountId>`.
 - Remaining: row-level edit/delete for hosts/accounts/logins, visual QA in light theme,
   and the live approval/credential probes V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
+
+## Add an environment
+
+1. Open **环境管理器 → 记录** (Environment Manager → Records).
+2. Click **新建环境** (New environment).
+3. Fill in the environment name, host IP, SSH port, login username and password. The
+   environment id and credential reference are generated automatically; override the id
+   if you need a specific one.
+4. Click **创建环境** (Create environment). The detail page opens with the host, account
+   and SSH endpoint already registered.
+
+The password is sent once to the Host and stored by the DSH credential service. It never
+appears in the registry YAML, tool output or logs. Use **新建记录** only when you need to
+paste an advanced YAML template.
 
 Design references:
 

@@ -471,7 +471,9 @@ interface MemoryBridge {
 
 Summary; details in [security-model.md](./security-model.md).
 
-- `credentialRef` only; status via `ctx.credentials.describe`, never `resolve`.
+- `credentialRef` only in registry records; status via `ctx.credentials.describe`, never
+  `resolve`. The guided create form may call `ctx.credentials.set` once with a password
+  and never persists or returns the value.
 - Production write operations denied unless `allowProduction: true`.
 - Tool management writes affecting production records require `ctx.approval`.
 - UI writes run as actor `'ui'` and are denied for production unless

@@ -140,14 +140,19 @@ non-grant. Approval is per call; nothing is cached.
 ### F8 — Credentials
 
 `ctx.credentials.describe(ref)` returns `{ configured, source?, writable }` without
-the value. `resolve(ref)` returns the value and must not be called by this plugin.
-`CredentialRef` is a branded string; at runtime an ordinary string is accepted.
+the value. `set(ref, value)` writes to a provider-managed writable source and
+`unset(ref)` removes it. `resolve(ref)` returns the value and must not be called by this
+plugin. `CredentialRef` is a branded string; at runtime an ordinary string is accepted.
 
-Evidence: Service contract `credentials`.
+Evidence: Service contract `credentials`; live `POST /env-manager/api` with
+`op: "credential"` returned `{ ref, configured: true }`, and `op: "credentialUnset"`
+returned `{ ref, removed: true }`. The panel used the same path to create an environment,
+then the record was read back and contained only the ref.
 
 Design consequence: `env_resolve` reports each `credentialRef` with
-`configured`/`source` only. Credential values never enter a tool result, an HTTP
-response, a log line or a diagnostic.
+`configured`/`source` only. Credential values may appear in the request body of
+`credential`, but never in a tool result, HTTP response, log line, diagnostic or registry
+file.
 
 ### F9 — Filesystem capability gap
 

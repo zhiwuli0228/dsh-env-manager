@@ -68,6 +68,12 @@ describe('app', () => {
         async describe(ref: string) {
           return { configured: ref.includes('kubeconfig'), source: 'store' }
         },
+        async set() {
+          return undefined
+        },
+        async unset() {
+          return undefined
+        },
       },
       logger: silentLogger,
       ...overrides,
@@ -209,6 +215,52 @@ describe('app', () => {
     const prod = { ...structuredClone(environment), id: 'prod-a', category: 'production' }
     await expect(app.save('environment', prod, { actor: 'ui' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
+    })
+  })
+
+  it('stores a credential value in the credential service and returns only its ref', async () => {
+    const dir = await makeDir()
+    const writes: Array<{ ref: string; value: string }> = []
+    const removals: string[] = []
+    const app = makeApp(dir, {
+      credentials: {
+        async describe() {
+          return { configured: true, source: 'store' }
+        },
+        async set(ref: string, value: string) {
+          writes.push({ ref, value })
+        },
+        async unset(ref: string) {
+          removals.push(ref)
+        },
+      },
+    })
+    const result = await app.setCredential('env-manager/oracle-prod/root', 's3cret-value')
+    expect(result).toEqual({ ref: 'env-manager/oracle-prod/root', configured: true })
+    expect(writes).toEqual([{ ref: 'env-manager/oracle-prod/root', value: 's3cret-value' }])
+    await app.unsetCredential('env-manager/oracle-prod/root')
+    expect(removals).toEqual(['env-manager/oracle-prod/root'])
+  })
+
+  it('rejects credentials outside the env-manager namespace and empty values', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    await expect(app.setCredential('OTHER_API_KEY', 'x')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+    await expect(app.setCredential('env-manager/oracle-prod/root', '')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+    await expect(app.setCredential('env-manager/oracle-prod/root', 'x'.repeat(8193))).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+  })
+
+  it('fails safely when the credential service is unavailable', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir, { credentials: null })
+    await expect(app.setCredential('env-manager/oracle-prod/root', 'secret')).rejects.toMatchObject({
+      code: 'CREDENTIAL_UNAVAILABLE',
     })
   })
 })

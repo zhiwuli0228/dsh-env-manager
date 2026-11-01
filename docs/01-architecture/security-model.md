@@ -51,6 +51,13 @@ credential service is the only component allowed to hold secret values.
 6. Host accounts and login records follow the same rule: `Host.accounts[].credentialRef` is a
    reference, and `LoginRecord` stores username, time, source and result only. Password,
    private-key, token and session-recording fields are not part of the schema.
+7. The guided environment form may collect a password transiently. It sends the value
+   once to `credential`; the Host calls `ctx.credentials.set(ref, value)` and returns only
+   `{ ref, configured }`. The value is never written to YAML, never logged and never
+   returned. The Host still never calls `resolve`.
+8. Credential writes are restricted to refs matching
+   `env-manager/<environmentId>/<accountId>` so the form cannot overwrite an ambient
+   credential such as `OPENAI_API_KEY`.
 
 ### 3.2 Threat: exfiltration through tool output
 
@@ -59,6 +66,22 @@ Mitigation: a single formatting layer for tool results strips any field named `v
 ### 3.3 Threat: credential reference confusion
 
 A user may point a production deployment at a test credential. V1 cannot detect this; the result reports `configured: true` without revealing which secret it is. Operational review is required; this is documented as a residual risk.
+
+### 3.4 Threat: password exposure during environment creation
+
+The guided form necessarily holds the password in the browser input and sends it in the
+same-origin JSON request. Mitigations:
+
+- the route is localhost-only, requires the custom request header, validates origin and
+  sends `cache-control: no-store`;
+- the Host forwards the value directly to `ctx.credentials.set` and does not log the
+  request body or the value;
+- the response contains only the ref and `configured`, never the value;
+- the generated YAML is checked by tests to contain the ref only.
+
+A compromised same-origin page could still submit a credential write while the user is
+present; this is accepted for a local single-user tool and documented as a residual risk.
+Credential deletion is restricted to the same `env-manager/` namespace.
 
 ---
 
