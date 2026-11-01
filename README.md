@@ -32,14 +32,18 @@ Works in DSH Web and Desktop.
 - `New environment` creates the environment, first host, account and SSH endpoint in one
   form. The password is written to the DSH credential service and the YAML stores only
   `env-manager/<environmentId>/<accountId>`.
+- **环境 (Environments) is the default tab**, and the persistent header **新增环境**
+  action is available from every tab. `记录 (Records)` is limited to services,
+  deployments, rule profiles and operation bindings.
 - Remaining: row-level edit/delete for hosts/accounts/logins, visual QA in light theme,
   and the live approval/credential probes V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
 
 ## Add an environment
 
-1. Open **环境管理器 → 记录** (Environment Manager → Records).
-2. Click **新建环境** (New environment).
+1. Open **环境管理器** (Environment Manager); it opens on the **环境 (Environments)** tab.
+2. Click **新增环境** (New environment) in the panel header. The same action is available
+   from any other tab.
 3. Fill in the environment name, host IP, SSH port, login username and password. The
    environment id and credential reference are generated automatically; override the id
    if you need a specific one.

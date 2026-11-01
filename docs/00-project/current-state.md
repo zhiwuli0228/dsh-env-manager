@@ -19,8 +19,10 @@ props and renders monochrome with `currentColor`; the contract is recorded in
 
 The panel was rebuilt around the host's visual language: a centered 1080 px column,
 22 px title with a glyph mark, underline tabs, compact stat cards, two-column runtime /
-warnings cards, an empty-registry onboarding card, and a master/detail Records view.
-Environments start with **New environment**, a single form for name, optional id,
+warnings cards, an empty-registry onboarding card, and a master/detail environment view.
+**Environments is the first and default tab**; a persistent header **New environment**
+action is available from every tab, and `Records` is limited to services, deployments,
+rule profiles and operation bindings. The guided form collects name, optional id,
 category, host IP, SSH port, login username and password. It creates the environment,
 its first host, account and SSH endpoint in one save, writes the password through
 `ctx.credentials.set`, and keeps only a namespaced `credentialRef` in YAML. The
@@ -75,6 +77,8 @@ Code:
 - [x] Client configuration UI (slot registration and HTTP round-trip live-verified)
 - [x] Environment detail: hosts, accounts, login audit, endpoints, YAML
 - [x] Guided **New environment** form (environment + first host + account + SSH endpoint)
+- [x] Dedicated default **Environments** tab and persistent header create action
+- [x] Records narrowed to services, deployments, rule profiles and operation bindings
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, host, account and login records
 - [x] Memory bridge contract and null adapter

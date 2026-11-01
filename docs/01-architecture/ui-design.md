@@ -29,20 +29,19 @@ execution button. Every screen answers one question and offers one write action.
 Sidebar
 └── Environment Manager  (id: dsh-env-manager, order 40)
     └── main panel (key: dsh-env-manager)
-        ├── Overview
-        ├── Environments
-        ├── Services
-        ├── Deployments
-        ├── Rule Profiles
-        ├── Operation Bindings
+        ├── Environments  (default; list, detail, New environment)
+        ├── Overview      (counts, runtime, warnings, getting started, validation)
+        ├── Records       (Services, Deployments, Rule Profiles, Operation Bindings)
         ├── Context Preview
-        ├── Operation Preview
-        └── Diagnostics
+        └── Operation Preview
 ```
 
-Sections are a vertical tab strip inside the panel, not separate sidebar entries. The
+Sections are a horizontal tab strip inside the panel, not separate sidebar entries. The
 sidebar entry is the only global surface; the panel fills the same region as
-`conversation`.
+`conversation`. **Environments is the default section** because host and account
+management is the primary job; the panel header also carries a persistent
+`New environment` action. Records is for the remaining configuration kinds and no longer
+offers environment creation.
 
 ### 3.1 Sidebar slot contract
 
@@ -152,33 +151,26 @@ sidebar:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ [glyph] Environment Manager                                  │
+│ [glyph] Environment Manager                  [New environment]│
 │         Environments, services, deployments, routing.        │
 │                                                              │
-│ Overview   Records   Context   Operations                    │
-│ ─────────                                                    │
-│ Overview                                [Refresh] [Validate] │
-│ ┌────────┬────────┬────────┬────────┬────────┐               │
-│ │ Env 0  │ Svc 0  │ Dep 0  │ Rule 0 │ Bind 0 │               │
-│ └────────┴────────┴────────┴────────┴────────┘               │
-│ ┌──────────────────────────┬──────────────────┐              │
-│ │ Runtime                  │ Warnings       0 │              │
-│ │ dataDir / total records  │ empty state      │              │
-│ └──────────────────────────┴──────────────────┘              │
-│ ┌ Get started (empty registry only) ──────────────────────┐  │
-│ │ 1 Environment → 2 Service → 3 Deployment → 4 Binding    │  │
-│ │                                          [Open records] │  │
-│ └─────────────────────────────────────────────────────────┘  │
+│ Environments   Overview   Records   Context   Operations     │
+│ ────────────                                                 │
+│ Environments                                    [Refresh]    │
+│ ┌────────────────────┬───────────────────────────────────┐   │
+│ │ Oracle 1           │ Select an environment,            │   │
+│ │ test · 1 host ...  │ or add a new one.  [New environment]│  │
+│ └────────────────────┴───────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 - The root is a plugin-owned `div.dem-root` with `height:100%; overflow:auto`; the
   content column is capped at 1080 px and centered.
-- Title 22 px / 650; subtitle 13 px secondary. The header carries only identity; each
-  view supplies its own toolbar and primary action.
+- Title 22 px / 650; subtitle 13 px secondary. The header carries identity **and** the
+  persistent `New environment` primary action; each view still supplies its own toolbar.
 - Tabs are a horizontal underline strip (`role="tablist"`), never host `nav` styling.
-  Overview / Records / Context / Operations are views; record kinds are a second,
-  segmented control inside Records.
+  Environments / Overview / Records / Context / Operations are views. Environments is
+  the default; record kinds are a second, segmented control inside Records.
 - Panel background: `--dsw-alias-bg-base`; cards `--dsw-alias-bg-layer-1`; borders
   `--dsw-alias-border-l1`; secondary text `--dsw-alias-label-secondary`.
 - The primary button is filled with `--dsw-alias-brand-primary` and uses
@@ -200,26 +192,31 @@ sidebar:
 - `Refresh` reloads `meta`; `Validate` calls `validate` and renders a result card with
   a pass/fail pill and diagnostics.
 - When the registry is empty, a "Get started" card shows the registration order
-  (environment → service → deployment → operation binding) and opens Records.
+  (environment → service → deployment → operation binding) and opens the guided
+  `New environment` form directly.
 
-### 6.2 Records
+### 6.2 Environments
 
-- A kind segmented control: Environments, Services, Deployments, Rule Profiles,
-  Operation Bindings.
-- On Environments, the primary action is `New environment`: one form collects the
-  environment name (optional id and category), host IP/SSH port, login username and
-  password, then creates the environment, its first host, account and SSH endpoint in
-  one save. The password is sent once to `credential` and is never put into YAML. The
-  generated credential ref is `env-manager/<environmentId>/<accountId>`.
-- `New record` still loads the kind template into the YAML editor for advanced use;
-  `Refresh` reloads the list.
+- The default section. A toolbar shows the section title, a one-line purpose and
+  `Refresh`; the persistent header action `New environment` is always available.
 - Environments use a master/detail flow: the left card lists environments (name, id,
   `category · hosts · accounts · login records`); selecting one opens a read-first detail
-  view (§6.3). The other four kinds remain YAML editor only.
-- Empty lists show a dashed empty state with a short hint, not a blank card. The empty
-  editor offers `New environment` directly.
+  view (§6.3).
+- `New environment` opens one guided form: environment name, optional id, category, host
+  IP, SSH port, login username and password. It creates the environment, first host,
+  account and SSH endpoint in one save. The password goes to `credential` and never into
+  YAML; the generated ref is `env-manager/<environmentId>/<accountId>`.
+- Empty lists show a dashed empty state with `New environment` and `Refresh`.
 - There is no search box in V1; the `record.find` HTTP operation remains available to
   future screens.
+
+### 6.2a Records
+
+- A kind segmented control for Services, Deployments, Rule Profiles and Operation
+  Bindings only. Environments are not listed here.
+- `New record` loads the selected kind's YAML template into the editor; `Refresh`
+  reloads the list. This is the advanced path for non-environment records.
+- Empty lists show a dashed empty state with a short hint, not a blank card.
 
 ### 6.3 Environment detail
 
@@ -263,9 +260,8 @@ Environment overview | Hosts & logins | Login records | Endpoints | YAML
 
 ### 6.4 YAML record editor
 
-Services, deployments, rule profiles and operation bindings; a new environment can still
-be created from its YAML template through `New record` when the guided form is not
-enough:
+Services, deployments, rule profiles and operation bindings. Environments are created
+through the guided form; an existing environment's YAML is editable from its detail tab.
 
 ```text
 test-a                                  [Save] [Delete]
@@ -431,11 +427,11 @@ const S = {
 ```text
 EnvManagerPanel
 ├── PanelHeader (glyph, title, subtitle)
-├── SectionTabs (Overview / Records / Context / Operations)
+├── HeaderActions (New environment, persistent)
+├── SectionTabs (Environments / Overview / Records / Context / Operations)
 ├── SectionContent
 │   ├── OverviewView (stat cards, runtime, warnings, onboarding)
-│   ├── RecordsView
-│   │   ├── EnvironmentWizard (guided create: name/id/category/IP/port/user/password)
+│   ├── EnvironmentsView
 │   │   ├── EnvironmentList ── EnvironmentRow
 │   │   ├── EnvironmentDetail
 │   │   │   ├── DetailHeader (back, identity, actions)
@@ -446,7 +442,9 @@ EnvManagerPanel
 │   │   │   ├── LoginTable + LoginForm
 │   │   │   ├── EndpointTable
 │   │   │   └── YamlEditor
-│   │   └── YamlRecordEditor (service/deployment/rule/binding/template environment)
+│   │   └── EnvironmentWizard (guided create: name/id/category/IP/port/user/password)
+│   ├── RecordsView
+│   │   └── YamlRecordEditor (service/deployment/rule/binding)
 │   ├── ContextView ── ResultBlock
 │   └── OperationsView ── ResultBlock
 └── Toast / ErrorBox
@@ -462,6 +460,10 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
       with no filled background, and selects the panel.
 - [ ] The sidebar row shows one label, aligned with the shipped rows, and the active
       row uses the host highlight rather than plugin-provided styling.
+- [ ] Panel opens on **Environments**, not Overview or Records.
+- [ ] The header `New environment` action opens the guided form from any tab.
+- [ ] `Records` excludes Environments and keeps Services/Deployments/Rule Profiles/
+      Operation Bindings YAML editing.
 - [ ] Panel renders with an empty `dataDir` and with several environments.
 - [ ] `New environment` creates one environment, host, account and SSH endpoint; the
       YAML contains the credential reference and never the password.

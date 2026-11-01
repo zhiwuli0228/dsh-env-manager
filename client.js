@@ -14,7 +14,8 @@ window.__ModuleLoader__.load({
         context: 'Context',
         operations: 'Operations',
         overviewHint: 'Registry health and the latest validation run.',
-        recordsHint: 'Inspect hosts, accounts and login audit, or add a complete environment.',
+        environmentsHint: 'Every environment, host, account and login audit. Start here to add a new environment.',
+        recordsHint: 'Services, deployments, rule profiles and operation bindings. Environments live on the Environments tab.',
         contextHint: 'Resolve layered variables and inspect their provenance.',
         operationsHint: 'Resolve the Skill bound to an operation and context.',
         refresh: 'Refresh',
@@ -37,13 +38,16 @@ window.__ModuleLoader__.load({
         validationFailed: 'Registry has errors',
         noDiagnostics: 'No diagnostics.',
         selectRecord: 'Select a record from the list.',
-        selectRecordHint: 'Choose a record to edit its YAML, or add an environment.',
+        selectRecordHint: 'Choose a record to edit its YAML, or create one from a template.',
+        selectEnvironmentHint: 'Choose an environment to inspect hosts, accounts and login audit, or add a new one.',
         emptyRecords: 'No records yet',
-        emptyRecordsHint: 'Add an environment, or refresh.',
+        emptyRecordsHint: 'Create one from a template, or refresh.',
+        emptyEnvironments: 'No environments yet',
+        emptyEnvironmentsHint: 'Add the first environment, or refresh.',
         emptyRegistry: 'Empty registry',
         gettingStarted: 'Get started',
         gettingStartedHint: 'Register an environment first, then its services, deployments and operation bindings. Context resolution and routing become available as soon as records exist.',
-        openRecords: 'Open records',
+        openRecords: 'Open environments',
         backToRecords: 'Back to environments',
         basicInfo: 'Basic info',
         hostsAndLogins: 'Hosts & logins',
@@ -152,7 +156,8 @@ window.__ModuleLoader__.load({
         context: '上下文',
         operations: '操作',
         overviewHint: '注册表健康状态与最近一次校验结果。',
-        recordsHint: '查看主机、账号与登录审计，或新建一套完整环境。',
+        environmentsHint: '所有环境、主机、账号与登录审计；新增环境从这里开始。',
+        recordsHint: '服务、部署、规则集与操作绑定；环境请在「环境」页维护。',
         contextHint: '解析分层变量，并查看每个值的来源。',
         operationsHint: '解析操作在指定上下文下绑定的 Skill。',
         refresh: '刷新',
@@ -175,13 +180,16 @@ window.__ModuleLoader__.load({
         validationFailed: '注册表存在错误',
         noDiagnostics: '无诊断信息。',
         selectRecord: '请选择一条记录。',
-        selectRecordHint: '从左侧选择记录编辑 YAML，或直接新建环境。',
+        selectRecordHint: '从左侧选择记录编辑 YAML，或从模板新建。',
+        selectEnvironmentHint: '从左侧选择环境查看主机、账号与登录审计，或新增环境。',
         emptyRecords: '暂无记录',
-        emptyRecordsHint: '新建一套环境，或刷新列表。',
+        emptyRecordsHint: '从模板新建一条，或刷新列表。',
+        emptyEnvironments: '还没有环境',
+        emptyEnvironmentsHint: '新增第一套环境，或刷新列表。',
         emptyRegistry: '注册表为空',
         gettingStarted: '开始使用',
         gettingStartedHint: '先注册环境，再补充服务、部署和操作绑定；有记录后即可解析上下文和路由操作。',
-        openRecords: '打开记录',
+        openRecords: '打开环境',
         backToRecords: '返回环境列表',
         basicInfo: '基本信息',
         hostsAndLogins: '主机与登录',
@@ -287,6 +295,7 @@ window.__ModuleLoader__.load({
     const t = (key) => MESSAGES[lang][key] || MESSAGES.en[key] || key;
 
     const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'];
+    const RECORD_KINDS = KINDS.filter((kind) => kind !== 'environment');
     const KIND_LABEL = {
       environment: 'environments',
       service: 'services',
@@ -365,6 +374,7 @@ window.__ModuleLoader__.load({
 .dem-root *{box-sizing:border-box}
 .dem-shell{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
 .dem-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dem-header-actions{display:flex;align-items:center;gap:8px;padding-top:2px}
 .dem-heading{display:flex;align-items:flex-start;gap:12px;min-width:0}
 .dem-mark{width:38px;height:38px;flex:none;display:flex;align-items:center;justify-content:center;border:1px solid var(--dsw-alias-border-l1);border-radius:11px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-brand-primary)}
 .dem-heading-copy{min-width:0}
@@ -682,7 +692,7 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'dem-flow-index' }, String(index + 1)),
                   t(KIND_LABEL[kind]))))),
           h('div', { className: 'dem-flow-actions' },
-            h(Button, { onClick: props.onOpenRecords, variant: 'primary' }, t('openRecords')))) : null,
+            h(Button, { onClick: props.onCreateEnvironment, variant: 'primary' }, t('newEnvironment')))) : null,
         report ? h('div', { className: 'dem-card' },
           h('div', { className: 'dem-section-head' },
             h('h3', { className: 'dem-section-title' }, t('validation')),
@@ -1318,8 +1328,10 @@ window.__ModuleLoader__.load({
             h(Button, { onClick: submit, variant: 'primary', disabled: saving }, t('createEnvironment')))));
     }
 
-    function Records() {
-      const [kind, setKind] = useState('environment');
+    function Records(props) {
+      const environmentMode = props.kind === 'environment';
+      const [recordKind, setRecordKind] = useState('service');
+      const kind = environmentMode ? 'environment' : recordKind;
       const [items, setItems] = useState([]);
       const [selected, setSelected] = useState(null);
       const [record, setRecord] = useState(null);
@@ -1346,6 +1358,17 @@ window.__ModuleLoader__.load({
         setCreating(false);
         setMessage(null);
       }, [kind, load]);
+
+      useEffect(() => {
+        if (!environmentMode || !props.createRequest) return;
+        setSelected(null);
+        setRecord(null);
+        setYaml('');
+        setError(null);
+        setMessage(null);
+        setCreating(true);
+        if (props.onCreateConsumed) props.onCreateConsumed();
+      }, [environmentMode, props.createRequest, props.onCreateConsumed]);
 
       const open = async (id) => {
         try {
@@ -1464,19 +1487,18 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'dem-view' },
         h('div', { className: 'dem-toolbar' },
           h('div', { className: 'dem-toolbar-copy' },
-            h('h2', { className: 'dem-section-title' }, t('records')),
-            h('p', { className: 'dem-hint' }, t('recordsHint'))),
+            h('h2', { className: 'dem-section-title' }, t(environmentMode ? 'environments' : 'records')),
+            h('p', { className: 'dem-hint' }, t(environmentMode ? 'environmentsHint' : 'recordsHint'))),
           h('div', { className: 'dem-actions' },
-            kind === 'environment' ? h(Button, { onClick: startWizard, variant: 'primary' }, t('newEnvironment')) : null,
-            h(Button, { onClick: startNew }, t('newRecord')),
+            environmentMode ? null : h(Button, { onClick: startNew }, t('newRecord')),
             h(Button, { onClick: () => load(kind) }, t('refresh')))),
-        h('div', { className: 'dem-subtabs', role: 'group' }, KINDS.map((item) =>
+        environmentMode ? null : h('div', { className: 'dem-subtabs', role: 'group' }, RECORD_KINDS.map((item) =>
           h('button', {
             key: item,
             type: 'button',
             className: 'dem-subtab',
             'aria-pressed': kind === item ? 'true' : 'false',
-            onClick: () => setKind(item),
+            onClick: () => setRecordKind(item),
           }, t(KIND_LABEL[item])))),
         error ? h(ErrorBox, { error }) : null,
         h(Toast, { message }),
@@ -1504,8 +1526,8 @@ window.__ModuleLoader__.load({
                 h('span', null, String(items.length))),
               items.length === 0
                 ? h('div', { className: 'dem-empty' },
-                  h('strong', null, t('emptyRecords')),
-                  h('span', null, t('emptyRecordsHint')))
+                  h('strong', null, t(environmentMode ? 'emptyEnvironments' : 'emptyRecords')),
+                  h('span', null, t(environmentMode ? 'emptyEnvironmentsHint' : 'emptyRecordsHint')))
                 : items.map((item) =>
                   h('button', {
                     key: item.id,
@@ -1536,9 +1558,9 @@ window.__ModuleLoader__.load({
               : h('div', { className: 'dem-card dem-empty-editor' },
                 h('div', { className: 'dem-empty' },
                   h('strong', null, t('selectRecord')),
-                  h('span', null, t('selectRecordHint')),
-                  h(Button, { onClick: kind === 'environment' ? startWizard : startNew, variant: 'primary' },
-                    kind === 'environment' ? t('newEnvironment') : t('newRecord'))))));
+                  h('span', null, t(environmentMode ? 'selectEnvironmentHint' : 'selectRecordHint')),
+                  h(Button, { onClick: environmentMode ? startWizard : startNew, variant: 'primary' },
+                    environmentMode ? t('newEnvironment') : t('newRecord'))))));
     }
 
     function ContextView() {
@@ -1668,13 +1690,19 @@ window.__ModuleLoader__.load({
     }
 
     function Panel() {
-      const [tab, setTab] = useState('overview');
+      const [tab, setTab] = useState('environments');
+      const [createRequest, setCreateRequest] = useState(0);
       const tabs = useMemo(() => [
+        ['environments', t('environments')],
         ['overview', t('overview')],
         ['records', t('records')],
         ['context', t('context')],
         ['operations', t('operations')],
       ], []);
+      const requestCreate = () => {
+        setTab('environments');
+        setCreateRequest((value) => value + 1);
+      };
       return h('div', { className: 'dem-root' },
         h('div', { className: 'dem-shell' },
           h('header', { className: 'dem-header' },
@@ -1682,7 +1710,9 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dem-mark' }, h(EnvManagerIcon, { size: 22, active: true })),
               h('div', { className: 'dem-heading-copy' },
                 h('h1', { className: 'dem-title' }, t('title')),
-                h('p', { className: 'dem-sub' }, t('subtitle'))))),
+                h('p', { className: 'dem-sub' }, t('subtitle')))),
+            h('div', { className: 'dem-header-actions' },
+              h(Button, { onClick: requestCreate, variant: 'primary' }, t('newEnvironment')))),
           h('div', { className: 'dem-tabs', role: 'tablist' }, tabs.map(([key, label]) =>
             h('button', {
               key,
@@ -1692,7 +1722,12 @@ window.__ModuleLoader__.load({
               'aria-selected': tab === key ? 'true' : 'false',
               onClick: () => setTab(key),
             }, label))),
-          tab === 'overview' ? h(Overview, { onOpenRecords: () => setTab('records') }) : null,
+          tab === 'overview' ? h(Overview, { onCreateEnvironment: requestCreate }) : null,
+          tab === 'environments' ? h(Records, {
+            kind: 'environment',
+            createRequest,
+            onCreateConsumed: () => setCreateRequest(0),
+          }) : null,
           tab === 'records' ? h(Records) : null,
           tab === 'context' ? h(ContextView) : null,
           tab === 'operations' ? h(OperationsView) : null));

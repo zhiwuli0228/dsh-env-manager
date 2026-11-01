@@ -421,12 +421,9 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 
 | Section | Content |
 |---|---|
+| Environments (default) | list, detail (basic info, hosts/accounts, login records, endpoints), guided New environment, edit YAML |
 | Overview | counts, dataDir, warnings, validate |
-| Environments | list, detail (basic info, hosts/accounts, login records, endpoints), create/edit YAML |
-| Services | list, create/edit YAML, Git/artifact/rule refs |
-| Deployments | list, create/edit YAML, runtime-specific fields |
-| Rule profiles | YAML editor |
-| Operation bindings | YAML editor with match preview and conflict warning |
+| Records | Services, Deployments, Rule profiles and Operation bindings as YAML editors |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
 | Operation preview | operation → selected binding, skill availability, policy, parameters |
 
@@ -436,7 +433,9 @@ Rules for the UI:
   (`POST /env-manager/api`, ADR-0009); no direct file access and no second business
   path.
 - The UI cannot read or write session context in V1; that stays with the agent tools.
-- Records are edited as YAML in V1, validated server-side before writing.
+- Environments are created by the guided form; their detail and YAML are editable.
+  Service, deployment, rule and binding records are edited as YAML, validated
+  server-side before writing.
 - Text is routed through the client locale service; `en` and `zh` provided.
 - The UI must show provenance for derived values, not just the final string.
 - Production-category destructive actions are visually distinct and require
@@ -516,6 +515,7 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-10 | A rule change derived from experience becomes a pending proposal | P1 | proposal queue test |
 | AC-11 | Environment detail shows host accounts with protocol/auth/last-login source, without secret values | yes | app test + UI checklist |
 | AC-12 | Login records are stored in the environment YAML, reference existing hosts/accounts and render newest-first | yes | app integrity test + UI checklist |
+| AC-13 | Environments is the default tab, `New environment` is reachable from the header, and Records excludes environments | yes | UI checklist |
 
 ---
 
