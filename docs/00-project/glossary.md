@@ -47,6 +47,13 @@ A machine running Pods that operators reach with `docker exec`, recorded as
 `Host.kind: pod-host`. It is one Host even when it runs many Pods; individual Pods belong to
 the deployment model, not `hosts[]`.
 
+## Web Login
+
+A management or business console login recorded on `HostAccount`: `loginUrl` is the console
+entry URL, `username` is the login name and `credentialRef` points to the password in the
+DSH credential service. The URL is configuration, never a secret; the password is never
+stored in the environment YAML.
+
 ## Cluster
 
 A Kubernetes or Docker cluster inside one environment.

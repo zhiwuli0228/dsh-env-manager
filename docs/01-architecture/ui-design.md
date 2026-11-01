@@ -258,13 +258,15 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
   card shows node counts per plane and the four standard roles even when the environment
   declares only some of them.
 - `All nodes` and every plane tab share one node view:
-  - toolbar: search box (id, name, IP, platform, admin user, role, kind, access method,
-    cluster name or cluster reference), `Add node`, `Batch import`;
+  - toolbar: search box (id, name, IP, platform, admin user, role, kind, access
+    method, cluster name/reference, account username, purpose or web login URL),
+    `Add node`, `Batch import`;
   - one compact card per host: name, active state, a kind badge, command-access badges,
     IP/port, platform, admin user, account count, cluster reference, credential reference
     and role chips;
   - `Edit node` opens the same form prefilled; `Accounts (n)` expands the account table;
-    `Add account` opens the account form for that host.
+    `Add account` opens the account form for that host; `Add web login` opens the same form
+    with protocol `web` preselected.
 - `Add node` / `Edit node` form fields: id (auto-slug when blank), name, node kind,
   Kubernetes cluster, IP, SSH port, platform, admin user, credential reference, role
   checkboxes (at least one), command-access checkboxes (`ssh`, `kubectl`, `docker`) and an
@@ -276,6 +278,15 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
   Editing a node preserves its existing accounts; filling username + password again adds a
   new password account while leaving the existing accounts and host credential reference
   intact. Opening the form from a plane tab preselects that role.
+- `Add account` / `Edit account` form fields: id (auto-slug when blank, immutable after
+  creation), username, purpose, protocol, web login URL, auth type, password, credential
+  reference, latest login and source. A web login URL must start with `http://` or
+  `https://`; the Host schema also rejects non-http(s) values. It is shown as a link under
+  the account username. A non-empty password is
+  written to the DSH credential service and the account keeps only the generated
+  `credentialRef`; leaving the password blank preserves the existing reference. Accounts
+  can be edited in place, so a web URL or password can be changed without adding a
+  duplicate account.
 - `Batch import` accepts one node per line:
   `IP,name,roles,port,user`; multiple roles use `|` or `/`, for example
   `10.20.30.53,app-01,business|management,22,root`. Import creates generic `vm` nodes with
@@ -298,10 +309,10 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
 - `YAML` exposes the whole environment document with `Save` and `Delete`; it is the
   escape hatch, not the primary path. Account and login fields never contain secrets.
 - Forms validate required fields locally (name, at least one role, IP format/duplicates,
-  port range, and username/password pairing) and rely on the Host for schema and
-  referential-integrity failures. A Host rejection stays visible above the node form and
-  the form remains open; a failed save also removes any credential written for that
-  attempt.
+  port range, username/password pairing and `http(s)` web login URLs) and rely on the Host
+  for schema and referential-integrity failures. A Host rejection stays visible above the
+  node form and the form remains open; a failed save also removes any credential written
+  for that attempt.
 
 ### 6.4 YAML record editor
 
@@ -535,9 +546,12 @@ primitives `Field`, `Select` and `TextArea`.
       cluster reference.
 - [ ] Batch import parses `IP,name,roles,port,user`, supports `|` role separators and
       rejects unknown roles/duplicate IPs without saving a partial batch.
-- [ ] Node search filters by id, name, IP, platform, admin user, role, kind, access method
-      and cluster name/reference.
+- [ ] Node search filters by id, name, IP, platform, admin user, role, kind, access method,
+      cluster name/reference, account username and web login URL.
 - [ ] An expanded node card shows every account with auth type and last login source.
+- [ ] Add web login stores the URL and username, shows the URL as a link, and keeps only a
+      credential reference after the password is written; edit account can update the URL
+      or rotate the password.
 - [ ] Kubernetes / clusters lists node counts, topology and API endpoint; add/edit cluster
       round-trips and the new cluster appears in the node form's cluster picker.
 - [ ] Add node / add account / add login record / add cluster persist and re-render without
@@ -558,7 +572,8 @@ primitives `Field`, `Select` and `TextArea`.
 ## 13. Out of scope for V1
 
 - Full CRUD forms for services, deployments, rules and bindings.
-- Deleting individual hosts/accounts/logins from rows (edit + YAML is the V1 path).
+- Deleting individual hosts/accounts/logins from rows; account and node edit exist, deletion
+  stays in YAML in V1.
 - Per-Pod or per-container inventory, container ids and restart counts. V1 records the
   Pod-hosting machine as a `pod-host` and leaves Pods in the deployment model.
 - Deleting clusters from a row; cluster deletion stays in YAML so references are deliberate.

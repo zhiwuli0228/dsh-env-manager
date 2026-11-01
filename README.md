@@ -22,7 +22,7 @@ Works in DSH Web and Desktop.
 **Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
 implemented and installed in the `desktop` profile.**
 
-- 47 Vitest tests pass; `npm run build` emits `lib/`.
+- 48 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
@@ -38,7 +38,11 @@ implemented and installed in the `desktop` profile.**
   credential. K8s kinds reference a cluster; a Pod host is the machine reached with
   `docker exec`, not one record per Pod. Batch import (`IP,name,roles,port,user`) creates
   generic VM nodes and never accepts passwords. Node search covers id, name, IP, platform,
-  admin user, role, kind, access and cluster.
+  admin user, role, kind, access, cluster, account username and web login URL.
+- Accounts can carry a web login URL and username for a management or business console.
+  `Add web login` opens the account form with protocol `web`; `Edit account` can change the
+  URL or rotate the password. A password is written to the DSH credential service, never to
+  YAML.
 - The Kubernetes/clusters tab creates and edits cluster metadata (kind, topology, API
   endpoint, namespaces, credential reference) and derives node counts from `clusterRef`.
 - Passwords are written to the DSH credential service; YAML keeps only
@@ -68,8 +72,13 @@ implemented and installed in the `desktop` profile.**
    **添加节点** (Add node). Choose **K8s 合设** when the control plane and worker share a
    machine; choose **Pod 宿主机** for a machine operated through `docker exec`. A Pod itself
    is not added as a node.
+7. For a management or business web console, open the relevant plane tab and find the node
+   that hosts it, then click **添加 Web 登录** (Add web login) on the node card. Enter the
+   web login URL, username and (optionally) the password. The URL is stored on the account,
+   the password is written to the DSH credential service, and the account can later be
+   updated with **编辑账号** (Edit account).
 
-A password entered on the add/edit node form is sent once to the Host and stored by the
+A password entered on the node or account form is sent once to the Host and stored by the
 DSH credential service. It never appears in the registry YAML, tool output or logs. Use
 **新建记录** only when you need to paste an advanced YAML template.
 

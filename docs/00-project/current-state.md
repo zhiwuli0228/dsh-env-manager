@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 47 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 48 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -39,7 +39,8 @@ Phase 1 changes the environment workflow:
   roles. It creates hosts and optional accounts but never passwords, and rejects unknown
   roles/duplicate IPs/invalid ports before saving.
 - Node search filters by id, name, IP, platform, admin user, role, node kind, access
-  method or cluster name/id. Node cards expand to show the account table.
+  method, cluster name/id, account username or web login URL. Node cards expand to show the
+  account table.
 - Schema validation now requires at least one environment role and at least one role per
   host. Standard roles are seeded automatically when a node uses a missing standard role.
 
@@ -58,11 +59,24 @@ Phase 1.1 adds the K8s node/execution model (ADR-0011):
   node count derived from `clusterRef`.
 - Batch import remains generic VM (`kind: vm`, `access: [ssh]`) and never accepts secrets.
 
+Web console logins are account-level:
+
+- `HostAccount.loginUrl` stores the management/business console URL; it is a URL, not a
+  secret. The account form has `Web login URL`, username and an optional password, and the
+  account can be edited in place. The Host schema requires an absolute `http(s)` URL.
+- `Add web login` on a node card opens the account form with protocol `web` and auth type
+  `password` preselected; the URL renders as a link under the account username.
+- A password entered in the account form is written through the DSH credential service;
+  YAML keeps only `credentialRef`. Leaving the password blank preserves the existing
+  reference when editing.
+- Account search covers username, purpose and web login URL.
+
 Live verification covered shell creation, plane tabs, empty-plane state, add node from a
 plane, multi-role edit, batch import, search, account creation and credential references.
 Phase 1.1 was additionally verified live: add a cluster with topology and API endpoint, add
 a K8s all-in-one node with kind/access/cluster, add a Pod host without a cluster, reject a
 K8s worker without a cluster, confirm cluster/node counts and search by cluster name.
+Web login URL/password and account edit were verified live after the account form change.
 
 ## Implemented
 
@@ -112,13 +126,14 @@ Code:
 - [x] Node kind (`vm`/`physical`/K8s all-in-one/K8s worker/Pod host), command access and cluster reference
 - [x] Kubernetes/clusters tab with cluster add/edit, topology and derived node count
 - [x] Batch node import (`IP,name,roles,port,user`; no passwords; generic VM nodes)
-- [x] Node search (including kind/access/cluster) and expandable account cards
+- [x] Node search (including kind/access/cluster and account web login) and expandable account cards
+- [x] Account-level web login URL, password-to-credential bridge and in-place account edit
 - [x] Dedicated default **Environments** tab and persistent header create action
 - [x] Records narrowed to services, deployments, rule profiles and operation bindings
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (47 passing)
+- [x] Tests (48 passing)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -170,8 +185,8 @@ dsh-env-manager/
   and K8s/Pod hosts are edited afterwards.
 - Per-Pod/container inventory is not modeled; a `pod-host` is one machine even when it runs
   many Pods.
-- Node editing preserves accounts and roles, but there is no bulk edit and no credential
-  rotation button.
+- Node editing preserves accounts and roles, but there is no bulk edit. Account editing can
+  rotate a password, but private-key and passphrase input remain YAML-only.
 - Database primary/replica/sharding topology is deliberately not modeled in Phase 1: the
   database plane is a role, and topology detail belongs in node notes until Phase 2.
 - Services, deployments, rule profiles and operation bindings are YAML-only; only
@@ -179,7 +194,8 @@ dsh-env-manager/
 - The `oracle1` environment in the `desktop` profile is demo data created to verify account
   and login rendering; replace or delete it before real use.
 - Light theme contrast has not been checked yet.
-- Private-key input, key passphrases and credential rotation are still outside the UI.
+- Private-key input and key passphrases are still outside the UI; password rotation works
+  through `Edit account`.
 - Deleting an environment does not automatically delete its namespaced credentials; the
   `credentialUnset` operation exists, but there is no revoke button in the panel yet.
 - Runtime probes V4 (approval from a tool body) and V6 (live credential `describe`)
@@ -198,7 +214,8 @@ dsh-env-manager/
    modeling, stored without duplicating `hosts[]`.
 2. Batch-import kind/access/cluster columns, and optional Pod/container inventory if
    operations need per-workload targeting.
-3. Row-level delete for nodes, accounts and login records, plus credential rotation.
+3. Row-level delete for nodes, accounts and login records, plus private-key/passphrase
+   input.
 4. Live probes V4 and V6, then record results in `api-verification.md`.
 5. Optional JumpServer/PAM import adapter for accounts and login observations.
 6. Add a small example registry under `examples/` for first-run demonstration.

@@ -247,6 +247,37 @@ describe('app', () => {
     expect(report.diagnostics.some((item) => item.code === 'DUPLICATE_ACCOUNT_ID')).toBe(true)
   })
 
+  it('stores a web login URL on a host account', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const value = structuredClone(environment)
+    value.hosts[0]?.accounts?.push({
+      id: 'console',
+      username: 'ops',
+      purpose: 'business console',
+      protocol: 'web',
+      loginUrl: 'https://console.example.internal/login',
+      authType: 'password',
+      credentialRef: 'env-manager/test-a/console',
+    })
+    await app.save('environment', value, { actor: 'agent' })
+    const got = await app.get('environment', 'test-a')
+    expect((got.record as any).hosts[0].accounts.find((account: any) => account.id === 'console'))
+      .toMatchObject({
+        protocol: 'web',
+        loginUrl: 'https://console.example.internal/login',
+        credentialRef: 'env-manager/test-a/console',
+      })
+    expect(got.yaml).toContain('loginUrl')
+    expect(got.yaml).toContain('https://console.example.internal/login')
+
+    const invalid = structuredClone(value)
+    const invalidAccount = invalid.hosts[0]?.accounts?.find((account) => account.id === 'console')
+    if (!invalidAccount) throw new Error('console account fixture is missing')
+    invalidAccount.loginUrl = 'javascript:alert(1)'
+    await expect(app.save('environment', invalid, { actor: 'agent' })).rejects.toThrow()
+  })
+
   it('reports login records that reference a missing account', async () => {
     const dir = await makeDir()
     const app = makeApp(dir)

@@ -58,7 +58,7 @@ window.__ModuleLoader__.load({
         allNodes: 'All nodes',
         allNodesHint: 'Every host in this environment, regardless of plane.',
         nodeSearch: 'Search nodes',
-        nodeSearchPlaceholder: 'Name, IP, role, kind or cluster',
+        nodeSearchPlaceholder: 'Name, IP, role, kind, cluster or login',
         nodeKind: 'Node type',
         hostKindVm: 'VM',
         hostKindPhysical: 'Physical',
@@ -177,6 +177,14 @@ window.__ModuleLoader__.load({
         authOther: 'Other',
         editBasic: 'Edit info',
         addAccount: 'Add account',
+        addWebLogin: 'Add web login',
+        editAccount: 'Edit account',
+        webLoginUrl: 'Web login URL',
+        webLoginHint: 'For a web console, enter its login URL and username. The password is written once to the DSH credential service; YAML keeps only credentialRef.',
+        accountPasswordHint: 'Leave blank to keep the existing credential reference. Enter a password to write a new credential value.',
+        webLoginUrlInvalid: 'Web login URL must start with http:// or https://.',
+        accountAdded: 'Account added',
+        accountUpdated: 'Account updated',
         addLogin: 'Add login record',
         cancel: 'Cancel',
         hostId: 'Node id',
@@ -270,7 +278,7 @@ window.__ModuleLoader__.load({
         allNodes: '全部节点',
         allNodesHint: '环境中的全部主机，不区分平面。',
         nodeSearch: '搜索节点',
-        nodeSearchPlaceholder: '名称、IP、角色、类型或集群',
+        nodeSearchPlaceholder: '名称、IP、角色、类型、集群或登录',
         nodeKind: '节点类型',
         hostKindVm: '虚机',
         hostKindPhysical: '物理机',
@@ -389,6 +397,14 @@ window.__ModuleLoader__.load({
         authOther: '其他',
         editBasic: '编辑信息',
         addAccount: '添加账号',
+        addWebLogin: '添加 Web 登录',
+        editAccount: '编辑账号',
+        webLoginUrl: 'Web 登录 URL',
+        webLoginHint: 'Web 控制台请填写登录 URL 和用户名；密码只写入 DSH 凭据服务一次，YAML 仅保留 credentialRef。',
+        accountPasswordHint: '留空保留现有凭据引用；填写密码会写入新的凭据值。',
+        webLoginUrlInvalid: 'Web 登录 URL 必须以 http:// 或 https:// 开头。',
+        accountAdded: '账号已添加',
+        accountUpdated: '账号已更新',
         addLogin: '登记登录',
         cancel: '取消',
         hostId: '节点 ID',
@@ -676,6 +692,9 @@ window.__ModuleLoader__.load({
 .dem-host-name{font-size:13px;font-weight:650;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .dem-host-meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--dsw-alias-label-secondary);font-size:11px;margin-top:3px}
 .dem-host-meta code,.dem-code-inline{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.dem-link{color:var(--dsw-alias-brand-primary);text-decoration:none;word-break:break-all}
+.dem-link:hover{text-decoration:underline}
+.dem-account-url{display:block;margin-top:2px;font-size:11px}
 .dem-node-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dem-node-search{flex:1;min-width:180px;max-width:320px}
 .dem-plane-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -1222,44 +1241,87 @@ window.__ModuleLoader__.load({
         if (ok && props.onMessage) props.onMessage(t(existingCluster ? 'clusterUpdated' : 'clusterAdded'));
       };
 
-      const openAccount = (host) => {
-        setEditing('account:' + host.id);
+      const openAccount = (host, existingAccount, presetProtocol) => {
+        const protocol = existingAccount
+          ? (existingAccount.protocol || 'ssh')
+          : (presetProtocol || 'ssh');
+        setFormError(null);
+        setExpandedHost(host.id);
+        setEditing(existingAccount
+          ? 'account-edit:' + host.id + ':' + existingAccount.id
+          : 'account:' + host.id);
         setDraft({
-          id: '',
-          username: '',
-          purpose: '',
-          protocol: 'ssh',
-          authType: 'private-key',
-          credentialRef: '',
-          lastLoginAt: '',
-          lastLoginFrom: '',
+          id: existingAccount ? existingAccount.id : '',
+          username: existingAccount ? existingAccount.username : '',
+          purpose: existingAccount ? existingAccount.purpose || '' : '',
+          protocol,
+          authType: existingAccount ? (existingAccount.authType || 'other') : (protocol === 'web' ? 'password' : 'private-key'),
+          loginUrl: existingAccount ? existingAccount.loginUrl || '' : '',
+          credentialRef: existingAccount ? existingAccount.credentialRef || '' : '',
+          lastLoginAt: existingAccount ? existingAccount.lastLoginAt || '' : '',
+          lastLoginFrom: existingAccount ? existingAccount.lastLoginFrom || '' : '',
+          password: '',
         });
       };
-      const submitAccount = (host) => {
+      const submitAccount = async (host, existingAccount) => {
         const username = String(draft.username || '').trim();
-        if (!username) return;
-        const id = String(draft.id || '').trim() || uniqueAccountId(host.id, username);
-        if (accounts.some((entry) => entry.account.id === id)) {
+        if (!username) {
+          setFormError({ message: t('invalidForm') });
+          return;
+        }
+        const id = existingAccount
+          ? existingAccount.id
+          : (String(draft.id || '').trim() || uniqueAccountId(host.id, username));
+        if (!existingAccount && accounts.some((entry) => entry.account.id === id)) {
           setFormError({ message: t('accountId') + ': ' + id });
           return;
         }
+        const loginUrl = String(draft.loginUrl || '').trim();
+        if (loginUrl && !/^https?:\/\//i.test(loginUrl)) {
+          setFormError({ message: t('webLoginUrlInvalid') });
+          return;
+        }
+        const protocol = draft.protocol || 'ssh';
+        const password = String(draft.password || '');
+        let credentialRef = String(draft.credentialRef || '').trim() || undefined;
+        let cleanupRef = null;
+        if (password) {
+          const existingRef = existingAccount && existingAccount.credentialRef;
+          const ref = existingRef && existingRef.startsWith('env-manager/')
+            ? existingRef
+            : 'env-manager/' + record.id + '/' + id;
+          try {
+            await props.onCredential(ref, password);
+          } catch (next) {
+            setFormError(next);
+            return;
+          }
+          if (ref !== existingRef) cleanupRef = ref;
+          credentialRef = ref;
+        }
         const account = {
+          ...(existingAccount || {}),
           id,
           username,
           purpose: String(draft.purpose || '').trim() || undefined,
-          protocol: draft.protocol || 'ssh',
-          port: host.sshPort || 22,
-          authType: draft.authType || 'other',
-          credentialRef: String(draft.credentialRef || '').trim() || undefined,
+          protocol,
+          loginUrl: loginUrl || undefined,
+          port: protocol === 'ssh' ? (host.sshPort || 22) : undefined,
+          authType: password ? 'password' : (draft.authType || 'other'),
+          credentialRef,
           lastLoginAt: toIso(draft.lastLoginAt),
           lastLoginFrom: String(draft.lastLoginFrom || '').trim() || undefined,
         };
-        saveNext({
+        const nextAccounts = existingAccount
+          ? (host.accounts || []).map((item) => item.id === existingAccount.id ? account : item)
+          : [...(host.accounts || []), account];
+        const ok = await saveNext({
           ...record,
           hosts: hosts.map((item) => item.id === host.id
-            ? { ...item, accounts: [...(item.accounts || []), account] }
+            ? { ...item, accounts: nextAccounts }
             : item),
-        });
+        }, cleanupRef);
+        if (ok && props.onMessage) props.onMessage(t(existingAccount ? 'accountUpdated' : 'accountAdded'));
       };
 
       const submitBatch = async () => {
@@ -1557,25 +1619,60 @@ window.__ModuleLoader__.load({
           h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
           h(Button, { onClick: () => submitHost(existingHost), variant: 'primary', disabled: saving }, t('save'))));
 
-      const accountForm = (host) => h('div', { className: 'dem-inline-form' },
+      const accountForm = (host, existingAccount) => h('div', { className: 'dem-inline-form' },
+        h('p', { className: 'dem-hint' }, existingAccount ? t('editAccount') : t('addAccount')),
         h('div', { className: 'dem-form-grid' },
-          h(Field, { label: t('accountId'), value: draft.id || '', onChange: field('id'), placeholder: 'root' }),
-          h(Field, { label: t('username'), value: draft.username || '', onChange: field('username'), placeholder: 'root' }),
+          h(Field, {
+            label: t('accountId'),
+            value: draft.id || '',
+            onChange: field('id'),
+            placeholder: 'root',
+            disabled: Boolean(existingAccount),
+          }),
+          h(Field, { label: t('username'), value: draft.username || '', onChange: field('username'), placeholder: 'root', autoComplete: 'username' }),
+          h(Field, {
+            label: t('webLoginUrl'),
+            value: draft.loginUrl || '',
+            onChange: field('loginUrl'),
+            placeholder: 'https://console.example.com/login',
+          }),
           h(Field, { label: t('purpose'), value: draft.purpose || '', onChange: field('purpose'), placeholder: 'DBA / admin' }),
           h(Select, {
-            label: t('protocol'), value: draft.protocol || 'ssh', onChange: field('protocol'),
+            label: t('protocol'), value: draft.protocol || 'ssh', onChange: (value) => setDraft((current) => ({
+              ...current,
+              protocol: value,
+              authType: value === 'web' ? 'password' : current.authType,
+            })),
             options: ['ssh', 'rdp', 'web', 'k8s-api', 'docker', 'custom'].map((value) => ({ value, label: value.toUpperCase() })),
           }),
           h(Select, {
             label: t('authType'), value: draft.authType || 'private-key', onChange: field('authType'),
             options: ['password', 'private-key', 'agent', 'token', 'other'].map((value) => ({ value, label: authLabel(value) })),
           }),
+          h(Field, {
+            label: t('password'),
+            value: draft.password || '',
+            onChange: field('password'),
+            type: 'password',
+            placeholder: t('optional'),
+            autoComplete: 'new-password',
+          }),
           h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-host-root' }),
           h(Field, { label: t('latestLogin'), value: draft.lastLoginAt || '', onChange: field('lastLoginAt'), type: 'datetime-local' }),
           h(Field, { label: t('source'), value: draft.lastLoginFrom || '', onChange: field('lastLoginFrom'), placeholder: '10.0.8.21' })),
+        h('p', { className: 'dem-hint' }, t('webLoginHint') + ' ' + t('accountPasswordHint')),
+        formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
         h('div', { className: 'dem-form-foot' },
-          h(Button, { onClick: () => setEditing(null) }, t('cancel')),
-          h(Button, { onClick: () => submitAccount(host), variant: 'primary', disabled: saving }, t('save'))));
+          h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
+          h(Button, { onClick: () => submitAccount(host, existingAccount), variant: 'primary', disabled: saving }, t('save'))));
+
+      const editingAccountFor = (host) => {
+        if (!editing) return null;
+        const prefix = 'account-edit:' + host.id + ':';
+        if (!editing.startsWith(prefix)) return null;
+        const accountId = editing.slice(prefix.length);
+        return (host.accounts || []).find((account) => account.id === accountId) || null;
+      };
 
       const nodesView = (roleId) => {
         const activeRole = roleId ? roleById.get(roleId) : null;
@@ -1595,6 +1692,11 @@ window.__ModuleLoader__.load({
             host.clusterRef ? ((clusterById.get(host.clusterRef) || {}).name || '') : '',
             ...hostAccessOf(host),
             ...hostAccessOf(host).map((method) => hostAccessLabel(method)),
+            ...(host.accounts || []).flatMap((account) => [
+              account.username,
+              account.purpose,
+              account.loginUrl,
+            ]),
             ...(host.roles || []),
           ].filter(Boolean).join(' ').toLowerCase().includes(query);
         });
@@ -1662,10 +1764,13 @@ window.__ModuleLoader__.load({
                     h(Button, {
                       onClick: () => setExpandedHost(expandedHost === host.id ? null : host.id),
                     }, t('accounts') + ' (' + (host.accounts || []).length + ')'),
-                    h(Button, { onClick: () => { setExpandedHost(host.id); openAccount(host); } }, t('addAccount')))),
-                expandedHost === host.id || editing === 'account:' + host.id
+                    h(Button, { onClick: () => { setExpandedHost(host.id); openAccount(host); } }, t('addAccount')),
+                    h(Button, { onClick: () => { setExpandedHost(host.id); openAccount(host, null, 'web'); } }, t('addWebLogin')))),
+                expandedHost === host.id || editing === 'account:' + host.id || editingAccountFor(host)
                   ? h(React.Fragment, null,
-                    editing === 'account:' + host.id ? accountForm(host) : null,
+                    editing === 'account:' + host.id || editingAccountFor(host)
+                      ? accountForm(host, editingAccountFor(host))
+                      : null,
                     (host.accounts || []).length
                       ? h('div', { className: 'dem-table-wrap' },
                         h('table', { className: 'dem-table' },
@@ -1676,19 +1781,31 @@ window.__ModuleLoader__.load({
                             h('th', null, t('authType')),
                             h('th', null, t('credentialRef')),
                             h('th', null, t('latestLogin')),
-                            h('th', null, t('source')))),
+                            h('th', null, t('source')),
+                            h('th', null, t('action')))),
                           h('tbody', null, (host.accounts || []).map((account) =>
                             h('tr', { key: account.id },
-                              h('td', null, h('strong', null, account.username || account.id)),
+                              h('td', null,
+                                h('strong', null, account.username || account.id),
+                                account.loginUrl
+                                  ? h('a', {
+                                    className: 'dem-link dem-account-url',
+                                    href: account.loginUrl,
+                                    target: '_blank',
+                                    rel: 'noreferrer noopener',
+                                  }, account.loginUrl)
+                                  : null),
                               h('td', null, account.purpose || '—'),
                               h('td', { className: 'mono' }, (account.protocol || 'ssh').toUpperCase()),
                               h('td', null, authLabel(account.authType)),
                               h('td', { className: 'mono' }, account.credentialRef || '—'),
                               h('td', null, account.lastLoginAt ? formatTime(account.lastLoginAt) : t('never')),
-                              h('td', { className: 'mono' }, account.lastLoginFrom || '—'))))))
+                              h('td', { className: 'mono' }, account.lastLoginFrom || '—'),
+                              h('td', null, h(Button, { onClick: () => openAccount(host, account) }, t('editAccount'))))))))
                       : h('div', { className: 'dem-table-empty' },
                         t('noAccounts') + ' ',
-                        h(Button, { onClick: () => openAccount(host) }, t('addAccount'))))
+                        h(Button, { onClick: () => openAccount(host) }, t('addAccount')),
+                        h(Button, { onClick: () => openAccount(host, null, 'web') }, t('addWebLogin'))))
                   : null))
             : h('div', { className: 'dem-card' },
               h('div', { className: 'dem-empty' },

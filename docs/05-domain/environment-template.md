@@ -47,6 +47,13 @@ hosts:
         credentialRef: cred-test-a-root
         lastLoginAt: 2026-10-31T08:12:00.000Z
         lastLoginFrom: 10.0.8.21
+      - id: console
+        username: ops
+        purpose: business web console
+        protocol: web
+        loginUrl: https://test-a.example.internal/login
+        authType: password
+        credentialRef: env-manager/test-a/console
   - id: db-01
     name: test-a-db-01
     kind: physical
@@ -145,6 +152,9 @@ updatedAt: 2026-11-01T03:00:00.000Z
 - `category: production` triggers the approval gate on management writes.
 - `accounts[]` is capped at 50 per host; `loginRecords[]` is capped at 200 per
   environment. Login records may reference a host and an account on that host.
+- `accounts[].loginUrl` is the web console entry URL for a management or business login;
+  `username` is the login name. It must be an absolute `http(s)` URL. The password is never
+  stored here: the UI writes it to the DSH credential service and keeps only `credentialRef`.
 - `loginRecords` are audit context, not a replacement for a PAM/SIEM system. Keep only
   the fields needed by DSH; do not copy session recordings or credentials into YAML.
 - The panel's batch import writes one node per line as

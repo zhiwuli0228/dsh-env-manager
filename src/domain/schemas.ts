@@ -32,6 +32,10 @@ const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
 
 const loginProtocolSchema = z.enum(['ssh', 'rdp', 'web', 'k8s-api', 'docker', 'custom'])
 const loginAuthTypeSchema = z.enum(['password', 'private-key', 'agent', 'token', 'other'])
+const webLoginUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => /^https?:\/\//i.test(value), 'Must be an http(s) URL')
 
 function hostAccountSchema(mode: Mode) {
   return o(
@@ -40,6 +44,7 @@ function hostAccountSchema(mode: Mode) {
       username: z.string().min(1),
       purpose: z.string().optional(),
       protocol: loginProtocolSchema.optional(),
+      loginUrl: webLoginUrlSchema.optional(),
       port: z.number().int().min(1).max(65535).optional(),
       authType: loginAuthTypeSchema.optional(),
       credentialRef: z.string().min(1).optional(),

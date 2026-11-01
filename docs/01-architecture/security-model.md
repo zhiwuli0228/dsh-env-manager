@@ -49,7 +49,8 @@ credential service is the only component allowed to hold secret values.
 4. Tool and HTTP outputs contain `{ ref, configured, source }` only.
 5. `credentialRef` values are validated against the credential reference pattern if one exists; otherwise a conservative pattern (`^[A-Za-z0-9._:/-]{1,200}$`) is applied.
 6. Host accounts and login records follow the same rule: `Host.accounts[].credentialRef` is a
-   reference, and `LoginRecord` stores username, time, source and result only. Password,
+   reference, and `LoginRecord` stores username, time, source and result only. A web login
+   `loginUrl` is configuration, not a secret; it must be an absolute `http(s)` URL. Password,
    private-key, token and session-recording fields are not part of the schema.
 7. The guided environment form may collect a password transiently. It sends the value
    once to `credential`; the Host calls `ctx.credentials.set(ref, value)` and returns only
@@ -67,10 +68,11 @@ Mitigation: a single formatting layer for tool results strips any field named `v
 
 A user may point a production deployment at a test credential. V1 cannot detect this; the result reports `configured: true` without revealing which secret it is. Operational review is required; this is documented as a residual risk.
 
-### 3.4 Threat: password exposure while adding or editing a node
+### 3.4 Threat: password exposure while adding or editing a node or account
 
-The add/edit node form optionally holds a login password in the browser input and sends it
-in the same-origin JSON request. Shell creation and batch import collect no password.
+The add/edit node form and the add/edit account form optionally hold a login password in the
+browser input and send it in the same-origin JSON request. Shell creation and batch import
+collect no password.
 Mitigations:
 
 - the route is localhost-only, requires the custom request header, validates origin and

@@ -529,9 +529,10 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-12 | Login records are stored in the environment YAML, reference existing hosts/accounts and render newest-first | yes | app integrity test + UI checklist |
 | AC-13 | Environments is the default tab, `New environment` is reachable from the header, and Records excludes environments | yes | UI checklist |
 | AC-14 | `New environment` creates only the shell with four standard roles, and a plane tab filters the same `hosts[]` without copying nodes | yes | app schema test + UI checklist |
-| AC-15 | A node can carry multiple roles, is editable, is batch-importable without a password, and is searchable by id/name/IP/role/kind/access/cluster | yes | UI checklist + live verification |
+| AC-15 | A node can carry multiple roles, is editable, is batch-importable without a password, and is searchable by id/name/IP/role/kind/access/cluster/account | yes | UI checklist + live verification |
 | AC-16 | A host records machine kind and command access; K8s kinds require an existing cluster; a Pod host is one machine, not one entry per Pod | yes | schema test + UI checklist + live verification |
 | AC-17 | Cluster metadata includes optional topology and a node count derived from `clusterRef`; cluster create/edit round-trips in the panel | yes | app test + UI checklist |
+| AC-18 | A host account can store a web login URL and username; a password is written to the credential service and only `credentialRef` remains; the account can be edited and searched by URL | yes | app test + UI checklist + live verification |
 
 ---
 

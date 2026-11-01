@@ -13,12 +13,13 @@ Aligned with the brainstorm (§9) and V1 design.
 
 Goal: a working plugin that any session can query, with deterministic routing.
 
-Implemented: Host modules, ten tools, HTTP API, panel, 47 tests, profile install. Phase 1
+Implemented: Host modules, ten tools, HTTP API, panel, 48 tests, profile install. Phase 1
 adds the environment/plane model (ADR-0010): shell-only environment creation, role-filtered
 plane tabs, multi-role node add/edit, batch import, search and mandatory roles. Phase 1.1
 adds K8s/Pod node classification and command surfaces (ADR-0011): `Host.kind`,
-`Host.access`, `Host.clusterRef`, `Cluster.topology` and a Kubernetes/clusters tab.
-Remaining: probes V4/V6, light-theme QA, row-level delete and credential rotation.
+`Host.access`, `Host.clusterRef`, `Cluster.topology` and a Kubernetes/clusters tab. Account
+web login URLs and password-to-credential account editing are also implemented.
+Remaining: probes V4/V6, light-theme QA, row-level delete and private-key rotation.
 
 Scope:
 
@@ -43,6 +44,7 @@ Acceptance: AC-01 … AC-08 in `docs/01-architecture/design.md` §14.
 - `Cluster.topology`: `all-in-one`, `separate`, `external`.
 - Node form kind/cluster/access controls, node badges/search and a Kubernetes/clusters tab.
 - Pods stay in the deployment model; `pod-host` models the machine reached by `docker exec`.
+- Account-level web login URL, password-to-credential bridge and in-place account edit.
 
 ## P1: Minimal Experience Loop
 

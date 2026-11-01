@@ -82,6 +82,7 @@ export interface HostAccount {
   username: string
   purpose?: string
   protocol?: LoginProtocol
+  loginUrl?: string
   port?: number
   authType?: LoginAuthType
   credentialRef?: string

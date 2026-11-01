@@ -112,6 +112,7 @@ interface HostAccount {
   username: string;
   purpose?: string;
   protocol?: LoginProtocol; // defaults to ssh
+  loginUrl?: string;        // web console entry URL; never a secret
   port?: number;
   authType?: LoginAuthType;
   credentialRef?: string;   // reference only; never a secret value
@@ -279,7 +280,12 @@ an environment. A host must declare at least one role, and every declared role i
 
 `Host.accounts` records the identities used to access a host. Each account carries a purpose,
 protocol, authentication type, credential reference, and the last observed login time/source.
+For a web console, `loginUrl` stores the entry URL and `username` stores the login name; a
+web account is still attached to the machine or business host that exposes the console.
+`loginUrl` is optional but must be an absolute `http(s)` URL.
 Accounts never carry password, key, token, or kubeconfig material; only `credentialRef` is stored.
+When the node form or account form receives a password, the Client writes it through the DSH
+credential service and stores the generated reference; the password is not written to YAML.
 
 `Environment.loginRecords` records login observations, including failed attempts. Records are
 bounded (200 per environment) and may reference a host and one of its accounts. Entries are
@@ -326,6 +332,13 @@ hosts:
         credentialRef: cred-test-a-root
         lastLoginAt: 2026-10-31T08:12:00.000Z
         lastLoginFrom: 10.0.8.21
+      - id: console
+        username: ops
+        purpose: business console
+        protocol: web
+        loginUrl: https://test-a.example.internal/login
+        authType: password
+        credentialRef: env-manager/test-a/console
 clusters:
   - id: k8s-01
     name: test-a-k8s
