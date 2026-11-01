@@ -31,11 +31,14 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
-**Release status (2026-11-01):** the GitHub `Release` workflow is active
-(`release.yml`, workflow ID `403656649`), but the npm package
-`dsh-env-manager-plugin` is not published yet. Bootstrap is waiting for a valid npm OTP
-(`EOTP`); after the `0.0.0-stage` bootstrap and Trusted Publisher binding, tag `v0.1.0`
-will publish the real package.
+**Release status (2026-11-01):** `dsh-env-manager-plugin@0.1.0` is published and is the
+`latest` npm tag (`gitHead` `4d884e7`). The
+[GitHub Release v0.1.0](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.0)
+contains `dsh-env-manager-plugin-0.1.0.tgz`; workflow run
+[`41323001406`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/41323001406)
+completed successfully. The 0.1.0 publish itself was bootstrapped manually; the workflow
+detected the existing version, skipped npm publish, and created the Release. Later versions
+use npm Trusted Publisher/OIDC through the same workflow.
 
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and

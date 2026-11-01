@@ -166,6 +166,9 @@ permissions:
    `gitHead` 应等于 tag commit；provenance 的 `predicateType` 应为
    `https://slsa.dev/provenance/v1`。
 
+   > `0.1.0` 是在绑定 Trusted Publisher 之前手动 bootstrap 的，因此可能没有
+   > `dist.attestations`；由 workflow 发布的后续版本才带 OIDC provenance。
+
 3. 验证 Release：
 
    ```sh

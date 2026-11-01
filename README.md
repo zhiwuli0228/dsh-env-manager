@@ -147,7 +147,9 @@ The npm package is `dsh-env-manager-plugin` (the npm name `dsh-env-manager` is a
 an unrelated package). Install it as a profile bundle; do not install it with
 `npm install -g`.
 
-### From npm (after the first release)
+### From npm
+
+`dsh-env-manager-plugin@0.1.0` is the first published release.
 
 ```sh
 dsh plugin --profile <name> add dsh-env-manager-plugin@0.1.0
@@ -217,16 +219,23 @@ Key documents:
 
 ## Release
 
+`v0.1.0` is published to [npm](https://www.npmjs.com/package/dsh-env-manager-plugin)
+and to [GitHub Releases](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.0).
+The 0.1.0 version was bootstrapped manually so the package name exists; later tags are
+published by the workflow through npm Trusted Publisher (OIDC).
+
 Pushing an annotated `v*` tag triggers `.github/workflows/release.yml`: it verifies the
 tag matches `package.json`, runs `npm run check`, packs the npm tarball, publishes with
 npm Trusted Publisher (OIDC), and creates a GitHub Release with the tarball attached.
+If the npm version already exists, the workflow skips publish and still creates the
+Release, so a partial release can be recovered by dispatching the same tag.
 
 ```sh
 git tag -a v0.1.0 -m "v0.1.0"
 git push origin v0.1.0
 ```
 
-The **first** publish must be bootstrapped manually so the npm package exists; bind
+The **first** publish had to be bootstrapped manually so the npm package existed; bind
 `zhiwuli0228/dsh-env-manager` + `release.yml` as a Trusted Publisher after that. Full
 steps, permissions and failure modes are in
 [`docs/06-operations/release.md`](docs/06-operations/release.md).
