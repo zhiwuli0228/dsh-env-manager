@@ -23,17 +23,47 @@ The user-facing name for a host inside an environment. See **Host**.
 
 ## Host
 
-A single compute node (VM or physical) inside one environment.
+A single compute machine inside one environment: a VM, physical machine, Kubernetes node or
+Pod-hosting machine. A Pod is not a Host.
 
-Attributes: hostname, OS, IP, SSH port, roles and a `credentialRef`. A host must declare at
-least one role; it may carry several roles, which is how co-location is expressed. It may
-have zero accounts, or accounts that each carry their own `credentialRef`.
+Attributes: hostname, kind, OS, IP, SSH port, roles, command access and a `credentialRef`. A
+host must declare at least one role; it may carry several roles, which is how co-location is
+expressed. It may have zero accounts, or accounts that each carry their own `credentialRef`.
+
+## Node Kind
+
+The machine classification on `Host.kind`: `vm`, `physical`, `k8s-all-in-one`, `k8s-worker`
+or `pod-host`. It describes how the machine participates in the deployment, not which
+logical plane it serves. A missing kind reads as `vm`.
+
+## Command Surface
+
+The command entry points available on a host, recorded in `Host.access`: `ssh`, `kubectl`
+or `docker`. This is capability metadata, not an authorization grant and not a credential.
+
+## Pod Host
+
+A machine running Pods that operators reach with `docker exec`, recorded as
+`Host.kind: pod-host`. It is one Host even when it runs many Pods; individual Pods belong to
+the deployment model, not `hosts[]`.
 
 ## Cluster
 
 A Kubernetes or Docker cluster inside one environment.
 
-Attributes: kind, API endpoint, namespaces and a `credentialRef`.
+Attributes: kind, optional topology (`all-in-one`, `separate` or `external`), API endpoint,
+namespaces and a `credentialRef`. Kubernetes and Pod-host nodes reference it through
+`Host.clusterRef`.
+
+## Cluster Topology
+
+A descriptive label on `Cluster.topology`:
+
+- `all-in-one` — control plane and worker on the same machine;
+- `separate` — dedicated control plane and worker machines;
+- `external` — a cluster managed outside this environment.
+
+Per-host `Host.kind` is authoritative; topology does not replace it.
 
 ## Logical Role
 

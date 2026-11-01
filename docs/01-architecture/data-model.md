@@ -52,6 +52,12 @@ type EnvironmentCategory = 'dev' | 'test' | 'staging' | 'production' | 'custom';
 
 type RuntimeMode = 'native' | 'docker' | 'kubernetes';
 
+type HostKind = 'vm' | 'physical' | 'k8s-all-in-one' | 'k8s-worker' | 'pod-host';
+
+type HostAccessMethod = 'ssh' | 'kubectl' | 'docker';
+
+type ClusterTopology = 'all-in-one' | 'separate' | 'external';
+
 type Status = 'configured-not-verified' | 'partially-verified' | 'verified';
 
 type MatchLevel =
@@ -82,12 +88,15 @@ interface LogicalRole {
 interface Host {
   id: string;
   name: string;             // hostname
+  kind?: HostKind;          // defaults to vm; a machine, not a Pod object
   os?: string;
   platform?: string;        // e.g. Linux / x86_64
   ip?: string;
   publicIp?: string;
   sshPort?: number;         // default 22
   roles: string[];          // at least one declared LogicalRole id; many-to-many is expected
+  access?: HostAccessMethod[]; // command surfaces available on this machine
+  clusterRef?: string;      // Cluster.id in this environment
   adminUser?: string;
   isActive?: boolean;
   credentialRef?: string;
@@ -115,6 +124,7 @@ interface Cluster {
   id: string;
   name: string;
   kind: 'kubernetes' | 'docker';
+  topology?: ClusterTopology; // descriptive hint; per-host kind is authoritative
   apiEndpoint?: string;     // https://...
   namespaces?: string[];
   credentialRef?: string;
@@ -190,7 +200,72 @@ environment creation so the four plane pages exist before the first node is adde
 are allowed, but `roles` must contain at least one entry and every host must reference at least one
 declared role.
 
-### 3.2 Co-location rule
+### 3.2 Node kind, command surface and cluster topology
+
+`Host.kind` classifies the **machine**; it is not a logical plane. `Host.access` records which
+command surfaces are available on that machine; it is capability metadata, not authorization.
+`Host.clusterRef` links a Kubernetes or Pod-hosting machine to a `Cluster` in the same
+environment. A Pod is a workload, not a `Host`; the `pod-host` kind is the machine that runs
+Pods and is operated with `docker exec`.
+
+| `Host.kind` | Meaning | `clusterRef` | Form default access |
+| --- | --- | --- | --- |
+| `vm` | Generic virtual machine | optional | `[ssh]` |
+| `physical` | Generic physical machine | optional | `[ssh]` |
+| `k8s-all-in-one` | Control plane and worker on the same machine | required | `[ssh, kubectl, docker]` |
+| `k8s-worker` | Worker node in a Kubernetes cluster | required | `[ssh, kubectl]` |
+| `pod-host` | Machine running Pods, operated through `docker exec` | optional but recommended | `[ssh, docker]` |
+
+Rules:
+
+- `Environment.hosts[].kind` defaults to `vm` when omitted, so existing records remain readable.
+- `Environment.hosts[].access` may be omitted for legacy records; the UI then shows no command
+  surface. The form pre-fills the defaults above, but the operator can change them.
+- A `k8s-all-in-one` or `k8s-worker` host must reference an existing `Cluster.id`; a missing or
+  unknown `clusterRef` is a validation error.
+- A `pod-host` may omit `clusterRef` when it is a Docker-only machine outside this environment's
+  Kubernetes cluster. When it does reference a cluster, the reference must exist.
+- `access` values are `ssh`, `kubectl` and `docker`. The kind does not restrict access: a worker
+  may also have Docker, and a VM may have `kubectl`. Duplicate access values are rejected.
+- `Cluster.topology` is optional and descriptive: `all-in-one`, `separate` or `external`. It does
+  not replace per-host `kind`; a legacy cluster without topology is shown as `—`. The schema does
+  not enforce a particular mix of node kinds, because environments are often migrated incrementally.
+- The UI can add and edit clusters, but cluster deletion remains a YAML operation so a referenced
+  cluster cannot disappear by accident.
+
+```yaml
+hosts:
+  - id: k8s-aio-01
+    name: k8s-aio-01
+    kind: k8s-all-in-one
+    clusterRef: k8s-prod
+    access: [ssh, kubectl, docker]
+    roles: [management, business]
+    ip: 10.0.1.20
+  - id: pod-host-01
+    name: pod-host-01
+    kind: pod-host
+    clusterRef: k8s-prod
+    access: [ssh, docker]
+    roles: [business]
+    ip: 10.0.1.21
+  - id: worker-01
+    name: worker-01
+    kind: k8s-worker
+    clusterRef: k8s-prod
+    access: [ssh, kubectl]
+    roles: [business]
+    ip: 10.0.1.22
+
+clusters:
+  - id: k8s-prod
+    name: production-k8s
+    kind: kubernetes
+    topology: all-in-one
+    apiEndpoint: https://10.0.1.20:6443
+```
+
+### 3.3 Co-location rule
 
 A host that serves both the management plane and the business plane is **one** `Host` with `roles: [management, business]`.
 
@@ -200,7 +275,7 @@ Validation must reject duplicate host ids within an environment and duplicate `i
 an environment. A host must declare at least one role, and every declared role id must exist in
 `Environment.roles`.
 
-### 3.3 Accounts and login audit
+### 3.4 Accounts and login audit
 
 `Host.accounts` records the identities used to access a host. Each account carries a purpose,
 protocol, authentication type, credential reference, and the last observed login time/source.
@@ -214,7 +289,7 @@ audit context remain one atomic write. The UI sorts them newest-first.
 These fields are intentionally lightweight and optional. They are not a replacement for a
 privileged-access-management (PAM) or SIEM system; they are context for DSH sessions.
 
-### 3.4 YAML example
+### 3.5 YAML example
 
 ```yaml
 id: test-a
@@ -231,11 +306,13 @@ roles:
 hosts:
   - id: host-001
     name: test-a-node-01
+    kind: vm
     os: ubuntu-22.04
     platform: Linux / x86_64
     ip: 10.0.1.10
     sshPort: 22
     roles: [management, business]
+    access: [ssh]
     adminUser: root
     isActive: true
     credentialRef: cred-test-a-root
@@ -253,6 +330,7 @@ clusters:
   - id: k8s-01
     name: test-a-k8s
     kind: kubernetes
+    topology: separate
     apiEndpoint: https://10.0.1.20:6443
     namespaces: [dv-sop]
     credentialRef: cred-test-a-kubeconfig

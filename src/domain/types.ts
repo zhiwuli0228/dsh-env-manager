@@ -48,15 +48,24 @@ export interface LogicalRole {
   description?: string
 }
 
+export type HostKind = 'vm' | 'physical' | 'k8s-all-in-one' | 'k8s-worker' | 'pod-host'
+
+export type HostAccessMethod = 'ssh' | 'kubectl' | 'docker'
+
+export type ClusterTopology = 'all-in-one' | 'separate' | 'external'
+
 export interface Host {
   id: string
   name: string
+  kind?: HostKind
   os?: string
   platform?: string
   ip?: string
   publicIp?: string
   sshPort?: number
   roles: string[]
+  access?: HostAccessMethod[]
+  clusterRef?: string
   adminUser?: string
   isActive?: boolean
   credentialRef?: string
@@ -99,6 +108,7 @@ export interface Cluster {
   id: string
   name: string
   kind: 'kubernetes' | 'docker'
+  topology?: ClusterTopology
   apiEndpoint?: string
   namespaces?: string[]
   credentialRef?: string

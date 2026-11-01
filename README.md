@@ -19,21 +19,28 @@ Works in DSH Web and Desktop.
 
 ## Status
 
-**Phase 1 of the environment/plane model is implemented and installed in the `desktop` profile.**
+**Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
+implemented and installed in the `desktop` profile.**
 
-- 43 Vitest tests pass; `npm run build` emits `lib/`.
+- 47 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
   business, database and expansion are **role views** over the same `hosts[]`; a node
   serving two planes is one host with two roles.
 - The environment detail page is split into overview, all nodes, one tab per plane, login
-  records, endpoints and YAML. Plane tabs filter the same node collection.
+  records, Kubernetes/clusters, endpoints and YAML. Plane tabs filter the same node
+  collection.
 - `New environment` creates only the environment shell and seeds the four standard roles.
   Nodes are added inside the environment, individually or by batch import.
-- Add/edit node supports multiple roles and an optional login credential; batch import
-  (`IP,name,roles,port,user`) never accepts passwords. Node search covers id, name, IP,
-  platform, admin user and role.
+- Add/edit node supports multiple roles, a machine kind (`vm`, `physical`, K8s all-in-one,
+  K8s worker, Pod host), command access (`ssh`, `kubectl`, `docker`) and an optional login
+  credential. K8s kinds reference a cluster; a Pod host is the machine reached with
+  `docker exec`, not one record per Pod. Batch import (`IP,name,roles,port,user`) creates
+  generic VM nodes and never accepts passwords. Node search covers id, name, IP, platform,
+  admin user, role, kind, access and cluster.
+- The Kubernetes/clusters tab creates and edits cluster metadata (kind, topology, API
+  endpoint, namespaces, credential reference) and derives node counts from `clusterRef`.
 - Passwords are written to the DSH credential service; YAML keeps only
   `env-manager/<environmentId>/<hostId>-<username>`.
 - **环境 (Environments) is the default tab**, and the persistent header **新增环境**
@@ -55,7 +62,12 @@ Works in DSH Web and Desktop.
    **添加节点** (Add node). A node may carry several roles.
 5. To register many nodes, use **批量导入** (Batch import):
    `IP,name,roles,port,user` per line, with `|` or `/` between roles. Batch import creates
-   hosts and optional accounts but no passwords.
+   generic VM nodes and optional accounts but no passwords.
+6. For Kubernetes or Pod-hosting machines, open **K8s / 集群** (Kubernetes / clusters)
+   first and add the cluster. Then select the node kind, cluster and command access in
+   **添加节点** (Add node). Choose **K8s 合设** when the control plane and worker share a
+   machine; choose **Pod 宿主机** for a machine operated through `docker exec`. A Pod itself
+   is not added as a node.
 
 A password entered on the add/edit node form is sent once to the Host and stored by the
 DSH credential service. It never appears in the registry YAML, tool output or logs. Use
@@ -67,6 +79,8 @@ Design references:
   acceptance criteria;
 - [`docs/01-architecture/decisions/ADR-0010-environment-plane-model.md`](docs/01-architecture/decisions/ADR-0010-environment-plane-model.md) —
   why one network is one environment and planes are role views;
+- [`docs/01-architecture/decisions/ADR-0011-k8s-node-execution-model.md`](docs/01-architecture/decisions/ADR-0011-k8s-node-execution-model.md) —
+  why K8s/Pod hosts are machines with command surfaces, not a new plane;
 - [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) —
   module contracts, storage, tools, HTTP;
 - [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) —

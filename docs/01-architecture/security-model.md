@@ -84,6 +84,16 @@ A compromised same-origin page could still submit a credential write while the u
 present; this is accepted for a local single-user tool and documented as a residual risk.
 Credential deletion is restricted to the same `env-manager/` namespace.
 
+### 3.5 Command access is metadata, not authorization
+
+`Host.access` records that `ssh`, `kubectl` or `docker` exists on a machine; it does not
+grant permission to run anything. V1 has no remote execution path, so a declared method
+cannot be used to open a shell, call Kubernetes or run `docker exec` through this plugin.
+A future execution adapter must still apply the operation binding's approval policy,
+production checks and credential resolution. `Host.kind` and `Cluster.topology` are also
+descriptive: they do not prove cluster membership or command availability. Do not treat a
+`pod-host` badge as permission to run `docker exec` on a Pod.
+
 ---
 
 ## 4. Approval and production policy

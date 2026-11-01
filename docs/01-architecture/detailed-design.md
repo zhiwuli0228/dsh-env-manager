@@ -227,8 +227,9 @@ Validation responsibilities:
 - Cross-field rules from `data-model.md`: at least one `deployModes`, host role ids
   exist, `location.kind === runtimeMode`, unique host id / ip / cluster id /
   endpoint id, unique account id per host, `loginRecords[].hostRef`/`accountId`
-  resolve within the environment, `paths` keys and variable names match
-  `[A-Za-z_][A-Za-z0-9_]*`.
+  resolve within the environment, host `clusterRef` resolves and is present for
+  `k8s-all-in-one`/`k8s-worker`, `access` values are unique, `paths` keys and variable
+  names match `[A-Za-z_][A-Za-z0-9_]*`.
 - `structural` shape only. Referential integrity is the registry's job (§6.3), because
   it needs the whole snapshot.
 
@@ -286,6 +287,8 @@ diagnostic, and the snapshot keeps the other kinds.
 | `deployment.serviceId` | service exists | `SERVICE_NOT_FOUND` |
 | `deployment.location.hostRef` | host exists in that environment | `HOST_NOT_FOUND` |
 | `deployment.location.clusterRef` | cluster exists in that environment | `CLUSTER_NOT_FOUND` |
+| environment `hosts[].clusterRef` | cluster exists; required for K8s node kinds | `RECORD_INVALID` |
+| environment `endpoints[].hostRef` / `clusterRef` | target exists in that environment | `RECORD_INVALID` |
 | `service.ruleProfileRefs[]` | rule profile exists | `RULE_PROFILE_NOT_FOUND` |
 | operation binding `match.environmentId` | environment exists | `ENV_NOT_FOUND` |
 | operation binding `match.serviceId` | service exists | `SERVICE_NOT_FOUND` |

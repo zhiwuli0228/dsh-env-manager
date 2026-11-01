@@ -227,9 +227,9 @@ sidebar:
 ```text
 ← Back to environments
 [glyph] Oracle 1        [Edit YAML] [Delete]
-        oracle1  [test]  ● 4 hosts · 5 accounts
+        oracle1  [test]  ● 4 hosts · 1 cluster · 5 accounts
 Environment overview | All nodes | Management | Business | Database |
-Expansion / other | Login records | Endpoints | YAML
+Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
 ┌────────────────────────────────────┬──────────────────────────┐
 │ Basic information                  │ Access summary           │
 │ ID / category / name / aliases     │ 4 hosts   5 accounts     │
@@ -243,9 +243,9 @@ Expansion / other | Login records | Endpoints | YAML
 ```
 
 - Tabs are `Environment overview`, `All nodes`, one tab per declared role (`Management`,
-  `Business`, `Database`, `Expansion / other`), `Login records`, `Endpoints`, `YAML`.
-  The identity row and the back link stay visible above the tabs; tabs wrap rather than
-  hide behind a horizontal scrollbar.
+  `Business`, `Database`, `Expansion / other`), `Login records`, `Kubernetes / clusters`,
+  `Endpoints`, `YAML`. The identity row and the back link stay visible above the tabs; tabs
+  wrap rather than hide behind a horizontal scrollbar.
 - The environment is **one network and one YAML document**. Plane tabs are filtered views
   over `hosts[]`: the same node appears in every plane it serves, and no record is copied
   per plane. A plane with zero nodes is valid and shows a plane-specific empty state with
@@ -253,35 +253,47 @@ Expansion / other | Login records | Endpoints | YAML
 - Overview basic information is a two-column key/value grid. `Edit info` opens an inline
   form for name, aliases, category and description; the ID is immutable. Saving sends the
   full structured record through `save` (`record`, not `yaml`) and then re-reads it.
-- Access summary counts hosts, accounts, endpoints and failed logins; the latest login time
-  and declared roles sit in the right rail. The role card shows node counts per plane and
-  the four standard roles even when the environment declares only some of them.
+- Access summary counts hosts, accounts, endpoints, clusters, Kubernetes/Pod nodes and
+  failed logins; the latest login time and declared roles sit in the right rail. The role
+  card shows node counts per plane and the four standard roles even when the environment
+  declares only some of them.
 - `All nodes` and every plane tab share one node view:
-  - toolbar: search box (id, name, IP, platform, admin user or role), `Add node`,
-    `Batch import`;
-  - one compact card per host: name, active state, IP/port, platform, admin user, account
-    count, credential reference and role chips;
+  - toolbar: search box (id, name, IP, platform, admin user, role, kind, access method,
+    cluster name or cluster reference), `Add node`, `Batch import`;
+  - one compact card per host: name, active state, a kind badge, command-access badges,
+    IP/port, platform, admin user, account count, cluster reference, credential reference
+    and role chips;
   - `Edit node` opens the same form prefilled; `Accounts (n)` expands the account table;
     `Add account` opens the account form for that host.
-- `Add node` / `Edit node` form fields: id (auto-slug when blank), name, IP, SSH port,
-  platform, admin user, credential reference, role checkboxes (at least one) and an
-  optional login username + password. Username and password must be filled together; when
-  present the password is written to `ctx.credentials.set` and the account/credential ref
-  is `env-manager/<environmentId>/<hostId>-<username>`. Editing a node preserves its
-  existing accounts; filling username + password again adds a new password account while
-  leaving the existing accounts and host credential reference intact. Opening the form
-  from a plane tab preselects that role.
+- `Add node` / `Edit node` form fields: id (auto-slug when blank), name, node kind,
+  Kubernetes cluster, IP, SSH port, platform, admin user, credential reference, role
+  checkboxes (at least one), command-access checkboxes (`ssh`, `kubectl`, `docker`) and an
+  optional login username + password. Changing the kind pre-fills that kind's default
+  access set; the operator can override it. `k8s-all-in-one` and `k8s-worker` require an
+  existing cluster; `pod-host` may omit one for a Docker-only machine. Username and password
+  must be filled together; when present the password is written to `ctx.credentials.set`
+  and the account/credential ref is `env-manager/<environmentId>/<hostId>-<username>`.
+  Editing a node preserves its existing accounts; filling username + password again adds a
+  new password account while leaving the existing accounts and host credential reference
+  intact. Opening the form from a plane tab preselects that role.
 - `Batch import` accepts one node per line:
   `IP,name,roles,port,user`; multiple roles use `|` or `/`, for example
-  `10.20.30.53,app-01,business|management,22,root`. Import creates hosts and optional
-  accounts but never passwords; the operator binds credentials per node afterwards. The
-  batch parser rejects unknown roles, duplicate IPs, duplicate host ids and invalid ports,
-  and reports the first offending line without saving a partial batch.
+  `10.20.30.53,app-01,business|management,22,root`. Import creates generic `vm` nodes with
+  `access: [ssh]` and optional accounts but never passwords; Kubernetes/Pod-host nodes are
+  edited after import. The batch parser rejects unknown roles, duplicate IPs, duplicate host
+  ids and invalid ports, and reports the first offending line without saving a partial batch.
 - `Login records` sorts newest-first and shows time, result (success/failure), user, host,
   source IP, protocol and note. `Add login record` opens an inline form with host/account
   pickers; picking an account fills its username. A successful login also updates that
   account's `lastLoginAt`/`lastLoginFrom` when it is newer than the stored value. A
   failure renders with the error state color.
+- `Kubernetes / clusters` lists cluster id, name, kind, topology, API endpoint, namespaces,
+  attached node count and credential reference. `Add cluster` / `Edit cluster` opens an
+  inline form for id (auto-slug when blank, immutable after creation), name, kind
+  (`kubernetes` or `docker`), topology (`all-in-one`, `separate`, `external`, or unset),
+  API endpoint, comma-separated namespaces, credential reference and note. Node counts are
+  derived from `Host.clusterRef`; cluster deletion remains a YAML operation so referenced
+  clusters cannot disappear silently.
 - `Endpoints` lists id, kind, target, URL, port, credential reference and note.
 - `YAML` exposes the whole environment document with `Save` and `Delete`; it is the
   escape hatch, not the primary path. Account and login fields never contain secrets.
@@ -469,14 +481,15 @@ EnvManagerPanel
 │   │   ├── EnvironmentList ── EnvironmentRow
 │   │   ├── EnvironmentDetail
 │   │   │   ├── DetailHeader (back, identity, actions)
-│   │   │   ├── DetailTabs (overview/all nodes/plane tabs/logins/endpoints/yaml)
+│   │   │   ├── DetailTabs (overview/all nodes/plane tabs/logins/clusters/endpoints/yaml)
 │   │   │   ├── BasicInfo + BasicInfoForm
 │   │   │   ├── AccessSummary + PlaneDistribution + RoleChips
 │   │   │   ├── NodeToolbar (search/add/batch)
 │   │   │   ├── NodeCard ── AccountTable + AccountForm
-│   │   │   ├── NodeForm (multi-role, optional credential)
+│   │   │   ├── NodeForm (kind/cluster/access/multi-role/optional credential)
 │   │   │   ├── BatchNodeForm
 │   │   │   ├── LoginTable + LoginForm
+│   │   │   ├── ClusterTable + ClusterForm
 │   │   │   ├── EndpointTable
 │   │   │   └── YamlEditor
 │   │   └── EnvironmentWizard (shell create: name/id/category/description + default planes)
@@ -489,7 +502,8 @@ EnvManagerPanel
 
 Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `call()`,
 `formatTime()`, `categoryLabel()`, `authLabel()`, `roleName()`, `countByRole()`,
-`stableSlug()` and the form primitives `Field`, `Select` and `TextArea`.
+`hostKindLabel()`, `hostAccessLabel()`, `topologyLabel()`, `stableSlug()` and the form
+primitives `Field`, `Select` and `TextArea`.
 
 ## 12. Manual QA checklist
 
@@ -508,18 +522,26 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 - [ ] Detail back link returns to the list and keeps the Records tab selected.
 - [ ] Basic info edit round-trips name, aliases, category and description.
 - [ ] Detail tabs wrap without clipping and show Overview, All nodes, each declared
-      plane, Login records, Endpoints and YAML.
+      plane, Login records, Kubernetes / clusters, Endpoints and YAML.
 - [ ] A plane tab shows only nodes with that role; a multi-role node appears in every
       plane it serves without duplicating the host record.
 - [ ] A plane with zero nodes shows its empty state and `Add node` preselects that role.
 - [ ] Add node requires a name and at least one role; optional username + password writes
       a credential reference and never a plaintext secret.
-- [ ] Edit node preserves existing accounts and can add/remove roles.
+- [ ] Add node offers VM, physical, K8s all-in-one, K8s worker and Pod host; selecting a
+      K8s kind requires a cluster and pre-fills its default access methods.
+- [ ] A Pod host records `ssh` + `docker`, not a Pod name; the node remains one machine.
+- [ ] Edit node preserves existing accounts and can add/remove roles, kind, access and
+      cluster reference.
 - [ ] Batch import parses `IP,name,roles,port,user`, supports `|` role separators and
       rejects unknown roles/duplicate IPs without saving a partial batch.
-- [ ] Node search filters by id, name, IP, platform, admin user and role.
+- [ ] Node search filters by id, name, IP, platform, admin user, role, kind, access method
+      and cluster name/reference.
 - [ ] An expanded node card shows every account with auth type and last login source.
-- [ ] Add node / add account / add login record persist and re-render without a reload.
+- [ ] Kubernetes / clusters lists node counts, topology and API endpoint; add/edit cluster
+      round-trips and the new cluster appears in the node form's cluster picker.
+- [ ] Add node / add account / add login record / add cluster persist and re-render without
+      a reload.
 - [ ] Login records are ordered newest-first and failures use the error color.
 - [ ] Endpoints show target name plus id and preserve URL/credential reference.
 - [ ] YAML tab saves the same document and clears stale detail state after delete.
@@ -537,6 +559,9 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 
 - Full CRUD forms for services, deployments, rules and bindings.
 - Deleting individual hosts/accounts/logins from rows (edit + YAML is the V1 path).
+- Per-Pod or per-container inventory, container ids and restart counts. V1 records the
+  Pod-hosting machine as a `pod-host` and leaves Pods in the deployment model.
+- Deleting clusters from a row; cluster deletion stays in YAML so references are deliberate.
 - Database primary/replica/sharding topology; V1 models the database plane as a role and
   keeps topology detail in node notes.
 - YAML syntax highlighting, folding, or diff view.

@@ -31,8 +31,9 @@ Also read:
 Also read:
 
 1. `docs/01-architecture/decisions/ADR-0010-environment-plane-model.md`
-2. `docs/01-architecture/data-model.md` §3
-3. `docs/01-architecture/ui-design.md` §6.3
+2. `docs/01-architecture/decisions/ADR-0011-k8s-node-execution-model.md`
+3. `docs/01-architecture/data-model.md` §3
+4. `docs/01-architecture/ui-design.md` §6.3
 
 ### Runtime API Questions
 
@@ -137,4 +138,4 @@ docs/
 | `security-model.md` | credential, policy and redaction controls |
 | `api-verification.md` | verified DSH runtime facts and open probes |
 | `implementation-plan.md` | ordered tasks, acceptance, cut line |
-| `decisions/ADR-*.md` | accepted decisions (ADR-0009 = UI transport, ADR-0010 = environment/plane model) |
+| `decisions/ADR-*.md` | accepted decisions (ADR-0009 = UI transport, ADR-0010 = environment/plane model, ADR-0011 = K8s node/access model) |

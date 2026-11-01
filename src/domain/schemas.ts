@@ -21,6 +21,9 @@ type Shape = z.ZodRawShape
 
 const idSchema = z.string().regex(ID_PATTERN, 'Must match ^[a-z0-9][a-z0-9-]{0,62}$')
 const runtimeModeSchema = z.enum(['native', 'docker', 'kubernetes'])
+const hostKindSchema = z.enum(['vm', 'physical', 'k8s-all-in-one', 'k8s-worker', 'pod-host'])
+const hostAccessSchema = z.enum(['ssh', 'kubectl', 'docker'])
+const clusterTopologySchema = z.enum(['all-in-one', 'separate', 'external'])
 const timestampSchema = z
   .string()
   .refine((value) => !Number.isNaN(Date.parse(value)), 'Must be an ISO-8601 timestamp')
@@ -152,12 +155,15 @@ function environmentFields(mode: Mode): Shape {
           {
             id: z.string().min(1),
             name: z.string().min(1),
+            kind: hostKindSchema.default('vm'),
             os: z.string().optional(),
             platform: z.string().optional(),
             ip: z.string().optional(),
             publicIp: z.string().optional(),
             sshPort: z.number().int().min(1).max(65535).optional(),
             roles: z.array(z.string().min(1)).min(1, 'At least one host role is required'),
+            access: z.array(hostAccessSchema).max(3).optional(),
+            clusterRef: z.string().min(1).optional(),
             adminUser: z.string().optional(),
             isActive: z.boolean().optional(),
             credentialRef: z.string().min(1).optional(),
@@ -175,6 +181,7 @@ function environmentFields(mode: Mode): Shape {
             id: z.string().min(1),
             name: z.string().min(1),
             kind: z.enum(['kubernetes', 'docker']),
+            topology: clusterTopologySchema.optional(),
             apiEndpoint: z.string().optional(),
             namespaces: z.array(z.string().min(1)).optional(),
             credentialRef: z.string().min(1).optional(),
@@ -398,9 +405,20 @@ function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.Ref
     unique(env.clusters ?? [], 'cluster', 'clusters')
     unique(env.endpoints ?? [], 'endpoint', 'endpoints')
     const roleIds = new Set((env.roles ?? []).map((role) => role.id))
+    const clusterIds = new Set((env.clusters ?? []).map((cluster) => cluster.id))
+    const k8sNodeKinds = new Set(['k8s-all-in-one', 'k8s-worker'])
     for (const [index, host] of (env.hosts ?? []).entries()) {
       for (const role of host.roles) {
         if (!roleIds.has(role)) add(`hosts[${index}].roles`, `Unknown role "${role}"`)
+      }
+      if (k8sNodeKinds.has(host.kind || 'vm') && !host.clusterRef) {
+        add(`hosts[${index}].clusterRef`, 'K8s nodes must reference a cluster')
+      }
+      if (host.clusterRef && !clusterIds.has(host.clusterRef)) {
+        add(`hosts[${index}].clusterRef`, `Unknown cluster "${host.clusterRef}"`)
+      }
+      if (host.access && new Set(host.access).size !== host.access.length) {
+        add(`hosts[${index}].access`, 'Duplicate host access method')
       }
     }
     const seenIps = new Set<string>()
@@ -410,7 +428,6 @@ function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.Ref
       seenIps.add(host.ip)
     }
     const hostIds = new Set((env.hosts ?? []).map((host) => host.id))
-    const clusterIds = new Set((env.clusters ?? []).map((cluster) => cluster.id))
     for (const [index, endpoint] of (env.endpoints ?? []).entries()) {
       if (endpoint.hostRef && !hostIds.has(endpoint.hostRef)) {
         add(`endpoints[${index}].hostRef`, `Unknown host "${endpoint.hostRef}"`)

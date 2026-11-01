@@ -120,6 +120,10 @@ See [data-model.md](./data-model.md).
 Key points that shape the design:
 
 - **Co-location** is expressed with one Host and several roles, not several hosts.
+- **Node kind and command access are machine properties**, not planes: `Host.kind`,
+  `Host.access` and `Host.clusterRef` record whether a machine is a VM, physical, K8s
+  all-in-one, K8s worker or Pod host and whether it exposes SSH, `kubectl` or `docker`.
+  Pods are workloads in deployment bindings, not Host records.
 - **Deployment bindings are many**: a service may run several times in one environment, so deployment ids are first-class.
 - **Rule profiles are shared**; environment and deployment carry field-level overrides.
 - **Operation bindings are predicates**, not a fixed matrix of every combination.
@@ -421,7 +425,7 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 
 | Section | Content |
 |---|---|
-| Environments (default) | list; detail split into overview, all nodes, management/business/database/expansion plane views, login records, endpoints and YAML; shell-only New environment |
+| Environments (default) | list; detail split into overview, all nodes, management/business/database/expansion plane views, login records, Kubernetes/clusters, endpoints and YAML; shell-only New environment |
 | Overview | counts, dataDir, warnings, validate |
 | Records | Services, Deployments, Rule profiles and Operation bindings as YAML editors |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
@@ -436,7 +440,12 @@ Rules for the UI:
 - `New environment` creates only the environment shell and the four standard role
   definitions; nodes are added inside the relevant plane. Plane tabs are filters over the
   same `hosts[]`, never separate records. Environment detail and YAML are editable.
-  Service, deployment, rule and binding records are edited as YAML, validated
+- A node also carries a machine kind (`vm`, `physical`, `k8s-all-in-one`, `k8s-worker`,
+  `pod-host`) and its command surfaces (`ssh`, `kubectl`, `docker`). Kubernetes and Pod-host
+  nodes reference a cluster. Individual Pods are not modeled as hosts; `pod-host` is the
+  machine reached with `docker exec`. The detail page has a Kubernetes/clusters tab for
+  cluster metadata. See ADR-0011.
+- Service, deployment, rule and binding records are edited as YAML, validated
   server-side before writing.
 - Text is routed through the client locale service; `en` and `zh` provided.
 - The UI must show provenance for derived values, not just the final string.
@@ -520,7 +529,9 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-12 | Login records are stored in the environment YAML, reference existing hosts/accounts and render newest-first | yes | app integrity test + UI checklist |
 | AC-13 | Environments is the default tab, `New environment` is reachable from the header, and Records excludes environments | yes | UI checklist |
 | AC-14 | `New environment` creates only the shell with four standard roles, and a plane tab filters the same `hosts[]` without copying nodes | yes | app schema test + UI checklist |
-| AC-15 | A node can carry multiple roles, is editable, is batch-importable without a password, and is searchable by id/name/IP/role | yes | UI checklist + live verification |
+| AC-15 | A node can carry multiple roles, is editable, is batch-importable without a password, and is searchable by id/name/IP/role/kind/access/cluster | yes | UI checklist + live verification |
+| AC-16 | A host records machine kind and command access; K8s kinds require an existing cluster; a Pod host is one machine, not one entry per Pod | yes | schema test + UI checklist + live verification |
+| AC-17 | Cluster metadata includes optional topology and a node count derived from `clusterRef`; cluster create/edit round-trips in the panel | yes | app test + UI checklist |
 
 ---
 

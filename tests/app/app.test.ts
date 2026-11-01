@@ -4,6 +4,7 @@ import path from 'node:path'
 import { cleanup, environment, tempDir, writeFixture } from '../helpers.js'
 import { SessionStore } from '../../src/session/session.js'
 import { App } from '../../src/app/app.js'
+import { parseRecordInput } from '../../src/domain/schemas.js'
 import { silentLogger } from '../../src/logger.js'
 
 const dirs: string[] = []
@@ -147,6 +148,66 @@ describe('app', () => {
     const app = makeApp(dir)
     const broken = structuredClone(environment) as any
     broken.hosts[0].roles = []
+    await expect(app.save('environment', broken, { actor: 'agent' })).rejects.toMatchObject({
+      code: 'RECORD_INVALID',
+    })
+  })
+
+  it('stores K8s node kinds, command access and cluster topology', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const next = structuredClone(environment) as any
+    next.clusters = [{
+      id: 'k8s-aio',
+      name: 'all-in-one',
+      kind: 'kubernetes',
+      topology: 'all-in-one',
+      apiEndpoint: 'https://10.0.1.20:6443',
+    }]
+    next.hosts[0].kind = 'k8s-all-in-one'
+    next.hosts[0].access = ['ssh', 'kubectl', 'docker']
+    next.hosts[0].clusterRef = 'k8s-aio'
+    await app.save('environment', next, { actor: 'agent' })
+    const got = (await app.get('environment', 'test-a')).record as any
+    expect(got.hosts[0]).toMatchObject({
+      kind: 'k8s-all-in-one',
+      access: ['ssh', 'kubectl', 'docker'],
+      clusterRef: 'k8s-aio',
+    })
+    expect(got.clusters[0].topology).toBe('all-in-one')
+  })
+
+  it('requires a cluster reference for a K8s node', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment) as any
+    broken.hosts[0].kind = 'k8s-worker'
+    delete broken.hosts[0].clusterRef
+    await expect(app.save('environment', broken, { actor: 'agent' })).rejects.toMatchObject({
+      code: 'RECORD_INVALID',
+    })
+  })
+
+  it('rejects unknown node kind, access and cluster topology values', () => {
+    const mutations: Array<(value: any) => void> = [
+      (value) => { value.hosts[0].kind = 'mainframe' },
+      (value) => { value.hosts[0].access = ['ssh', 'telnet'] },
+      (value) => { value.clusters[0].topology = 'edge' },
+    ]
+    for (const mutate of mutations) {
+      const value = structuredClone(environment) as any
+      mutate(value)
+      expect(parseRecordInput('environment', value).ok).toBe(false)
+    }
+  })
+
+  it('rejects a node that references an unknown cluster', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment) as any
+    broken.hosts[0].kind = 'pod-host'
+    broken.hosts[0].access = ['ssh', 'docker']
+    broken.hosts[0].clusterRef = 'missing-cluster'
     await expect(app.save('environment', broken, { actor: 'agent' })).rejects.toMatchObject({
       code: 'RECORD_INVALID',
     })

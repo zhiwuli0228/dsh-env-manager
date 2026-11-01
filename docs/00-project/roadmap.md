@@ -9,13 +9,15 @@ Aligned with the brainstorm (§9) and V1 design.
 - [x] V1 design suite written
 - [x] DSH runtime APIs verified (probes V1–V8 remain, tracked in `api-verification.md`)
 
-## V1 = P0: Registry and Context Resolution (complete; Phase 1 plane model live)
+## V1 = P0: Registry and Context Resolution (complete; Phase 1 + 1.1 plane/K8s model live)
 
 Goal: a working plugin that any session can query, with deterministic routing.
 
-Implemented: Host modules, ten tools, HTTP API, panel, 43 tests, profile install. Phase 1
+Implemented: Host modules, ten tools, HTTP API, panel, 47 tests, profile install. Phase 1
 adds the environment/plane model (ADR-0010): shell-only environment creation, role-filtered
-plane tabs, multi-role node add/edit, batch import, search and mandatory roles.
+plane tabs, multi-role node add/edit, batch import, search and mandatory roles. Phase 1.1
+adds K8s/Pod node classification and command surfaces (ADR-0011): `Host.kind`,
+`Host.access`, `Host.clusterRef`, `Cluster.topology` and a Kubernetes/clusters tab.
 Remaining: probes V4/V6, light-theme QA, row-level delete and credential rotation.
 
 Scope:
@@ -32,6 +34,15 @@ Scope:
 10. Minimal Web/Desktop configuration UI with context preview.
 
 Acceptance: AC-01 … AC-08 in `docs/01-architecture/design.md` §14.
+
+## Phase 1.1: K8s node and execution model (complete)
+
+- `Host.kind`: `vm`, `physical`, `k8s-all-in-one`, `k8s-worker`, `pod-host`.
+- `Host.access`: `ssh`, `kubectl`, `docker`; metadata only, not authorization.
+- `Host.clusterRef` for Kubernetes and Pod-hosting machines; required for K8s node kinds.
+- `Cluster.topology`: `all-in-one`, `separate`, `external`.
+- Node form kind/cluster/access controls, node badges/search and a Kubernetes/clusters tab.
+- Pods stay in the deployment model; `pod-host` models the machine reached by `docker exec`.
 
 ## P1: Minimal Experience Loop
 

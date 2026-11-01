@@ -27,11 +27,13 @@ roles:
 hosts:
   - id: host-001
     name: test-a-node-01
+    kind: vm
     os: ubuntu-22.04
     platform: Linux / x86_64
     ip: 10.0.1.10
     sshPort: 22
     roles: [management, business]     # co-location: one host, two roles
+    access: [ssh]
     adminUser: root
     isActive: true
     credentialRef: cred-test-a-root
@@ -47,18 +49,45 @@ hosts:
         lastLoginFrom: 10.0.8.21
   - id: db-01
     name: test-a-db-01
+    kind: physical
     platform: Linux / x86_64
     ip: 10.0.1.30
     sshPort: 22
     roles: [database]
+    access: [ssh]
     adminUser: root
     isActive: true
     note: primary placeholder; topology is Phase 2
+  - id: k8s-aio-01
+    name: test-a-k8s-aio-01
+    kind: k8s-all-in-one             # control plane + worker on one machine
+    platform: Linux / x86_64
+    ip: 10.0.1.20
+    sshPort: 22
+    roles: [management, business]
+    access: [ssh, kubectl, docker]
+    clusterRef: k8s-01
+    adminUser: root
+    isActive: true
+    note: kubeconfig stays behind the cluster credentialRef
+  - id: pod-host-01
+    name: test-a-pod-host-01
+    kind: pod-host                   # machine running Pods; operate with docker exec
+    platform: Linux / x86_64
+    ip: 10.0.1.21
+    sshPort: 22
+    roles: [business]
+    access: [ssh, docker]
+    clusterRef: k8s-01
+    adminUser: root
+    isActive: true
+    note: Pods are workloads; this record is the host, not an individual Pod
 
 clusters:
   - id: k8s-01
     name: test-a-k8s
     kind: kubernetes
+    topology: all-in-one             # all-in-one | separate | external
     apiEndpoint: https://10.0.1.20:6443
     namespaces: [dv-sop]
     credentialRef: cred-test-a-kubeconfig
@@ -98,6 +127,18 @@ updatedAt: 2026-11-01T03:00:00.000Z
   declared `roles[].id`. A host must declare at least one role. The standard ids are
   `management`, `business`, `database` and `extension`; custom ids are allowed.
 - A host that serves two planes is one entry with two roles; do not duplicate it.
+- `hosts[].kind` is one of `vm`, `physical`, `k8s-all-in-one`, `k8s-worker` or `pod-host`;
+  missing means `vm`. `k8s-all-in-one` means the control plane and worker share a machine.
+  `pod-host` means the machine runs Pods and is operated with `docker exec`; it is still one
+  host, not one entry per Pod.
+- `hosts[].access` records the command surfaces present on the machine: `ssh`, `kubectl`,
+  `docker`. It is metadata, not an authorization grant. The form pre-fills defaults; the
+  values in YAML are authoritative.
+- `k8s-all-in-one` and `k8s-worker` require `clusterRef` to an existing cluster.
+  `pod-host` may omit it for a Docker-only machine outside the cluster. Any `clusterRef`
+  must resolve within this environment.
+- `clusters[].topology` is `all-in-one`, `separate` or `external`; it is descriptive and
+  optional. Per-host `kind` is authoritative.
 - `endpoints[].hostRef` / `clusterRef` must resolve within this environment.
 - `credentialRef` is a reference only; never put a value here. The same rule applies to
   every `accounts[].credentialRef`.
@@ -107,6 +148,8 @@ updatedAt: 2026-11-01T03:00:00.000Z
 - `loginRecords` are audit context, not a replacement for a PAM/SIEM system. Keep only
   the fields needed by DSH; do not copy session recordings or credentials into YAML.
 - The panel's batch import writes one node per line as
-  `IP,name,roles,port,user`; use `|` or `/` between roles. It never accepts passwords.
+  `IP,name,roles,port,user`; use `|` or `/` between roles. It creates generic `vm` nodes
+  with `access: [ssh]`, never accepts passwords, and leaves Kubernetes/Pod-host
+  classification to the node form or YAML.
 - Database primary/replica/sharding topology is not modeled in Phase 1. Use the
   `database` role plus a node note; a later schema may add topology metadata.

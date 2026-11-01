@@ -58,7 +58,42 @@ window.__ModuleLoader__.load({
         allNodes: 'All nodes',
         allNodesHint: 'Every host in this environment, regardless of plane.',
         nodeSearch: 'Search nodes',
-        nodeSearchPlaceholder: 'Name, IP or role',
+        nodeSearchPlaceholder: 'Name, IP, role, kind or cluster',
+        nodeKind: 'Node type',
+        hostKindVm: 'VM',
+        hostKindPhysical: 'Physical',
+        hostKindK8sAllInOne: 'K8s all-in-one',
+        hostKindK8sWorker: 'K8s worker',
+        hostKindPodHost: 'Pod host',
+        nodeAccess: 'Command access',
+        accessSsh: 'SSH',
+        accessKubectl: 'kubectl',
+        accessDocker: 'docker',
+        nodeKindHint: 'All-in-one means control plane and worker on one machine; Pod host means a host running pods and operated with docker exec.',
+        nodeAccessHint: 'Record the command surfaces available on this node. This is capability metadata, not a credential.',
+        k8sCluster: 'K8s cluster',
+        k8sClusterRequired: 'K8s node types require a cluster.',
+        k8sClusterUnknown: 'Select an existing cluster.',
+        clusters: 'Kubernetes / clusters',
+        clusterCount: 'Clusters',
+        k8sNodeCount: 'K8s / Pod nodes',
+        addCluster: 'Add cluster',
+        editCluster: 'Edit cluster',
+        clusterId: 'Cluster ID',
+        clusterName: 'Cluster name',
+        clusterKind: 'Cluster type',
+        clusterTopology: 'Topology',
+        topologyAllInOne: 'All-in-one',
+        topologySeparate: 'Separate',
+        topologyExternal: 'External',
+        clusterApiEndpoint: 'API endpoint',
+        clusterNamespaces: 'Namespaces',
+        clusterNodeCount: 'Nodes',
+        clusterRequired: 'Cluster id and name are required.',
+        clusterIdExists: 'That cluster id already exists.',
+        noClusters: 'No clusters yet',
+        noClustersHint: 'Add a K8s cluster before assigning K8s or Pod-host nodes.',
+        clustersHint: 'Clusters group K8s all-in-one, worker and Pod-host nodes.',
         addNode: 'Add node',
         editNode: 'Edit node',
         batchImport: 'Batch import',
@@ -87,6 +122,8 @@ window.__ModuleLoader__.load({
         nodesImported: 'Nodes imported',
         nodeAdded: 'Node added',
         nodeUpdated: 'Node updated',
+        clusterAdded: 'Cluster added',
+        clusterUpdated: 'Cluster updated',
         noNodes: 'No nodes yet',
         noNodesHint: 'Add the first node and assign one or more planes.',
         noNodesForPlane: 'No nodes in this plane',
@@ -233,7 +270,42 @@ window.__ModuleLoader__.load({
         allNodes: '全部节点',
         allNodesHint: '环境中的全部主机，不区分平面。',
         nodeSearch: '搜索节点',
-        nodeSearchPlaceholder: '名称、IP 或角色',
+        nodeSearchPlaceholder: '名称、IP、角色、类型或集群',
+        nodeKind: '节点类型',
+        hostKindVm: '虚机',
+        hostKindPhysical: '物理机',
+        hostKindK8sAllInOne: 'K8s 合设',
+        hostKindK8sWorker: 'K8s 工作节点',
+        hostKindPodHost: 'Pod 宿主机',
+        nodeAccess: '执行方式',
+        accessSsh: 'SSH',
+        accessKubectl: 'kubectl',
+        accessDocker: 'docker',
+        nodeKindHint: '合设指控制面与工作节点同机；Pod 宿主机指运行 Pod、通过 docker exec 操作的宿主机。',
+        nodeAccessHint: '记录节点上可用的命令入口；这是能力元数据，不是凭据。',
+        k8sCluster: 'K8s 集群',
+        k8sClusterRequired: 'K8s 类型节点必须关联集群。',
+        k8sClusterUnknown: '请选择已存在的集群。',
+        clusters: 'K8s / 集群',
+        clusterCount: '集群',
+        k8sNodeCount: 'K8s / Pod 节点',
+        addCluster: '添加集群',
+        editCluster: '编辑集群',
+        clusterId: '集群 ID',
+        clusterName: '集群名称',
+        clusterKind: '集群类型',
+        clusterTopology: '拓扑',
+        topologyAllInOne: '合设',
+        topologySeparate: '控制面/工作节点分离',
+        topologyExternal: '外部托管',
+        clusterApiEndpoint: 'API 地址',
+        clusterNamespaces: '命名空间',
+        clusterNodeCount: '节点',
+        clusterRequired: '请填写集群 ID 和名称。',
+        clusterIdExists: '该集群 ID 已存在。',
+        noClusters: '还没有集群',
+        noClustersHint: '先添加 K8s 集群，再添加 K8s 或 Pod 宿主机节点。',
+        clustersHint: '集群用于归组 K8s 合设、工作节点与 Pod 宿主机节点。',
         addNode: '添加节点',
         editNode: '编辑节点',
         batchImport: '批量导入',
@@ -262,6 +334,8 @@ window.__ModuleLoader__.load({
         nodesImported: '节点已导入',
         nodeAdded: '节点已添加',
         nodeUpdated: '节点已更新',
+        clusterAdded: '集群已添加',
+        clusterUpdated: '集群已更新',
         noNodes: '暂无节点',
         noNodesHint: '添加第一个节点，可同时选择多个平面。',
         noNodesForPlane: '该平面暂无节点',
@@ -374,6 +448,40 @@ window.__ModuleLoader__.load({
       database: 'roleDatabase',
       extension: 'roleExtension',
     };
+    const HOST_KINDS = ['vm', 'physical', 'k8s-all-in-one', 'k8s-worker', 'pod-host'];
+    const HOST_KIND_KEYS = {
+      vm: 'hostKindVm',
+      physical: 'hostKindPhysical',
+      'k8s-all-in-one': 'hostKindK8sAllInOne',
+      'k8s-worker': 'hostKindK8sWorker',
+      'pod-host': 'hostKindPodHost',
+    };
+    const K8S_NODE_KINDS = new Set(['k8s-all-in-one', 'k8s-worker']);
+    const HOST_ACCESS_METHODS = ['ssh', 'kubectl', 'docker'];
+    const HOST_ACCESS_KEYS = {
+      ssh: 'accessSsh',
+      kubectl: 'accessKubectl',
+      docker: 'accessDocker',
+    };
+    const CLUSTER_TOPOLOGIES = ['all-in-one', 'separate', 'external'];
+    const CLUSTER_TOPOLOGY_KEYS = {
+      'all-in-one': 'topologyAllInOne',
+      separate: 'topologySeparate',
+      external: 'topologyExternal',
+    };
+    const DEFAULT_HOST_ACCESS = {
+      vm: ['ssh'],
+      physical: ['ssh'],
+      'k8s-all-in-one': ['ssh', 'kubectl', 'docker'],
+      'k8s-worker': ['ssh', 'kubectl'],
+      'pod-host': ['ssh', 'docker'],
+    };
+    const hostKindLabel = (value) => t(HOST_KIND_KEYS[value] || 'hostKindVm');
+    const hostAccessLabel = (value) => t(HOST_ACCESS_KEYS[value] || value);
+    const topologyLabel = (value) => t(CLUSTER_TOPOLOGY_KEYS[value] || value);
+    const defaultHostAccess = (kind) => [...(DEFAULT_HOST_ACCESS[kind] || ['ssh'])];
+    const hostKindOf = (host) => (host && HOST_KIND_KEYS[host.kind] ? host.kind : 'vm');
+    const hostAccessOf = (host) => (Array.isArray(host && host.access) ? host.access : []);
     const KIND_LABEL = {
       environment: 'environments',
       service: 'services',
@@ -821,6 +929,7 @@ window.__ModuleLoader__.load({
       }, '');
       const failed = logins.filter((item) => item.result === 'failure').length;
       const endpoints = record.endpoints || [];
+      const clusters = record.clusters || [];
       const declaredRoles = record.roles || [];
       const roleCatalog = [...declaredRoles];
       for (const role of DEFAULT_ROLES) {
@@ -834,6 +943,7 @@ window.__ModuleLoader__.load({
       };
       const countByRole = (roleId) => hosts.filter((host) => (host.roles || []).includes(roleId)).length;
       const hostById = new Map(hosts.map((host) => [host.id, host]));
+      const clusterById = new Map(clusters.map((cluster) => [cluster.id, cluster]));
       const endpointTarget = (endpoint) => {
         if (endpoint.hostRef) {
           const host = hostById.get(endpoint.hostRef);
@@ -922,6 +1032,9 @@ window.__ModuleLoader__.load({
         setDraft({
           id: '',
           name: '',
+          kind: 'vm',
+          access: defaultHostAccess('vm'),
+          clusterRef: '',
           ip: '',
           sshPort: '22',
           platform: '',
@@ -938,6 +1051,9 @@ window.__ModuleLoader__.load({
         setDraft({
           id: host.id,
           name: host.name || '',
+          kind: hostKindOf(host),
+          access: hostAccessOf(host).length ? hostAccessOf(host) : defaultHostAccess(hostKindOf(host)),
+          clusterRef: host.clusterRef || '',
           ip: host.ip || '',
           sshPort: host.sshPort ? String(host.sshPort) : '22',
           platform: host.platform || host.os || '',
@@ -946,6 +1062,25 @@ window.__ModuleLoader__.load({
           roles: [...(host.roles || [])],
           username: '',
           password: '',
+        });
+      };
+      const changeHostKind = (kind) => {
+        setDraft((current) => ({
+          ...current,
+          kind,
+          access: defaultHostAccess(kind),
+          clusterRef: K8S_NODE_KINDS.has(kind) || kind === 'pod-host' ? current.clusterRef : '',
+        }));
+      };
+      const toggleHostAccess = (method) => {
+        setDraft((current) => {
+          const access = Array.isArray(current.access) ? current.access : [];
+          return {
+            ...current,
+            access: access.includes(method)
+              ? access.filter((item) => item !== method)
+              : [...access, method],
+          };
         });
       };
       const submitHost = async (existingHost) => {
@@ -977,6 +1112,17 @@ window.__ModuleLoader__.load({
           setFormError({ message: t('nodeAccountIncomplete') });
           return;
         }
+        const kind = HOST_KIND_KEYS[draft.kind] ? draft.kind : 'vm';
+        const access = Array.isArray(draft.access) ? draft.access : [];
+        const clusterRef = String(draft.clusterRef || '').trim();
+        if (K8S_NODE_KINDS.has(kind) && !clusterRef) {
+          setFormError({ message: t('k8sClusterRequired') });
+          return;
+        }
+        if (clusterRef && !clusters.some((cluster) => cluster.id === clusterRef)) {
+          setFormError({ message: t('k8sClusterUnknown') });
+          return;
+        }
         const port = draft.sshPort ? Number(draft.sshPort) : undefined;
         if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) {
           setFormError({ message: t('invalidPort') });
@@ -986,6 +1132,9 @@ window.__ModuleLoader__.load({
           ...(existingHost || {}),
           id,
           name,
+          kind,
+          access,
+          clusterRef: clusterRef || undefined,
           ip: ip || undefined,
           sshPort: Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined,
           platform: String(draft.platform || '').trim() || undefined,
@@ -1026,6 +1175,51 @@ window.__ModuleLoader__.load({
           hosts: nextHosts,
         }, cleanupRef);
         if (ok && props.onMessage) props.onMessage(t(existingHost ? 'nodeUpdated' : 'nodeAdded'));
+      };
+
+      const openCluster = (existingCluster) => {
+        setFormError(null);
+        setEditing(existingCluster ? 'cluster-edit:' + existingCluster.id : 'cluster');
+        setDraft({
+          id: existingCluster ? existingCluster.id : '',
+          name: existingCluster ? existingCluster.name : '',
+          kind: existingCluster ? existingCluster.kind : 'kubernetes',
+          topology: existingCluster ? (existingCluster.topology || '') : 'all-in-one',
+          apiEndpoint: existingCluster ? existingCluster.apiEndpoint || '' : '',
+          namespaces: existingCluster ? (existingCluster.namespaces || []).join(', ') : '',
+          credentialRef: existingCluster ? existingCluster.credentialRef || '' : '',
+          note: existingCluster ? existingCluster.note || '' : '',
+        });
+      };
+      const submitCluster = async (existingCluster) => {
+        const name = String(draft.name || '').trim();
+        const id = existingCluster
+          ? existingCluster.id
+          : stableSlug(String(draft.id || '').trim() || name, 'cluster');
+        if (!name || !id) {
+          setFormError({ message: t('clusterRequired') });
+          return;
+        }
+        if (!existingCluster && clusters.some((cluster) => cluster.id === id)) {
+          setFormError({ message: t('clusterIdExists') });
+          return;
+        }
+        const cluster = {
+          ...(existingCluster || {}),
+          id,
+          name,
+          kind: draft.kind || 'kubernetes',
+          topology: draft.kind === 'docker' ? undefined : (draft.topology || undefined),
+          apiEndpoint: String(draft.apiEndpoint || '').trim() || undefined,
+          namespaces: String(draft.namespaces || '').split(',').map((item) => item.trim()).filter(Boolean),
+          credentialRef: String(draft.credentialRef || '').trim() || undefined,
+          note: String(draft.note || '').trim() || undefined,
+        };
+        const next = existingCluster
+          ? clusters.map((item) => item.id === existingCluster.id ? cluster : item)
+          : [...clusters, cluster];
+        const ok = await saveNext({ ...record, clusters: next });
+        if (ok && props.onMessage) props.onMessage(t(existingCluster ? 'clusterUpdated' : 'clusterAdded'));
       };
 
       const openAccount = (host) => {
@@ -1126,6 +1320,8 @@ window.__ModuleLoader__.load({
             ip,
             sshPort: port,
             roles: roleIds,
+            kind: 'vm',
+            access: ['ssh'],
             isActive: true,
             accounts: account ? [account] : [],
           });
@@ -1276,6 +1472,11 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dem-detail-stat' },
                 h('b', null, String(endpoints.length)), h('span', null, t('endpointCount'))),
               h('div', { className: 'dem-detail-stat' },
+                h('b', null, String(clusters.length)), h('span', null, t('clusterCount'))),
+              h('div', { className: 'dem-detail-stat' },
+                h('b', null, String(hosts.filter((host) => !['vm', 'physical'].includes(hostKindOf(host))).length)),
+                h('span', null, t('k8sNodeCount'))),
+              h('div', { className: 'dem-detail-stat' },
                 h('b', null, String(failed)), h('span', null, t('failedLogins')))),
             h('div', { className: 'dem-info-item', style: { marginTop: '12px' } },
               h('div', { className: 'dem-info-label' }, t('latestLogin')),
@@ -1298,6 +1499,21 @@ window.__ModuleLoader__.load({
             disabled: Boolean(existingHost),
           }),
           h(Field, { label: t('hostname'), value: draft.name || '', onChange: field('name'), placeholder: 'node-01' }),
+          h(Select, {
+            label: t('nodeKind'),
+            value: draft.kind || 'vm',
+            onChange: changeHostKind,
+            options: HOST_KINDS.map((value) => ({ value, label: hostKindLabel(value) })),
+          }),
+          h(Select, {
+            label: t('k8sCluster'),
+            value: draft.clusterRef || '',
+            onChange: field('clusterRef'),
+            options: [{ value: '', label: '—' }].concat(clusters.map((cluster) => ({
+              value: cluster.id,
+              label: cluster.name || cluster.id,
+            }))),
+          }),
           h(Field, { label: t('ipAddress'), value: draft.ip || '', onChange: field('ip'), placeholder: '10.0.1.10' }),
           h(Field, { label: t('sshPort'), value: draft.sshPort || '', onChange: field('sshPort'), type: 'number', inputMode: 'numeric' }),
           h(Field, { label: t('platform'), value: draft.platform || '', onChange: field('platform'), placeholder: 'Linux / x86_64' }),
@@ -1321,6 +1537,17 @@ window.__ModuleLoader__.load({
                 }),
               }),
               roleName(role.id))))),
+        h('div', { className: 'dem-field' },
+          h('span', { className: 'dem-label' }, t('nodeAccess')),
+          h('div', { className: 'dem-check-grid' }, HOST_ACCESS_METHODS.map((method) =>
+            h('label', { key: method, className: 'dem-check' },
+              h('input', {
+                type: 'checkbox',
+                checked: (draft.access || []).includes(method),
+                onChange: () => toggleHostAccess(method),
+              }),
+              hostAccessLabel(method))))),
+        h('p', { className: 'dem-hint' }, t('nodeKindHint') + ' ' + t('nodeAccessHint')),
         h('div', { className: 'dem-form-grid dem-form-grid-3' },
           h(Field, { label: t('loginUser'), value: draft.username || '', onChange: field('username'), placeholder: 'root', autoComplete: 'username' }),
           h(Field, { label: t('password'), value: draft.password || '', onChange: field('password'), type: 'password', autoComplete: 'new-password' })),
@@ -1362,6 +1589,12 @@ window.__ModuleLoader__.load({
             host.ip,
             host.platform,
             host.adminUser,
+            hostKindOf(host),
+            hostKindLabel(hostKindOf(host)),
+            host.clusterRef,
+            host.clusterRef ? ((clusterById.get(host.clusterRef) || {}).name || '') : '',
+            ...hostAccessOf(host),
+            ...hostAccessOf(host).map((method) => hostAccessLabel(method)),
             ...(host.roles || []),
           ].filter(Boolean).join(' ').toLowerCase().includes(query);
         });
@@ -1416,10 +1649,15 @@ window.__ModuleLoader__.load({
                       h('span', null, t('platform') + ': ' + (host.platform || host.os || '—')),
                       h('span', null, t('adminUser') + ': ' + (host.adminUser || '—')),
                       h('span', null, t('accountCount') + ': ' + (host.accounts || []).length),
+                      host.clusterRef ? h('span', null, t('k8sCluster') + ': ' + ((clusterById.get(host.clusterRef) || {}).name || host.clusterRef)) : null,
                       host.credentialRef ? h('span', { className: 'dem-code-inline' }, t('credentialRef') + ': ' + host.credentialRef) : null)),
                   h('div', { className: 'dem-actions' },
-                    h('div', { className: 'dem-chips' }, (host.roles || []).map((role) =>
-                      h('span', { key: role, className: 'dem-chip' }, roleName(role)))),
+                    h('div', { className: 'dem-chips' },
+                      h('span', { className: 'dem-chip' }, hostKindLabel(hostKindOf(host))),
+                      ...hostAccessOf(host).map((method) =>
+                        h('span', { key: method, className: 'dem-chip' }, hostAccessLabel(method))),
+                      ...(host.roles || []).map((role) =>
+                        h('span', { key: role, className: 'dem-chip' }, roleName(role)))),
                     h(Button, { onClick: () => openEditHost(host) }, t('editNode')),
                     h(Button, {
                       onClick: () => setExpandedHost(expandedHost === host.id ? null : host.id),
@@ -1532,6 +1770,82 @@ window.__ModuleLoader__.load({
               h('strong', null, t('noLoginRecords')),
               h('span', null, t('noLoginRecordsHint')))));
 
+      const clusterForm = (existingCluster) => h('div', { className: 'dem-inline-form' },
+        h('div', { className: 'dem-form-grid dem-form-grid-3' },
+          h(Field, {
+            label: t('clusterId'),
+            value: draft.id || '',
+            onChange: field('id'),
+            placeholder: 'k8s-01',
+            disabled: Boolean(existingCluster),
+          }),
+          h(Field, { label: t('clusterName'), value: draft.name || '', onChange: field('name'), placeholder: 'k8s-prod' }),
+          h(Select, {
+            label: t('clusterKind'),
+            value: draft.kind || 'kubernetes',
+            onChange: field('kind'),
+            options: ['kubernetes', 'docker'].map((value) => ({ value, label: value.toUpperCase() })),
+          }),
+          draft.kind === 'docker' ? null : h(Select, {
+            label: t('clusterTopology'),
+            value: draft.topology || '',
+            onChange: field('topology'),
+            options: [{ value: '', label: '—' }].concat(CLUSTER_TOPOLOGIES.map((value) => ({ value, label: topologyLabel(value) }))),
+          }),
+          h(Field, { label: t('clusterApiEndpoint'), value: draft.apiEndpoint || '', onChange: field('apiEndpoint'), placeholder: 'https://10.0.1.20:6443' }),
+          h(Field, { label: t('clusterNamespaces'), value: draft.namespaces || '', onChange: field('namespaces'), placeholder: 'dv-sop, business' }),
+          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-k8s-prod' })),
+        h(TextArea, { label: t('note'), value: draft.note || '', onChange: field('note'), rows: 2, wide: true }),
+        formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
+        h('div', { className: 'dem-form-foot' },
+          h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
+          h(Button, { onClick: () => submitCluster(existingCluster), variant: 'primary', disabled: saving }, t('save'))));
+
+      const editingCluster = editing && editing.startsWith('cluster-edit:')
+        ? clusters.find((cluster) => cluster.id === editing.slice('cluster-edit:'.length))
+        : null;
+      const clusterRows = clusters.map((cluster) => {
+        const nodeCount = hosts.filter((host) => host.clusterRef === cluster.id).length;
+        return h('tr', { key: cluster.id },
+          h('td', { className: 'mono' }, cluster.id),
+          h('td', null, cluster.name),
+          h('td', null, String(cluster.kind || '').toUpperCase()),
+          h('td', null, cluster.kind === 'kubernetes' ? (cluster.topology ? topologyLabel(cluster.topology) : '—') : '—'),
+          h('td', { className: 'mono' }, cluster.apiEndpoint || '—'),
+          h('td', null, (cluster.namespaces || []).join(', ') || '—'),
+          h('td', null, String(nodeCount)),
+          h('td', { className: 'mono' }, cluster.credentialRef || '—'),
+          h('td', null, h(Button, { onClick: () => openCluster(cluster) }, t('editCluster'))));
+      });
+      const clusterTable = h('div', { className: 'dem-card' },
+        h('div', { className: 'dem-table-wrap' },
+          h('table', { className: 'dem-table' },
+            h('thead', null, h('tr', null,
+              h('th', null, 'ID'),
+              h('th', null, t('clusterName')),
+              h('th', null, t('clusterKind')),
+              h('th', null, t('clusterTopology')),
+              h('th', null, t('clusterApiEndpoint')),
+              h('th', null, t('clusterNamespaces')),
+              h('th', null, t('clusterNodeCount')),
+              h('th', null, t('credentialRef')),
+              h('th', null, ''))),
+            h('tbody', null, clusterRows))));
+      const clustersView = h('div', { className: 'dem-detail-main' },
+        h('div', { className: 'dem-toolbar' },
+          h('div', { className: 'dem-toolbar-copy' },
+            h('h3', { className: 'dem-section-title' }, t('clusters') + ' · ' + clusters.length),
+            h('p', { className: 'dem-hint' }, t('clustersHint'))),
+          h(Button, { onClick: () => openCluster(), variant: 'primary', disabled: editing === 'cluster' }, t('addCluster'))),
+        editing === 'cluster' || editingCluster ? clusterForm(editingCluster) : null,
+        clusters.length
+          ? clusterTable
+          : h('div', { className: 'dem-card' },
+            h('div', { className: 'dem-empty' },
+              h('strong', null, t('noClusters')),
+              h('span', null, t('noClustersHint')),
+              h(Button, { onClick: () => openCluster(), variant: 'primary' }, t('addCluster')))));
+
       const endpointsView = endpoints.length
         ? h('div', { className: 'dem-card' },
           h('div', { className: 'dem-section-head' },
@@ -1582,6 +1896,7 @@ window.__ModuleLoader__.load({
         ['hosts', t('allNodes')],
         ...roleCatalog.map((role) => ['role:' + role.id, roleName(role.id)]),
         ['logins', t('loginRecords')],
+        ['clusters', t('clusters')],
         ['endpoints', t('endpoints')],
         ['yaml', t('rawYaml')],
       ];
@@ -1590,8 +1905,9 @@ window.__ModuleLoader__.load({
         : activeTab === 'hosts' ? nodesView(null)
           : activeTab.startsWith('role:') ? nodesView(activeTab.slice('role:'.length))
             : activeTab === 'logins' ? loginsView
-              : activeTab === 'endpoints' ? endpointsView
-                : yamlView;
+              : activeTab === 'clusters' ? clustersView
+                : activeTab === 'endpoints' ? endpointsView
+                  : yamlView;
 
       return h('div', { className: 'dem-detail' },
         h('div', { className: 'dem-detail-top' },
@@ -1605,7 +1921,7 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'dem-detail-id' }, record.id),
                 h('span', { className: 'dem-pill' }, categoryLabel(record.category)),
                 h('span', { className: 'dem-status ' + (hosts.some((host) => host.isActive === true) ? 'active' : '') },
-                  hosts.length + ' ' + t('hostCount').toLowerCase() + ' · ' + accounts.length + ' ' + t('accountCount').toLowerCase())))),
+                  hosts.length + ' ' + t('hostCount').toLowerCase() + ' · ' + clusters.length + ' ' + t('clusterCount').toLowerCase() + ' · ' + accounts.length + ' ' + t('accountCount').toLowerCase())))),
           h('div', { className: 'dem-actions' },
             h(Button, { onClick: () => setTab('yaml'), variant: 'primary' }, t('editYaml')),
             h(Button, { onClick: props.onRemove, variant: 'danger' }, t('remove')))),

@@ -4,13 +4,14 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**Phase 1 of the environment/plane model is implemented, tested and live-verified in the
-`desktop` profile: an environment is one network, its planes are role views, and nodes are
-managed inside the environment.**
+**Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model
+are implemented, tested and live-verified in the `desktop` profile: an environment is one
+network, its planes are role views, and hosts also record their machine kind and command
+surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 43 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 47 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -27,8 +28,9 @@ Phase 1 changes the environment workflow:
   It seeds the four standard roles (`management`, `business`, `database`, `extension`) and
   creates no hosts, endpoints or credentials.
 - The detail page is grouped by role: Overview, All nodes, one tab per declared plane,
-  Login records, Endpoints and YAML. Plane tabs are filters over the same `hosts[]`; a
-  node serving two planes is one host with two roles and appears in both tabs.
+  Login records, Kubernetes/clusters, Endpoints and YAML. Plane tabs are filters over the
+  same `hosts[]`; a node serving two planes is one host with two roles and appears in both
+  tabs.
 - Add/edit node supports multiple roles. Opening the form from a plane preselects that
   role. A node may have zero accounts, or an optional login username + password that
   writes a namespaced credential and keeps only `credentialRef` in YAML. On edit, filling
@@ -36,13 +38,31 @@ Phase 1 changes the environment workflow:
 - Batch import accepts `IP,name,roles,port,user` per line, with `|`/`/` for multiple
   roles. It creates hosts and optional accounts but never passwords, and rejects unknown
   roles/duplicate IPs/invalid ports before saving.
-- Node search filters by id, name, IP, platform, admin user or role. Node cards expand to
-  show the account table.
+- Node search filters by id, name, IP, platform, admin user, role, node kind, access
+  method or cluster name/id. Node cards expand to show the account table.
 - Schema validation now requires at least one environment role and at least one role per
   host. Standard roles are seeded automatically when a node uses a missing standard role.
 
+Phase 1.1 adds the K8s node/execution model (ADR-0011):
+
+- `Host.kind` classifies the machine as `vm`, `physical`, `k8s-all-in-one`, `k8s-worker`
+  or `pod-host`. A missing value reads as `vm`.
+- `Host.access` records `ssh`, `kubectl` and/or `docker`; it is capability metadata, not
+  authorization. `Host.clusterRef` links K8s/Pod machines to a cluster.
+- `k8s-all-in-one` and `k8s-worker` require an existing cluster reference; `pod-host` may
+  omit it for a Docker-only machine. A Pod is never a Host; `pod-host` is the machine
+  reached with `docker exec`.
+- `Cluster.topology` is `all-in-one`, `separate` or `external` and is optional.
+- The node form has kind/cluster/access controls; node cards and search include kind,
+  access and cluster; the detail page has a Kubernetes/clusters tab with add/edit and a
+  node count derived from `clusterRef`.
+- Batch import remains generic VM (`kind: vm`, `access: [ssh]`) and never accepts secrets.
+
 Live verification covered shell creation, plane tabs, empty-plane state, add node from a
 plane, multi-role edit, batch import, search, account creation and credential references.
+Phase 1.1 was additionally verified live: add a cluster with topology and API endpoint, add
+a K8s all-in-one node with kind/access/cluster, add a Pod host without a cluster, reject a
+K8s worker without a cluster, confirm cluster/node counts and search by cluster name.
 
 ## Implemented
 
@@ -68,7 +88,7 @@ Documentation and repository:
   - [x] `security-model.md` — credentials, approval, HTTP controls, redaction
   - [x] `api-verification.md` — verified runtime facts F1–F20 and probes V1–V8
   - [x] `implementation-plan.md` — ordered tasks T01–T24, acceptance, cut line
-  - [x] ADR-0001 … ADR-0009
+  - [x] ADR-0001 … ADR-0011
 
 Code:
 
@@ -85,18 +105,20 @@ Code:
 - [x] Management tools
 - [x] HTTP transport
 - [x] Client configuration UI (slot registration and HTTP round-trip live-verified)
-- [x] Environment detail: overview, role/plane views, nodes, accounts, login audit, endpoints, YAML
+- [x] Environment detail: overview, role/plane views, nodes, accounts, login audit, clusters, endpoints, YAML
 - [x] Shell-only **New environment** form with standard role seeding
 - [x] Role-filtered plane tabs over one `hosts[]` collection (no per-plane copies)
 - [x] Add/edit node with multiple roles and optional credential write
-- [x] Batch node import (`IP,name,roles,port,user`; no passwords)
-- [x] Node search and expandable account cards
+- [x] Node kind (`vm`/`physical`/K8s all-in-one/K8s worker/Pod host), command access and cluster reference
+- [x] Kubernetes/clusters tab with cluster add/edit, topology and derived node count
+- [x] Batch node import (`IP,name,roles,port,user`; no passwords; generic VM nodes)
+- [x] Node search (including kind/access/cluster) and expandable account cards
 - [x] Dedicated default **Environments** tab and persistent header create action
 - [x] Records narrowed to services, deployments, rule profiles and operation bindings
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (43 passing)
+- [x] Tests (47 passing)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -105,6 +127,10 @@ Code:
 - No plain-text credentials in registry files.
 - An environment must declare at least one logical role and every node must declare at
   least one declared role; the four standard roles are seeded on shell creation.
+- `k8s-all-in-one` and `k8s-worker` nodes require a valid `clusterRef`; `pod-host` may omit
+  it for a Docker-only machine. `Host.access` is metadata, not an authorization grant.
+- A Pod is not a registry Host. `pod-host` models the machine reached with `docker exec`;
+  per-Pod inventory is out of scope.
 - Passwords are accepted only transiently by the add/edit node form and forwarded to
   `ctx.credentials.set`; the record keeps `credentialRef` only. Shell creation and batch
   import never accept passwords.
@@ -138,7 +164,12 @@ dsh-env-manager/
 ## Known Gaps
 
 - The detail view supports create/edit for basic info, nodes, accounts and login records,
-  but deleting a node/account/login from its row is still YAML-only.
+  but deleting a node/account/login from its row is still YAML-only. Clusters can be added
+  and edited; deleting a cluster is YAML-only.
+- Batch import does not accept kind/access/cluster columns; imported nodes are generic VMs
+  and K8s/Pod hosts are edited afterwards.
+- Per-Pod/container inventory is not modeled; a `pod-host` is one machine even when it runs
+  many Pods.
 - Node editing preserves accounts and roles, but there is no bulk edit and no credential
   rotation button.
 - Database primary/replica/sharding topology is deliberately not modeled in Phase 1: the
@@ -165,8 +196,10 @@ dsh-env-manager/
 
 1. **Phase 2** — database topology (primary/replica/sharding) and richer expansion-node
    modeling, stored without duplicating `hosts[]`.
-2. Row-level delete for nodes, accounts and login records, plus credential rotation.
-3. Live probes V4 and V6, then record results in `api-verification.md`.
-4. Optional JumpServer/PAM import adapter for accounts and login observations.
-5. Add a small example registry under `examples/` for first-run demonstration.
-6. P1 memory bridge and operation records.
+2. Batch-import kind/access/cluster columns, and optional Pod/container inventory if
+   operations need per-workload targeting.
+3. Row-level delete for nodes, accounts and login records, plus credential rotation.
+4. Live probes V4 and V6, then record results in `api-verification.md`.
+5. Optional JumpServer/PAM import adapter for accounts and login observations.
+6. Add a small example registry under `examples/` for first-run demonstration.
+7. P1 memory bridge and operation records.
