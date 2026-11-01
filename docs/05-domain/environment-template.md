@@ -17,6 +17,12 @@ roles:
   - id: business
     name: Business Plane
     description: Business traffic and workloads
+  - id: database
+    name: Database
+    description: Database tier (primary/replica/sharding detail is Phase 2)
+  - id: extension
+    name: Expansion / other
+    description: Expansion nodes and unclassified workloads
 
 hosts:
   - id: host-001
@@ -39,6 +45,15 @@ hosts:
         credentialRef: cred-test-a-root
         lastLoginAt: 2026-10-31T08:12:00.000Z
         lastLoginFrom: 10.0.8.21
+  - id: db-01
+    name: test-a-db-01
+    platform: Linux / x86_64
+    ip: 10.0.1.30
+    sshPort: 22
+    roles: [database]
+    adminUser: root
+    isActive: true
+    note: primary placeholder; topology is Phase 2
 
 clusters:
   - id: k8s-01
@@ -76,7 +91,12 @@ updatedAt: 2026-11-01T03:00:00.000Z
 ## Notes
 
 - `id` must match the file name.
-- Every `hosts[].roles` value must reference a declared `roles[].id`.
+- One environment is one network and one configuration page. Its management, business,
+  database and expansion planes are role views over the same `hosts[]`, not separate
+  environments. The UI shows a node in every plane it serves.
+- `roles` must contain at least one entry, and every `hosts[].roles` value must reference a
+  declared `roles[].id`. A host must declare at least one role. The standard ids are
+  `management`, `business`, `database` and `extension`; custom ids are allowed.
 - A host that serves two planes is one entry with two roles; do not duplicate it.
 - `endpoints[].hostRef` / `clusterRef` must resolve within this environment.
 - `credentialRef` is a reference only; never put a value here. The same rule applies to
@@ -86,3 +106,7 @@ updatedAt: 2026-11-01T03:00:00.000Z
   environment. Login records may reference a host and an account on that host.
 - `loginRecords` are audit context, not a replacement for a PAM/SIEM system. Keep only
   the fields needed by DSH; do not copy session recordings or credentials into YAML.
+- The panel's batch import writes one node per line as
+  `IP,name,roles,port,user`; use `|` or `/` between roles. It never accepts passwords.
+- Database primary/replica/sharding topology is not modeled in Phase 1. Use the
+  `database` role plus a node note; a later schema may add topology metadata.

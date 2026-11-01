@@ -9,12 +9,14 @@ Aligned with the brainstorm (§9) and V1 design.
 - [x] V1 design suite written
 - [x] DSH runtime APIs verified (probes V1–V8 remain, tracked in `api-verification.md`)
 
-## V1 = P0: Registry and Context Resolution (implementation in progress)
+## V1 = P0: Registry and Context Resolution (complete; Phase 1 plane model live)
 
 Goal: a working plugin that any session can query, with deterministic routing.
 
-Implemented: Host modules, ten tools, HTTP API, panel, 30 tests. Remaining: profile
-install smoke test, probes V1–V8, manual panel QA.
+Implemented: Host modules, ten tools, HTTP API, panel, 43 tests, profile install. Phase 1
+adds the environment/plane model (ADR-0010): shell-only environment creation, role-filtered
+plane tabs, multi-role node add/edit, batch import, search and mandatory roles.
+Remaining: probes V4/V6, light-theme QA, row-level delete and credential rotation.
 
 Scope:
 
@@ -45,6 +47,14 @@ Scope:
 6. Reliable session-default persistence and recovery.
 
 Acceptance: AC-09, AC-10.
+
+## Phase 2: Topology depth
+
+- Database primary/replica/sharding metadata on top of the `database` role, without
+  duplicating `hosts[]`.
+- Row-level delete for nodes, accounts and login records.
+- Credential rotation and optional key/passphrase input.
+- Optional JumpServer/PAM import for accounts and login observations.
 
 ## V1.1 / V2: Continuous Evolution
 

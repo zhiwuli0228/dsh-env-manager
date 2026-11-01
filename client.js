@@ -50,12 +50,48 @@ window.__ModuleLoader__.load({
         openRecords: 'Open environments',
         backToRecords: 'Back to environments',
         basicInfo: 'Basic info',
-        hostsAndLogins: 'Hosts & logins',
         loginRecords: 'Login records',
         endpoints: 'Endpoints',
         rawYaml: 'YAML',
         editYaml: 'Edit YAML',
         environmentOverview: 'Environment overview',
+        allNodes: 'All nodes',
+        allNodesHint: 'Every host in this environment, regardless of plane.',
+        nodeSearch: 'Search nodes',
+        nodeSearchPlaceholder: 'Name, IP or role',
+        addNode: 'Add node',
+        editNode: 'Edit node',
+        batchImport: 'Batch import',
+        batchImportHint: 'One node per line: IP, name, roles, port, user. Separate multiple roles with | or /. No passwords are imported.',
+        batchPlaceholder: '10.20.30.52,db-02,database,22,root\n10.20.30.53,app-01,business|management,22,root',
+        importNodes: 'Import nodes',
+        batchCredentialsHint: 'Batch import creates nodes and optional accounts without secrets. Bind passwords later per node.',
+        nodeCount: 'Nodes',
+        planeSummary: 'Nodes by plane',
+        roleManagement: 'Management',
+        roleBusiness: 'Business',
+        roleDatabase: 'Database',
+        roleExtension: 'Expansion / other',
+        rolesRequired: 'Select at least one role.',
+        nodeFieldsRequired: 'Fill in node name and select at least one role.',
+        nodeAccountIncomplete: 'Enter both login user and password, or leave both empty.',
+        nodeAccountHint: 'Optional. Enter both username and password to create a password account; YAML keeps only the credential reference.',
+        nodeAccountEditHint: 'Leave username and password empty to keep existing accounts. Filling both adds a new password account.',
+        batchEmpty: 'Paste at least one node line.',
+        batchInvalid: 'Some lines are invalid. Check the IP, roles and comma-separated fields.',
+        duplicateIp: 'That IP already exists in this environment.',
+        duplicateNodeId: 'That node id already exists in this environment.',
+        invalidIp: 'Enter a valid IPv4 address.',
+        invalidPort: 'Enter a port between 1 and 65535.',
+        unknownRole: 'Unknown role.',
+        nodesImported: 'Nodes imported',
+        nodeAdded: 'Node added',
+        nodeUpdated: 'Node updated',
+        noNodes: 'No nodes yet',
+        noNodesHint: 'Add the first node and assign one or more planes.',
+        noNodesForPlane: 'No nodes in this plane',
+        noNodesForPlaneHint: 'Add a node to this plane or import several at once.',
+        accountScopeHint: 'Account ids are unique within this environment and form the credential reference.',
         accessSummary: 'Access summary',
         loginSummary: 'Login summary',
         hostCount: 'Hosts',
@@ -92,8 +128,6 @@ window.__ModuleLoader__.load({
         description: 'Description',
         createdAt: 'Created',
         updatedAt: 'Updated',
-        noHosts: 'No hosts registered',
-        noHostsHint: 'Add hosts and login accounts in the YAML tab.',
         noAccounts: 'No login accounts on this host.',
         noLoginRecords: 'No login records',
         noLoginRecordsHint: 'Login audit entries appear here once they are recorded.',
@@ -105,12 +139,11 @@ window.__ModuleLoader__.load({
         authToken: 'Token',
         authOther: 'Other',
         editBasic: 'Edit info',
-        addHost: 'Add host',
         addAccount: 'Add account',
         addLogin: 'Add login record',
         cancel: 'Cancel',
-        hostId: 'Host id',
-        hostname: 'Hostname',
+        hostId: 'Node id',
+        hostname: 'Node name',
         os: 'OS',
         sshPort: 'SSH port',
         loginAt: 'Login time',
@@ -138,13 +171,13 @@ window.__ModuleLoader__.load({
         loading: 'Loading…',
         panelUnavailable: 'The panel API is unavailable.',
         newEnvironment: 'New environment',
-        newEnvironmentHint: 'Register the environment, its SSH host and first login account in one step.',
+        newEnvironmentHint: 'Create the environment shell first, then add nodes by plane.',
         environmentIdOptional: 'Environment id (optional)',
         password: 'Password',
-        passwordStoredHint: 'The password is stored in the DSH credential service. YAML keeps only the credential reference.',
         createEnvironment: 'Create environment',
-        credentialRefAuto: 'Credential ref (auto)',
-        fillEnvironmentFields: 'Fill in name, IP, port, username and password.',
+        fillEnvironmentShell: 'Fill in the environment name.',
+        defaultRoles: 'Default planes',
+        defaultRolesHint: 'Management, business, database and expansion are created by default. Add nodes to each plane after creating the environment.',
         envIdExists: 'That environment id already exists.',
         environmentCreated: 'Environment created',
       },
@@ -192,12 +225,48 @@ window.__ModuleLoader__.load({
         openRecords: '打开环境',
         backToRecords: '返回环境列表',
         basicInfo: '基本信息',
-        hostsAndLogins: '主机与登录',
         loginRecords: '登录记录',
         endpoints: '访问端点',
         rawYaml: 'YAML',
         editYaml: '编辑 YAML',
         environmentOverview: '环境概览',
+        allNodes: '全部节点',
+        allNodesHint: '环境中的全部主机，不区分平面。',
+        nodeSearch: '搜索节点',
+        nodeSearchPlaceholder: '名称、IP 或角色',
+        addNode: '添加节点',
+        editNode: '编辑节点',
+        batchImport: '批量导入',
+        batchImportHint: '每行一个节点：IP、名称、角色、端口、用户；多角色用 | 或 / 分隔。不导入密码。',
+        batchPlaceholder: '10.20.30.52,db-02,database,22,root\n10.20.30.53,app-01,business|management,22,root',
+        importNodes: '导入节点',
+        batchCredentialsHint: '批量导入只创建节点和可选账号，不含密码；密码后续按节点绑定。',
+        nodeCount: '节点',
+        planeSummary: '节点分布',
+        roleManagement: '管理面',
+        roleBusiness: '业务面',
+        roleDatabase: '数据库',
+        roleExtension: '扩容 / 其他',
+        rolesRequired: '请至少选择一个角色。',
+        nodeFieldsRequired: '请填写节点名，并至少选择一个角色。',
+        nodeAccountIncomplete: '登录用户和密码要么都填，要么都留空。',
+        nodeAccountHint: '可选。填写登录用户和密码会创建密码账号；YAML 只保存凭据引用。',
+        nodeAccountEditHint: '登录用户和密码留空会保留现有账号；两者都填会新增一个密码账号。',
+        batchEmpty: '请至少粘贴一行节点。',
+        batchInvalid: '存在无效行，请检查 IP、角色和逗号分隔格式。',
+        duplicateIp: '该 IP 已存在于本环境。',
+        duplicateNodeId: '该节点 ID 已存在于本环境。',
+        invalidIp: '请输入合法的 IPv4 地址。',
+        invalidPort: '请输入 1–65535 之间的端口。',
+        unknownRole: '未知角色。',
+        nodesImported: '节点已导入',
+        nodeAdded: '节点已添加',
+        nodeUpdated: '节点已更新',
+        noNodes: '暂无节点',
+        noNodesHint: '添加第一个节点，可同时选择多个平面。',
+        noNodesForPlane: '该平面暂无节点',
+        noNodesForPlaneHint: '向该平面添加节点，或批量导入多个节点。',
+        accountScopeHint: '账号 ID 在本环境内唯一，并用于生成凭据引用。',
         accessSummary: '访问概况',
         loginSummary: '登录概况',
         hostCount: '主机',
@@ -234,8 +303,6 @@ window.__ModuleLoader__.load({
         description: '描述',
         createdAt: '创建时间',
         updatedAt: '更新时间',
-        noHosts: '未登记主机',
-        noHostsHint: '在 YAML 页补充 hosts 和登录账号。',
         noAccounts: '该主机还没有登录账号。',
         noLoginRecords: '暂无登录记录',
         noLoginRecordsHint: '登记 loginRecords 后会在这里显示登录审计。',
@@ -247,12 +314,11 @@ window.__ModuleLoader__.load({
         authToken: 'Token',
         authOther: '其他',
         editBasic: '编辑信息',
-        addHost: '添加主机',
         addAccount: '添加账号',
         addLogin: '登记登录',
         cancel: '取消',
-        hostId: '主机 ID',
-        hostname: '主机名',
+        hostId: '节点 ID',
+        hostname: '节点名',
         os: '操作系统',
         sshPort: 'SSH 端口',
         loginAt: '登录时间',
@@ -280,13 +346,13 @@ window.__ModuleLoader__.load({
         loading: '加载中…',
         panelUnavailable: '面板 API 不可用。',
         newEnvironment: '新建环境',
-        newEnvironmentHint: '一次填写环境、SSH 主机和首个登录账号，创建后直接进入详情。',
+        newEnvironmentHint: '先创建环境壳，再按平面添加节点。',
         environmentIdOptional: '环境 ID（可选）',
         password: '密码',
-        passwordStoredHint: '密码写入 DSH 凭据库，YAML 只保存凭据引用，不保存明文。',
         createEnvironment: '创建环境',
-        credentialRefAuto: '凭据引用（自动）',
-        fillEnvironmentFields: '请填写环境名称、IP、端口、登录用户名和密码。',
+        fillEnvironmentShell: '请填写环境名称。',
+        defaultRoles: '默认平面',
+        defaultRolesHint: '默认创建管理面、业务面、数据库和扩容四类；创建后在各自平面添加节点。',
         envIdExists: '该环境 ID 已存在。',
         environmentCreated: '环境已创建',
       },
@@ -296,6 +362,18 @@ window.__ModuleLoader__.load({
 
     const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'];
     const RECORD_KINDS = KINDS.filter((kind) => kind !== 'environment');
+    const DEFAULT_ROLES = [
+      { id: 'management', name: 'Management Plane' },
+      { id: 'business', name: 'Business Plane' },
+      { id: 'database', name: 'Database' },
+      { id: 'extension', name: 'Expansion / other' },
+    ];
+    const ROLE_KEYS = {
+      management: 'roleManagement',
+      business: 'roleBusiness',
+      database: 'roleDatabase',
+      extension: 'roleExtension',
+    };
     const KIND_LABEL = {
       environment: 'environments',
       service: 'services',
@@ -472,7 +550,7 @@ window.__ModuleLoader__.load({
 .dem-detail-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px;color:var(--dsw-alias-label-secondary);font-size:12px}
 .dem-detail-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .dem-detail-tabs{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--dsw-alias-border-l1)}
-.dem-detail-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);padding:8px 10px;font:inherit;font-size:12px;cursor:pointer;margin-bottom:-1px}
+.dem-detail-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);padding:8px 10px;font:inherit;font-size:12px;cursor:pointer;margin-bottom:-1px;white-space:nowrap}
 .dem-detail-tab:hover{color:var(--dsw-alias-label-primary)}
 .dem-detail-tab[aria-selected="true"]{color:var(--dsw-alias-label-primary);border-bottom-color:var(--dsw-alias-brand-primary);font-weight:600}
 .dem-detail-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(250px,.75fr);gap:14px;align-items:start}
@@ -490,6 +568,19 @@ window.__ModuleLoader__.load({
 .dem-host-name{font-size:13px;font-weight:650;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
 .dem-host-meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--dsw-alias-label-secondary);font-size:11px;margin-top:3px}
 .dem-host-meta code,.dem-code-inline{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.dem-node-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dem-node-search{flex:1;min-width:180px;max-width:320px}
+.dem-plane-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.dem-plane-card{border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:inherit;padding:10px 11px;text-align:left;font:inherit;cursor:pointer;min-width:0}
+.dem-plane-card:hover{border-color:var(--dsw-alias-brand-primary)}
+.dem-plane-card[data-active="true"]{border-color:var(--dsw-alias-brand-primary);box-shadow:inset 0 0 0 1px var(--dsw-alias-brand-primary)}
+.dem-plane-name{display:block;color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dem-plane-count{display:block;font-size:20px;font-weight:650;line-height:1.2;margin-top:3px;font-variant-numeric:tabular-nums}
+.dem-check-grid{display:flex;flex-wrap:wrap;gap:6px}
+.dem-check{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;background:var(--dsw-alias-bg-layer-2);padding:5px 9px;font-size:12px;cursor:pointer;white-space:nowrap}
+.dem-check input{margin:0;accent-color:var(--dsw-alias-brand-primary)}
+.dem-batch-example{margin:0;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;white-space:pre-wrap;color:var(--dsw-alias-label-secondary)}
+.dem-form-error{color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:1.45}
 .dem-table-wrap{overflow-x:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:9px}
 .dem-table{width:100%;border-collapse:collapse;font-size:12px;min-width:560px}
 .dem-table th{text-align:left;font-weight:500;color:var(--dsw-alias-label-secondary);font-size:11px;padding:8px 10px;border-bottom:1px solid var(--dsw-alias-border-l1);white-space:nowrap;background:var(--dsw-alias-bg-layer-2)}
@@ -555,6 +646,7 @@ window.__ModuleLoader__.load({
           value: props.value,
           placeholder: props.placeholder || '',
           required: props.required || false,
+          disabled: props.disabled || false,
           autoComplete: props.autoComplete || 'off',
           inputMode: props.inputMode,
           onChange: (event) => props.onChange(event.target.value),
@@ -702,7 +794,7 @@ window.__ModuleLoader__.load({
     }
 
     const TEMPLATES = {
-      environment: 'id: new-env\nschemaVersion: 1\nname: New Environment\naliases: []\ncategory: test\nroles: []\nhosts: []\nclusters: []\nendpoints: []\n',
+      environment: 'id: new-env\nschemaVersion: 1\nname: New Environment\naliases: []\ncategory: test\nroles:\n  - id: management\n    name: Management Plane\n  - id: business\n    name: Business Plane\n  - id: database\n    name: Database\n  - id: extension\n    name: Expansion / other\nhosts: []\nclusters: []\nendpoints: []\n',
       service: 'id: new-service\nschemaVersion: 1\nname: New Service\naliases: []\ncategory: backend\ngit:\n  url: https://example.invalid/repo.git\n  defaultBranch: main\ndeployModes: [kubernetes]\nruleProfileRefs: []\n',
       deployment: 'id: new-deployment\nschemaVersion: 1\nenvironmentId: new-env\nserviceId: new-service\nruntimeMode: kubernetes\nlocation:\n  kind: kubernetes\n  clusterRef: k8s-01\n  namespace: default\n  workload:\n    kind: Deployment\n    name: new-service\n',
       ruleProfile: 'id: new-rule\nschemaVersion: 1\ndescription: New rule profile\nvariables: {}\npaths: {}\n',
@@ -714,6 +806,10 @@ window.__ModuleLoader__.load({
       const [editing, setEditing] = useState(null);
       const [draft, setDraft] = useState({});
       const [saving, setSaving] = useState(false);
+      const [formError, setFormError] = useState(null);
+      const [nodeQuery, setNodeQuery] = useState('');
+      const [batchText, setBatchText] = useState('');
+      const [expandedHost, setExpandedHost] = useState(null);
       const record = props.record || {};
       const hosts = record.hosts || [];
       const accounts = hosts.flatMap((host) => (host.accounts || []).map((account) => ({ host, account })));
@@ -725,6 +821,18 @@ window.__ModuleLoader__.load({
       }, '');
       const failed = logins.filter((item) => item.result === 'failure').length;
       const endpoints = record.endpoints || [];
+      const declaredRoles = record.roles || [];
+      const roleCatalog = [...declaredRoles];
+      for (const role of DEFAULT_ROLES) {
+        if (!roleCatalog.some((item) => item.id === role.id)) roleCatalog.push(role);
+      }
+      const roleById = new Map(roleCatalog.map((role) => [role.id, role]));
+      const roleName = (id) => {
+        const role = roleById.get(id);
+        if (ROLE_KEYS[id]) return t(ROLE_KEYS[id]);
+        return (role && role.name) || id;
+      };
+      const countByRole = (roleId) => hosts.filter((host) => (host.roles || []).includes(roleId)).length;
       const hostById = new Map(hosts.map((host) => [host.id, host]));
       const endpointTarget = (endpoint) => {
         if (endpoint.hostRef) {
@@ -744,18 +852,45 @@ window.__ModuleLoader__.load({
         const now = new Date();
         return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
       };
-      const slug = (value) => String(value || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 63) || 'item';
-      const saveNext = async (next) => {
+      const isIpv4 = (value) => /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(String(value || '').trim());
+      const rolesForSave = (selectedIds) => {
+        const nextRoles = [...declaredRoles];
+        for (const id of selectedIds) {
+          if (!nextRoles.some((role) => role.id === id)) {
+            const standard = DEFAULT_ROLES.find((role) => role.id === id);
+            if (standard) nextRoles.push({ ...standard });
+          }
+        }
+        return nextRoles;
+      };
+      const uniqueAccountId = (hostId, username) => {
+        const base = stableSlug(hostId + '-' + username, 'account');
+        let candidate = base;
+        let suffix = 2;
+        while (accounts.some((entry) => entry.account.id === candidate)) {
+          candidate = base + '-' + suffix;
+          suffix += 1;
+        }
+        return candidate;
+      };
+      const saveNext = async (next, cleanupRef) => {
         setSaving(true);
+        setFormError(null);
         try {
-          await props.onSaveRecord(next);
+          const normalized = { ...next };
+          if (!Array.isArray(normalized.roles) || normalized.roles.length === 0) {
+            normalized.roles = DEFAULT_ROLES.map((role) => ({ ...role }));
+          }
+          await props.onSaveRecord(normalized);
           setEditing(null);
+          setNodeQuery('');
+          return true;
         } catch (nextError) {
-          // The parent surfaces the Host error above the detail view.
+          setFormError(nextError);
+          if (cleanupRef && props.onCredentialUnset) {
+            await props.onCredentialUnset(cleanupRef).catch(() => {});
+          }
+          return false;
         } finally {
           setSaving(false);
         }
@@ -781,29 +916,116 @@ window.__ModuleLoader__.load({
         });
       };
 
-      const openHost = () => {
+      const openHost = (roleId) => {
+        setFormError(null);
         setEditing('host');
-        setDraft({ id: '', name: '', ip: '', sshPort: '22', platform: '', adminUser: '', credentialRef: '', roles: '' });
-      };
-      const submitHost = () => {
-        const id = String(draft.id || '').trim();
-        const name = String(draft.name || '').trim();
-        if (!id || !name || hosts.some((host) => host.id === id)) return;
-        saveNext({
-          ...record,
-          hosts: [...hosts, {
-            id,
-            name,
-            ip: String(draft.ip || '').trim() || undefined,
-            sshPort: draft.sshPort ? Number(draft.sshPort) : undefined,
-            platform: String(draft.platform || '').trim() || undefined,
-            adminUser: String(draft.adminUser || '').trim() || undefined,
-            credentialRef: String(draft.credentialRef || '').trim() || undefined,
-            roles: String(draft.roles || '').split(',').map((item) => item.trim()).filter(Boolean),
-            isActive: true,
-            accounts: [],
-          }],
+        setDraft({
+          id: '',
+          name: '',
+          ip: '',
+          sshPort: '22',
+          platform: '',
+          adminUser: '',
+          credentialRef: '',
+          roles: roleId ? [roleId] : [],
+          username: '',
+          password: '',
         });
+      };
+      const openEditHost = (host) => {
+        setFormError(null);
+        setEditing('host-edit:' + host.id);
+        setDraft({
+          id: host.id,
+          name: host.name || '',
+          ip: host.ip || '',
+          sshPort: host.sshPort ? String(host.sshPort) : '22',
+          platform: host.platform || host.os || '',
+          adminUser: host.adminUser || '',
+          credentialRef: host.credentialRef || '',
+          roles: [...(host.roles || [])],
+          username: '',
+          password: '',
+        });
+      };
+      const submitHost = async (existingHost) => {
+        const name = String(draft.name || '').trim();
+        const id = existingHost
+          ? existingHost.id
+          : stableSlug(String(draft.id || '').trim() || name, 'node');
+        const selectedRoles = Array.isArray(draft.roles) ? draft.roles : [];
+        if (!name || selectedRoles.length === 0) {
+          setFormError({ message: t('nodeFieldsRequired') });
+          return;
+        }
+        if (!existingHost && hosts.some((host) => host.id === id)) {
+          setFormError({ message: t('duplicateNodeId') + ' (' + id + ')' });
+          return;
+        }
+        const ip = String(draft.ip || '').trim();
+        if (ip && !isIpv4(ip)) {
+          setFormError({ message: t('invalidIp') });
+          return;
+        }
+        if (ip && hosts.some((host) => host.ip === ip && (!existingHost || host.id !== existingHost.id))) {
+          setFormError({ message: t('duplicateIp') });
+          return;
+        }
+        const username = String(draft.username || '').trim();
+        const password = String(draft.password || '');
+        if ((username && !password) || (!username && password)) {
+          setFormError({ message: t('nodeAccountIncomplete') });
+          return;
+        }
+        const port = draft.sshPort ? Number(draft.sshPort) : undefined;
+        if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+          setFormError({ message: t('invalidPort') });
+          return;
+        }
+        const host = {
+          ...(existingHost || {}),
+          id,
+          name,
+          ip: ip || undefined,
+          sshPort: Number.isInteger(port) && port > 0 && port < 65536 ? port : undefined,
+          platform: String(draft.platform || '').trim() || undefined,
+          adminUser: String(draft.adminUser || '').trim() || undefined,
+          credentialRef: String(draft.credentialRef || '').trim() || undefined,
+          roles: selectedRoles,
+          isActive: existingHost ? existingHost.isActive : true,
+          accounts: existingHost ? [...(existingHost.accounts || [])] : [],
+        };
+        let cleanupRef = null;
+        if (username && password) {
+          const accountId = uniqueAccountId(id, username);
+          const credentialRef = 'env-manager/' + record.id + '/' + accountId;
+          try {
+            await props.onCredential(credentialRef, password);
+          } catch (next) {
+            setFormError(next);
+            return;
+          }
+          cleanupRef = credentialRef;
+          if (!host.credentialRef) host.credentialRef = credentialRef;
+          host.accounts = host.accounts.concat([{
+            id: accountId,
+            username,
+            purpose: existingHost ? 'added from node edit' : 'ssh login',
+            protocol: 'ssh',
+            port: host.sshPort || 22,
+            authType: 'password',
+            credentialRef,
+          }]);
+        }
+        const nextHosts = existingHost
+          ? hosts.map((item) => item.id === existingHost.id ? host : item)
+          : [...hosts, host];
+        const ok = await saveNext({
+          ...record,
+          roles: rolesForSave(selectedRoles),
+          hosts: nextHosts,
+        }, cleanupRef);
+        if (ok && props.onMessage) props.onMessage(t(existingHost ? 'nodeUpdated' : 'nodeAdded'));
       };
 
       const openAccount = (host) => {
@@ -822,8 +1044,11 @@ window.__ModuleLoader__.load({
       const submitAccount = (host) => {
         const username = String(draft.username || '').trim();
         if (!username) return;
-        const id = String(draft.id || '').trim() || slug(username);
-        if ((host.accounts || []).some((account) => account.id === id)) return;
+        const id = String(draft.id || '').trim() || uniqueAccountId(host.id, username);
+        if (accounts.some((entry) => entry.account.id === id)) {
+          setFormError({ message: t('accountId') + ': ' + id });
+          return;
+        }
         const account = {
           id,
           username,
@@ -841,6 +1066,83 @@ window.__ModuleLoader__.load({
             ? { ...item, accounts: [...(item.accounts || []), account] }
             : item),
         });
+      };
+
+      const submitBatch = async () => {
+        const lines = String(batchText || '').split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+        if (lines.length === 0) {
+          setFormError({ message: t('batchEmpty') });
+          return;
+        }
+        const nextHosts = [];
+        const usedIps = new Set(hosts.map((host) => host.ip).filter(Boolean));
+        const usedIds = new Set(hosts.map((host) => host.id));
+        const usedRoles = new Set();
+        const problems = [];
+        for (const [index, line] of lines.entries()) {
+          const parts = line.split(',').map((part) => part.trim());
+          if (parts.length < 3 || parts.length > 5) {
+            problems.push((index + 1) + ': ' + line);
+            continue;
+          }
+          const [ip, rawName, rawRoles, rawPort, rawUser] = parts;
+          const roleIds = rawRoles.split(/[|/]/).map((role) => role.trim()).filter(Boolean);
+          const unknown = roleIds.filter((role) => !roleById.has(role));
+          if (!ip || !isIpv4(ip) || roleIds.length === 0 || unknown.length) {
+            problems.push((index + 1) + ': ' + (ip && !isIpv4(ip) ? t('invalidIp') : line));
+            continue;
+          }
+          if (usedIps.has(ip)) {
+            problems.push((index + 1) + ': ' + t('duplicateIp') + ' ' + ip);
+            continue;
+          }
+          const port = rawPort ? Number(rawPort) : 22;
+          if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            problems.push((index + 1) + ': ' + line);
+            continue;
+          }
+          const name = rawName || 'node-' + ip;
+          const baseId = stableSlug(name, 'node');
+          let id = baseId;
+          let suffix = 2;
+          while (usedIds.has(id)) {
+            id = baseId + '-' + suffix;
+            suffix += 1;
+          }
+          usedIds.add(id);
+          usedIps.add(ip);
+          for (const role of roleIds) usedRoles.add(role);
+          const account = rawUser ? {
+            id: id + '-' + stableSlug(rawUser, 'user'),
+            username: rawUser,
+            purpose: 'ssh login',
+            protocol: 'ssh',
+            port,
+            authType: 'password',
+          } : undefined;
+          nextHosts.push({
+            id,
+            name,
+            ip,
+            sshPort: port,
+            roles: roleIds,
+            isActive: true,
+            accounts: account ? [account] : [],
+          });
+        }
+        if (problems.length) {
+          setFormError({ message: t('batchInvalid') + '\n' + problems.slice(0, 3).join('\n') });
+          return;
+        }
+        const ok = await saveNext({
+          ...record,
+          roles: rolesForSave([...usedRoles]),
+          hosts: [...hosts, ...nextHosts],
+        });
+        if (ok) {
+          setBatchText('');
+          if (props.onMessage) props.onMessage(t('nodesImported') + ': ' + nextHosts.length);
+        }
       };
 
       const openLogin = () => {
@@ -902,11 +1204,16 @@ window.__ModuleLoader__.load({
         h('div', { className: 'dem-info-value' + (options.mono ? ' mono' : '') },
           value === undefined || value === null || value === '' ? '—' : value));
 
-      const roles = h('div', { className: 'dem-chips' },
-        (record.roles || []).length
-          ? record.roles.map((role) => h('span', { key: role.id, className: 'dem-chip', title: role.id },
-            role.name || role.id))
-          : h('span', { className: 'dem-hint' }, '—'));
+      const planeSummary = h('div', { className: 'dem-plane-grid' }, roleCatalog.map((role) =>
+        h('button', {
+          key: role.id,
+          type: 'button',
+          className: 'dem-plane-card',
+          'data-active': tab === 'role:' + role.id ? 'true' : 'false',
+          onClick: () => setTab('role:' + role.id),
+        },
+          h('span', { className: 'dem-plane-name' }, roleName(role.id)),
+          h('span', { className: 'dem-plane-count' }, String(countByRole(role.id))))));
 
       const basicForm = h('div', { className: 'dem-inline-form' },
         h('div', { className: 'dem-form-grid dem-form-grid-3' },
@@ -943,14 +1250,20 @@ window.__ModuleLoader__.load({
               info(t('accountCount'), String(accounts.length)))),
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
-              h('h3', { className: 'dem-section-title' }, t('hostsAndLogins')),
+              h('h3', { className: 'dem-section-title' }, t('planeSummary')),
+              h(Button, { onClick: () => openHost(), variant: 'primary' }, t('addNode'))),
+            planeSummary),
+          h('div', { className: 'dem-card' },
+            h('div', { className: 'dem-section-head' },
+              h('h3', { className: 'dem-section-title' }, t('allNodes')),
               h('span', { className: 'dem-pill' }, String(hosts.length))),
             hosts.length
               ? h('div', { className: 'dem-chips' }, hosts.map((host) =>
                 h('span', { key: host.id, className: 'dem-chip' }, host.name + ' · ' + (host.ip || host.id))))
               : h('div', { className: 'dem-empty' },
-                h('strong', null, t('noHosts')),
-                h('span', null, t('noHostsHint'))))),
+                h('strong', null, t('noNodes')),
+                h('span', null, t('noNodesHint')),
+                h(Button, { onClick: () => openHost(), variant: 'primary' }, t('addNode'))))),
         h('div', { className: 'dem-detail-rail' },
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
@@ -971,22 +1284,51 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
               h('h3', { className: 'dem-section-title' }, t('roles'))),
-            roles)));
+            h('div', { className: 'dem-chips' }, roleCatalog.map((role) =>
+              h('span', { key: role.id, className: 'dem-chip', title: role.id },
+                roleName(role.id) + ' · ' + countByRole(role.id)))))));
 
-      const hostForm = h('div', { className: 'dem-card' },
-        h('div', { className: 'dem-inline-form' },
-          h('div', { className: 'dem-form-grid' },
-            h(Field, { label: t('hostId'), value: draft.id || '', onChange: field('id'), placeholder: 'host-001' }),
-            h(Field, { label: t('hostname'), value: draft.name || '', onChange: field('name'), placeholder: 'node-01' }),
-            h(Field, { label: t('ipAddress'), value: draft.ip || '', onChange: field('ip'), placeholder: '10.0.1.10' }),
-            h(Field, { label: t('sshPort'), value: draft.sshPort || '', onChange: field('sshPort'), type: 'number' }),
-            h(Field, { label: t('platform'), value: draft.platform || '', onChange: field('platform'), placeholder: 'Linux / x86_64' }),
-            h(Field, { label: t('adminUser'), value: draft.adminUser || '', onChange: field('adminUser'), placeholder: 'root' }),
-            h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-host-root' }),
-            h(Field, { label: t('roles'), value: draft.roles || '', onChange: field('roles'), placeholder: 'management, business' })),
-          h('div', { className: 'dem-form-foot' },
-            h(Button, { onClick: () => setEditing(null) }, t('cancel')),
-            h(Button, { onClick: submitHost, variant: 'primary', disabled: saving }, t('save')))));
+      const hostForm = (existingHost) => h('div', { className: 'dem-inline-form' },
+        h('div', { className: 'dem-form-grid dem-form-grid-3' },
+          h(Field, {
+            label: t('hostId'),
+            value: draft.id || '',
+            onChange: field('id'),
+            placeholder: 'node-01',
+            disabled: Boolean(existingHost),
+          }),
+          h(Field, { label: t('hostname'), value: draft.name || '', onChange: field('name'), placeholder: 'node-01' }),
+          h(Field, { label: t('ipAddress'), value: draft.ip || '', onChange: field('ip'), placeholder: '10.0.1.10' }),
+          h(Field, { label: t('sshPort'), value: draft.sshPort || '', onChange: field('sshPort'), type: 'number', inputMode: 'numeric' }),
+          h(Field, { label: t('platform'), value: draft.platform || '', onChange: field('platform'), placeholder: 'Linux / x86_64' }),
+          h(Field, { label: t('adminUser'), value: draft.adminUser || '', onChange: field('adminUser'), placeholder: 'root' }),
+          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-host-root' })),
+        h('div', { className: 'dem-field' },
+          h('span', { className: 'dem-label' }, t('roles')),
+          h('div', { className: 'dem-check-grid' }, roleCatalog.map((role) =>
+            h('label', { key: role.id, className: 'dem-check' },
+              h('input', {
+                type: 'checkbox',
+                checked: (draft.roles || []).includes(role.id),
+                onChange: () => setDraft((current) => {
+                  const selected = current.roles || [];
+                  return {
+                    ...current,
+                    roles: selected.includes(role.id)
+                      ? selected.filter((id) => id !== role.id)
+                      : [...selected, role.id],
+                  };
+                }),
+              }),
+              roleName(role.id))))),
+        h('div', { className: 'dem-form-grid dem-form-grid-3' },
+          h(Field, { label: t('loginUser'), value: draft.username || '', onChange: field('username'), placeholder: 'root', autoComplete: 'username' }),
+          h(Field, { label: t('password'), value: draft.password || '', onChange: field('password'), type: 'password', autoComplete: 'new-password' })),
+        h('p', { className: 'dem-hint' }, existingHost ? t('nodeAccountEditHint') : t('nodeAccountHint')),
+        formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
+        h('div', { className: 'dem-form-foot' },
+          h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
+          h(Button, { onClick: () => submitHost(existingHost), variant: 'primary', disabled: saving }, t('save'))));
 
       const accountForm = (host) => h('div', { className: 'dem-inline-form' },
         h('div', { className: 'dem-form-grid' },
@@ -1008,59 +1350,114 @@ window.__ModuleLoader__.load({
           h(Button, { onClick: () => setEditing(null) }, t('cancel')),
           h(Button, { onClick: () => submitAccount(host), variant: 'primary', disabled: saving }, t('save'))));
 
-      const hostsView = h('div', { className: 'dem-detail-main' },
-        h('div', { className: 'dem-toolbar' },
-          h('div', { className: 'dem-toolbar-copy' },
-            h('h3', { className: 'dem-section-title' }, t('hostsAndLogins')),
-            h('p', { className: 'dem-hint' }, t('accounts') + ': ' + accounts.length)),
-          h(Button, { onClick: openHost, variant: 'primary', disabled: editing === 'host' }, t('addHost'))),
-        editing === 'host' ? hostForm : null,
-        hosts.length
-          ? hosts.map((host) =>
-            h('div', { key: host.id, className: 'dem-card dem-host-card' },
-              h('div', { className: 'dem-host-head' },
-                h('div', null,
-                  h('div', { className: 'dem-host-name' },
-                    host.name || host.id,
-                    host.isActive === true ? h('span', { className: 'dem-status active' }, t('active')) : null,
-                    host.isActive === false ? h('span', { className: 'dem-status inactive' }, t('inactive')) : null),
-                  h('div', { className: 'dem-host-meta' },
-                    h('span', null, t('ipAddress') + ': ' + (host.ip || '—') + (host.sshPort ? ':' + host.sshPort : '')),
-                    h('span', null, t('platform') + ': ' + (host.platform || host.os || '—')),
-                    h('span', null, t('adminUser') + ': ' + (host.adminUser || '—')),
-                    host.credentialRef ? h('span', { className: 'dem-code-inline' }, t('credentialRef') + ': ' + host.credentialRef) : null)),
-                h('div', { className: 'dem-actions' },
-                  h('div', { className: 'dem-chips' }, (host.roles || []).map((role) =>
-                    h('span', { key: role, className: 'dem-chip' }, role))),
-                  h(Button, { onClick: () => openAccount(host) }, t('addAccount')))),
-              editing === 'account:' + host.id ? accountForm(host) : null,
-              (host.accounts || []).length
-                ? h('div', { className: 'dem-table-wrap' },
-                  h('table', { className: 'dem-table' },
-                    h('thead', null, h('tr', null,
-                      h('th', null, t('username')),
-                      h('th', null, t('purpose')),
-                      h('th', null, t('protocol')),
-                      h('th', null, t('authType')),
-                      h('th', null, t('credentialRef')),
-                      h('th', null, t('latestLogin')),
-                      h('th', null, t('source')))),
-                    h('tbody', null, (host.accounts || []).map((account) =>
-                      h('tr', { key: account.id },
-                        h('td', null, h('strong', null, account.username || account.id)),
-                        h('td', null, account.purpose || '—'),
-                        h('td', { className: 'mono' }, (account.protocol || 'ssh').toUpperCase()),
-                        h('td', null, authLabel(account.authType)),
-                        h('td', { className: 'mono' }, account.credentialRef || '—'),
-                        h('td', null, account.lastLoginAt ? formatTime(account.lastLoginAt) : t('never')),
-                        h('td', { className: 'mono' }, account.lastLoginFrom || '—'))))))
-                : h('div', { className: 'dem-table-empty' },
-                  t('noAccounts') + ' ',
-                  h(Button, { onClick: () => openAccount(host) }, t('addAccount')))))
-          : h('div', { className: 'dem-card' },
-            h('div', { className: 'dem-empty' },
-              h('strong', null, t('noHosts')),
-              h('span', null, t('noHostsHint')))));
+      const nodesView = (roleId) => {
+        const activeRole = roleId ? roleById.get(roleId) : null;
+        const query = nodeQuery.trim().toLowerCase();
+        const visibleHosts = hosts.filter((host) => {
+          if (roleId && !(host.roles || []).includes(roleId)) return false;
+          if (!query) return true;
+          return [
+            host.id,
+            host.name,
+            host.ip,
+            host.platform,
+            host.adminUser,
+            ...(host.roles || []),
+          ].filter(Boolean).join(' ').toLowerCase().includes(query);
+        });
+        const editingHost = editing && editing.startsWith('host-edit:')
+          ? hosts.find((host) => host.id === editing.slice('host-edit:'.length))
+          : null;
+        return h('div', { className: 'dem-detail-main' },
+          h('div', { className: 'dem-toolbar' },
+            h('div', { className: 'dem-toolbar-copy' },
+              h('h3', { className: 'dem-section-title' }, activeRole ? roleName(activeRole.id) : t('allNodes')),
+              h('p', { className: 'dem-hint' },
+                (activeRole ? roleName(activeRole.id) + ' · ' : '') + visibleHosts.length + ' ' + t('nodeCount'))),
+            h('div', { className: 'dem-node-toolbar' },
+              h('input', {
+                className: 'dem-input dem-node-search',
+                value: nodeQuery,
+                placeholder: t('nodeSearchPlaceholder'),
+                'aria-label': t('nodeSearch'),
+                onChange: (event) => setNodeQuery(event.target.value),
+              }),
+              h(Button, { onClick: () => openHost(roleId), variant: 'primary' }, t('addNode')),
+              h(Button, { onClick: () => { setFormError(null); setEditing('batch'); } }, t('batchImport')))),
+          editing === 'host' || editingHost ? hostForm(editingHost) : null,
+          editing === 'batch' ? h('div', { className: 'dem-inline-form' },
+            h('p', { className: 'dem-hint' }, t('batchImportHint')),
+            h('pre', { className: 'dem-batch-example' }, t('batchPlaceholder')),
+            h('textarea', {
+              className: 'dem-textarea dem-textarea-sm',
+              value: batchText,
+              placeholder: t('batchPlaceholder'),
+              rows: 6,
+              'aria-label': t('batchImport'),
+              onChange: (event) => setBatchText(event.target.value),
+              spellCheck: false,
+            }),
+            h('p', { className: 'dem-hint' }, t('batchCredentialsHint')),
+            formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
+            h('div', { className: 'dem-form-foot' },
+              h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
+              h(Button, { onClick: submitBatch, variant: 'primary', disabled: saving }, t('importNodes')))) : null,
+          visibleHosts.length
+            ? visibleHosts.map((host) =>
+              h('div', { key: host.id, className: 'dem-card dem-host-card' },
+                h('div', { className: 'dem-host-head' },
+                  h('div', null,
+                    h('div', { className: 'dem-host-name' },
+                      host.name || host.id,
+                      host.isActive === true ? h('span', { className: 'dem-status active' }, t('active')) : null,
+                      host.isActive === false ? h('span', { className: 'dem-status inactive' }, t('inactive')) : null),
+                    h('div', { className: 'dem-host-meta' },
+                      h('span', null, t('ipAddress') + ': ' + (host.ip || '—') + (host.sshPort ? ':' + host.sshPort : '')),
+                      h('span', null, t('platform') + ': ' + (host.platform || host.os || '—')),
+                      h('span', null, t('adminUser') + ': ' + (host.adminUser || '—')),
+                      h('span', null, t('accountCount') + ': ' + (host.accounts || []).length),
+                      host.credentialRef ? h('span', { className: 'dem-code-inline' }, t('credentialRef') + ': ' + host.credentialRef) : null)),
+                  h('div', { className: 'dem-actions' },
+                    h('div', { className: 'dem-chips' }, (host.roles || []).map((role) =>
+                      h('span', { key: role, className: 'dem-chip' }, roleName(role)))),
+                    h(Button, { onClick: () => openEditHost(host) }, t('editNode')),
+                    h(Button, {
+                      onClick: () => setExpandedHost(expandedHost === host.id ? null : host.id),
+                    }, t('accounts') + ' (' + (host.accounts || []).length + ')'),
+                    h(Button, { onClick: () => { setExpandedHost(host.id); openAccount(host); } }, t('addAccount')))),
+                expandedHost === host.id || editing === 'account:' + host.id
+                  ? h(React.Fragment, null,
+                    editing === 'account:' + host.id ? accountForm(host) : null,
+                    (host.accounts || []).length
+                      ? h('div', { className: 'dem-table-wrap' },
+                        h('table', { className: 'dem-table' },
+                          h('thead', null, h('tr', null,
+                            h('th', null, t('username')),
+                            h('th', null, t('purpose')),
+                            h('th', null, t('protocol')),
+                            h('th', null, t('authType')),
+                            h('th', null, t('credentialRef')),
+                            h('th', null, t('latestLogin')),
+                            h('th', null, t('source')))),
+                          h('tbody', null, (host.accounts || []).map((account) =>
+                            h('tr', { key: account.id },
+                              h('td', null, h('strong', null, account.username || account.id)),
+                              h('td', null, account.purpose || '—'),
+                              h('td', { className: 'mono' }, (account.protocol || 'ssh').toUpperCase()),
+                              h('td', null, authLabel(account.authType)),
+                              h('td', { className: 'mono' }, account.credentialRef || '—'),
+                              h('td', null, account.lastLoginAt ? formatTime(account.lastLoginAt) : t('never')),
+                              h('td', { className: 'mono' }, account.lastLoginFrom || '—'))))))
+                      : h('div', { className: 'dem-table-empty' },
+                        t('noAccounts') + ' ',
+                        h(Button, { onClick: () => openAccount(host) }, t('addAccount'))))
+                  : null))
+            : h('div', { className: 'dem-card' },
+              h('div', { className: 'dem-empty' },
+                h('strong', null, activeRole ? t('noNodesForPlane') : t('noNodes')),
+                h('span', null, activeRole ? t('noNodesForPlaneHint') : t('noNodesHint')),
+                h(Button, { onClick: () => openHost(roleId), variant: 'primary' }, t('addNode')))));
+      };
 
       const selectedHost = hosts.find((host) => host.id === draft.hostRef);
       const loginForm = h('div', { className: 'dem-card' },
@@ -1182,16 +1579,19 @@ window.__ModuleLoader__.load({
 
       const tabs = [
         ['overview', t('environmentOverview')],
-        ['hosts', t('hostsAndLogins')],
+        ['hosts', t('allNodes')],
+        ...roleCatalog.map((role) => ['role:' + role.id, roleName(role.id)]),
         ['logins', t('loginRecords')],
         ['endpoints', t('endpoints')],
         ['yaml', t('rawYaml')],
       ];
-      const body = tab === 'hosts' ? hostsView
-        : tab === 'logins' ? loginsView
-          : tab === 'endpoints' ? endpointsView
-            : tab === 'yaml' ? yamlView
-              : overview;
+      const activeTab = tabs.some(([value]) => value === tab) ? tab : 'overview';
+      const body = activeTab === 'overview' ? overview
+        : activeTab === 'hosts' ? nodesView(null)
+          : activeTab.startsWith('role:') ? nodesView(activeTab.slice('role:'.length))
+            : activeTab === 'logins' ? loginsView
+              : activeTab === 'endpoints' ? endpointsView
+                : yamlView;
 
       return h('div', { className: 'dem-detail' },
         h('div', { className: 'dem-detail-top' },
@@ -1215,7 +1615,7 @@ window.__ModuleLoader__.load({
             type: 'button',
             className: 'dem-detail-tab',
             role: 'tab',
-            'aria-selected': tab === value ? 'true' : 'false',
+            'aria-selected': activeTab === value ? 'true' : 'false',
             onClick: () => setTab(value),
           }, label))),
         body);
@@ -1226,29 +1626,18 @@ window.__ModuleLoader__.load({
         name: '',
         id: '',
         category: 'test',
-        ip: '',
-        sshPort: '22',
-        username: '',
-        password: '',
+        description: '',
       });
       const [saving, setSaving] = useState(false);
       const [error, setError] = useState(null);
       const field = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
+      const roleLabel = (id) => ROLE_KEYS[id] ? t(ROLE_KEYS[id]) : ((DEFAULT_ROLES.find((role) => role.id === id) || {}).name || id);
       const envId = stableSlug(String(form.id || '').trim() || form.name, 'env');
-      const accountId = stableSlug(form.username, 'user');
-      const credentialRef = 'env-manager/' + envId + '/' + accountId;
-      const credentialPreview = String(form.name || form.id || '').trim() && String(form.username || '').trim()
-        ? credentialRef
-        : 'env-manager/<environment>/<account>';
 
       const submit = async () => {
         const name = String(form.name || '').trim();
-        const ip = String(form.ip || '').trim();
-        const port = Number(form.sshPort || 22);
-        const username = String(form.username || '').trim();
-        const password = String(form.password || '');
-        if (!name || !ip || !username || !password || !Number.isInteger(port) || port < 1 || port > 65535) {
-          setError({ message: t('fillEnvironmentFields') });
+        if (!name) {
+          setError({ message: t('fillEnvironmentShell') });
           return;
         }
         if ((props.existingIds || []).includes(envId)) {
@@ -1258,41 +1647,17 @@ window.__ModuleLoader__.load({
         setSaving(true);
         setError(null);
         try {
-          await props.onCredential(credentialRef, password);
           await props.onCreate({
             id: envId,
             schemaVersion: 1,
             name,
             aliases: [],
             category: form.category || 'test',
-            description: '',
-            roles: [],
-            hosts: [{
-              id: 'host-01',
-              name,
-              ip,
-              sshPort: port,
-              adminUser: username,
-              isActive: true,
-              credentialRef,
-              accounts: [{
-                id: accountId,
-                username,
-                purpose: 'ssh login',
-                protocol: 'ssh',
-                port,
-                authType: 'password',
-                credentialRef,
-              }],
-            }],
+            description: String(form.description || '').trim() || undefined,
+            roles: DEFAULT_ROLES.map((role) => ({ ...role })),
+            hosts: [],
             clusters: [],
-            endpoints: [{
-              id: 'ssh-host-01',
-              kind: 'ssh',
-              hostRef: 'host-01',
-              port,
-              credentialRef,
-            }],
+            endpoints: [],
             loginRecords: [],
           });
         } catch (next) {
@@ -1314,14 +1679,12 @@ window.__ModuleLoader__.load({
               label: t('category'), value: form.category, onChange: field('category'),
               options: ['dev', 'test', 'staging', 'production', 'custom'].map((value) => ({ value, label: categoryLabel(value) })),
             }),
-            h(Field, { label: t('ipAddress'), value: form.ip, onChange: field('ip'), placeholder: '10.20.30.41', required: true }),
-            h(Field, { label: t('sshPort'), value: form.sshPort, onChange: field('sshPort'), type: 'number', inputMode: 'numeric', required: true }),
-            h(Field, { label: t('loginUser'), value: form.username, onChange: field('username'), placeholder: 'root', required: true, autoComplete: 'username' }),
-            h(Field, { label: t('password'), value: form.password, onChange: field('password'), type: 'password', required: true, autoComplete: 'new-password' }),
-            h('div', { className: 'dem-field' },
-              h('span', { className: 'dem-label' }, t('credentialRefAuto')),
-              h('div', { className: 'dem-code-inline' }, credentialPreview))),
-          h('p', { className: 'dem-hint' }, t('passwordStoredHint')),
+            h(TextArea, { label: t('description'), value: form.description, onChange: field('description'), rows: 2, wide: true })),
+          h('div', { className: 'dem-field' },
+            h('span', { className: 'dem-label' }, t('defaultRoles')),
+            h('div', { className: 'dem-chips' }, DEFAULT_ROLES.map((role) =>
+              h('span', { key: role.id, className: 'dem-chip' }, roleLabel(role.id))))),
+          h('p', { className: 'dem-hint' }, t('defaultRolesHint')),
           h(ErrorBox, { error }),
           h('div', { className: 'dem-form-foot' },
             h(Button, { onClick: props.onCancel, disabled: saving }, t('cancel')),
@@ -1403,6 +1766,9 @@ window.__ModuleLoader__.load({
       const saveCredential = async (ref, value) => {
         await call('credential', { ref, value });
       };
+      const saveCredentialUnset = async (ref) => {
+        await call('credentialUnset', { ref });
+      };
 
       const createEnvironment = async (nextRecord) => {
         let result;
@@ -1410,8 +1776,6 @@ window.__ModuleLoader__.load({
           setError(null);
           result = await call('save', { kind: 'environment', record: nextRecord });
         } catch (next) {
-          const ref = nextRecord.hosts && nextRecord.hosts[0] && nextRecord.hosts[0].credentialRef;
-          if (ref) await call('credentialUnset', { ref }).catch(() => {});
           setError(next);
           throw next;
         }
@@ -1511,11 +1875,13 @@ window.__ModuleLoader__.load({
             onSave: save,
             onSaveRecord: saveRecord,
             onRemove: remove,
+            onCredential: saveCredential,
+            onCredentialUnset: saveCredentialUnset,
+            onMessage: setMessage,
           })
           : kind === 'environment' && creating
             ? h(EnvironmentWizard, {
               existingIds: items.map((item) => item.id),
-              onCredential: saveCredential,
               onCreate: createEnvironment,
               onCancel: () => setCreating(false),
             })

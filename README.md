@@ -19,24 +19,29 @@ Works in DSH Web and Desktop.
 
 ## Status
 
-**V1 is implemented and installed in the `desktop` profile.**
+**Phase 1 of the environment/plane model is implemented and installed in the `desktop` profile.**
 
-- 41 Vitest tests pass; `npm run build` emits `lib/`.
+- 43 Vitest tests pass; `npm run build` emits `lib/`.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
-- Live verification: tools answer in-session, `meta` returns `200`, the panel transport
-  round-trips save/list/remove, and both slot registrations are active.
-- The environment detail view shows basic information, access summary, host account
-  tables, login audit records, endpoints and raw YAML; basic info can be edited, and
-  hosts, accounts and login records have inline create forms.
-- `New environment` creates the environment, first host, account and SSH endpoint in one
-  form. The password is written to the DSH credential service and the YAML stores only
-  `env-manager/<environmentId>/<accountId>`.
+- One environment is one complete network and one configuration page. Management,
+  business, database and expansion are **role views** over the same `hosts[]`; a node
+  serving two planes is one host with two roles.
+- The environment detail page is split into overview, all nodes, one tab per plane, login
+  records, endpoints and YAML. Plane tabs filter the same node collection.
+- `New environment` creates only the environment shell and seeds the four standard roles.
+  Nodes are added inside the environment, individually or by batch import.
+- Add/edit node supports multiple roles and an optional login credential; batch import
+  (`IP,name,roles,port,user`) never accepts passwords. Node search covers id, name, IP,
+  platform, admin user and role.
+- Passwords are written to the DSH credential service; YAML keeps only
+  `env-manager/<environmentId>/<hostId>-<username>`.
 - **环境 (Environments) is the default tab**, and the persistent header **新增环境**
   action is available from every tab. `记录 (Records)` is limited to services,
   deployments, rule profiles and operation bindings.
-- Remaining: row-level edit/delete for hosts/accounts/logins, visual QA in light theme,
-  and the live approval/credential probes V4 and V6.
+- Remaining: database primary/replica/sharding topology (Phase 2), row-level delete for
+  nodes/accounts/logins, light-theme visual QA, and the live approval/credential probes
+  V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
 
 ## Add an environment
@@ -44,20 +49,24 @@ Works in DSH Web and Desktop.
 1. Open **环境管理器** (Environment Manager); it opens on the **环境 (Environments)** tab.
 2. Click **新增环境** (New environment) in the panel header. The same action is available
    from any other tab.
-3. Fill in the environment name, host IP, SSH port, login username and password. The
-   environment id and credential reference are generated automatically; override the id
-   if you need a specific one.
-4. Click **创建环境** (Create environment). The detail page opens with the host, account
-   and SSH endpoint already registered.
+3. Fill in the environment name, optional id, category and description. The four standard
+   planes are created automatically. Click **创建环境** (Create environment).
+4. Open the new environment. Use **全部节点** (All nodes) or a plane tab, then
+   **添加节点** (Add node). A node may carry several roles.
+5. To register many nodes, use **批量导入** (Batch import):
+   `IP,name,roles,port,user` per line, with `|` or `/` between roles. Batch import creates
+   hosts and optional accounts but no passwords.
 
-The password is sent once to the Host and stored by the DSH credential service. It never
-appears in the registry YAML, tool output or logs. Use **新建记录** only when you need to
-paste an advanced YAML template.
+A password entered on the add/edit node form is sent once to the Host and stored by the
+DSH credential service. It never appears in the registry YAML, tool output or logs. Use
+**新建记录** only when you need to paste an advanced YAML template.
 
 Design references:
 
 - [`docs/01-architecture/design.md`](docs/01-architecture/design.md) — scope, algorithms,
   acceptance criteria;
+- [`docs/01-architecture/decisions/ADR-0010-environment-plane-model.md`](docs/01-architecture/decisions/ADR-0010-environment-plane-model.md) —
+  why one network is one environment and planes are role views;
 - [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) —
   module contracts, storage, tools, HTTP;
 - [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) —

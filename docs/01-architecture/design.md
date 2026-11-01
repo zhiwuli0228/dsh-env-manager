@@ -421,7 +421,7 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 
 | Section | Content |
 |---|---|
-| Environments (default) | list, detail (basic info, hosts/accounts, login records, endpoints), guided New environment, edit YAML |
+| Environments (default) | list; detail split into overview, all nodes, management/business/database/expansion plane views, login records, endpoints and YAML; shell-only New environment |
 | Overview | counts, dataDir, warnings, validate |
 | Records | Services, Deployments, Rule profiles and Operation bindings as YAML editors |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
@@ -433,7 +433,9 @@ Rules for the UI:
   (`POST /env-manager/api`, ADR-0009); no direct file access and no second business
   path.
 - The UI cannot read or write session context in V1; that stays with the agent tools.
-- Environments are created by the guided form; their detail and YAML are editable.
+- `New environment` creates only the environment shell and the four standard role
+  definitions; nodes are added inside the relevant plane. Plane tabs are filters over the
+  same `hosts[]`, never separate records. Environment detail and YAML are editable.
   Service, deployment, rule and binding records are edited as YAML, validated
   server-side before writing.
 - Text is routed through the client locale service; `en` and `zh` provided.
@@ -471,8 +473,9 @@ interface MemoryBridge {
 Summary; details in [security-model.md](./security-model.md).
 
 - `credentialRef` only in registry records; status via `ctx.credentials.describe`, never
-  `resolve`. The guided create form may call `ctx.credentials.set` once with a password
-  and never persists or returns the value.
+  `resolve`. The add/edit node form may call `ctx.credentials.set` once with an optional
+  login password and never persists or returns the value; shell creation and batch import
+  collect no password.
 - Production write operations denied unless `allowProduction: true`.
 - Tool management writes affecting production records require `ctx.approval`.
 - UI writes run as actor `'ui'` and are denied for production unless
@@ -516,6 +519,8 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-11 | Environment detail shows host accounts with protocol/auth/last-login source, without secret values | yes | app test + UI checklist |
 | AC-12 | Login records are stored in the environment YAML, reference existing hosts/accounts and render newest-first | yes | app integrity test + UI checklist |
 | AC-13 | Environments is the default tab, `New environment` is reachable from the header, and Records excludes environments | yes | UI checklist |
+| AC-14 | `New environment` creates only the shell with four standard roles, and a plane tab filters the same `hosts[]` without copying nodes | yes | app schema test + UI checklist |
+| AC-15 | A node can carry multiple roles, is editable, is batch-importable without a password, and is searchable by id/name/IP/role | yes | UI checklist + live verification |
 
 ---
 

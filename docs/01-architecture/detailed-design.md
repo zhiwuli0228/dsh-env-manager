@@ -292,6 +292,11 @@ diagnostic, and the snapshot keeps the other kinds.
 | operation binding `match.deploymentId` | deployment exists | `DEPLOYMENT_NOT_FOUND` |
 | any `credentialRef` | non-empty string matching the agreed ref pattern | `RECORD_INVALID` |
 
+Schema validation rejects an environment with zero logical roles and a host with zero
+roles before integrity checks run; both fail as `RECORD_INVALID`. A host role id that is
+not declared in `Environment.roles` is reported as `ROLE_NOT_FOUND` by `env_validate`;
+the panel prevents selecting an undeclared role in the node form.
+
 Integrity failures are **diagnostics**, not load failures: the registry still serves
 the other records, and `env_validate` reports the broken references. A resolve or
 route that needs a missing record fails with the specific code.

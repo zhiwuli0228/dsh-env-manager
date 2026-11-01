@@ -9,8 +9,9 @@
 The V1 UI makes the registry **inspectable and editable** without asking the agent to
 run a tool, and makes rule resolution **explainable** rather than magical.
 
-It is not a CMDB dashboard: no charts, no topology graph, no bulk import, no Skill
-execution button. Every screen answers one question and offers one write action.
+It is not a CMDB dashboard: no charts, no topology graph, no Skill execution button.
+Bulk import is limited to the node line format below. Every other screen answers one
+question and offers focused write actions.
 
 ## 2. Constraints
 
@@ -19,9 +20,11 @@ execution button. Every screen answers one question and offers one write action.
 - Only `slots` and `locale` services (F16).
 - All data through `POST /env-manager/api` (F14, ADR-0009).
 - All colors from `--dsw-alias-*` tokens (F17).
-- No credential value is rendered or persisted. The new-environment form may collect a
-  password transiently and send it once to the Host, which forwards it to
-  `ctx.credentials.set`; the registry keeps only `credentialRef`.
+- No credential value is rendered or persisted. Environment-shell creation collects no
+  password. The add/edit node form may collect a login password transiently and send it
+  once to the Host, which forwards it to `ctx.credentials.set`; the registry keeps only
+  `credentialRef`. Editing a node with both login fields empty never touches existing
+  accounts or credentials.
 
 ## 3. Information architecture
 
@@ -200,15 +203,16 @@ sidebar:
 - The default section. A toolbar shows the section title, a one-line purpose and
   `Refresh`; the persistent header action `New environment` is always available.
 - Environments use a master/detail flow: the left card lists environments (name, id,
-  `category · hosts · accounts · login records`); selecting one opens a read-first detail
+  `category · hosts · accounts · login records`); selecting one opens the grouped detail
   view (§6.3).
-- `New environment` opens one guided form: environment name, optional id, category, host
-  IP, SSH port, login username and password. It creates the environment, first host,
-  account and SSH endpoint in one save. The password goes to `credential` and never into
-  YAML; the generated ref is `env-manager/<environmentId>/<accountId>`.
+- `New environment` creates only the **environment shell**: name, optional id, category and
+  description. It seeds the four standard planes (`management`, `business`, `database`,
+  `extension`) and leaves `hosts`, `clusters`, `endpoints` and `loginRecords` empty. Nodes
+  are added inside the environment, from the plane they belong to. The shell form never
+  asks for a password.
 - Empty lists show a dashed empty state with `New environment` and `Refresh`.
-- There is no search box in V1; the `record.find` HTTP operation remains available to
-  future screens.
+- There is no global search across environments in V1; the `record.find` HTTP operation
+  remains available to future screens.
 
 ### 6.2a Records
 
@@ -223,29 +227,56 @@ sidebar:
 ```text
 ← Back to environments
 [glyph] Oracle 1        [Edit YAML] [Delete]
-        oracle1  [test]  ● 1 host · 2 accounts
-Environment overview | Hosts & logins | Login records | Endpoints | YAML
+        oracle1  [test]  ● 4 hosts · 5 accounts
+Environment overview | All nodes | Management | Business | Database |
+Expansion / other | Login records | Endpoints | YAML
 ┌────────────────────────────────────┬──────────────────────────┐
 │ Basic information                  │ Access summary           │
-│ ID / category / name / aliases     │ 1 host   2 accounts      │
-│ description / created / updated    │ 1 endpoint 1 failed      │
+│ ID / category / name / aliases     │ 4 hosts   5 accounts     │
+│ description / created / updated    │ 1 endpoint 0 failed      │
 │ hosts / accounts                   │ latest login             │
-│ ┌ Host accounts table ───────────┐ │ Roles                    │
-│ │ username purpose auth last...  │ │ [management] [business]  │
-│ └────────────────────────────────┘ │                          │
+│ Plane distribution                 │ Roles                    │
+│ [Management 2] [Business 2] ...    │ [management] [business]  │
+│ All nodes                          │                          │
+│ [Oracle1] [db-01] [db-02] ...      │                          │
 └────────────────────────────────────┴──────────────────────────┘
 ```
 
-- Tabs are `Environment overview`, `Hosts & logins`, `Login records`, `Endpoints`, `YAML`.
-  The identity row and the back link stay visible above the tabs.
+- Tabs are `Environment overview`, `All nodes`, one tab per declared role (`Management`,
+  `Business`, `Database`, `Expansion / other`), `Login records`, `Endpoints`, `YAML`.
+  The identity row and the back link stay visible above the tabs; tabs wrap rather than
+  hide behind a horizontal scrollbar.
+- The environment is **one network and one YAML document**. Plane tabs are filtered views
+  over `hosts[]`: the same node appears in every plane it serves, and no record is copied
+  per plane. A plane with zero nodes is valid and shows a plane-specific empty state with
+  `Add node`.
 - Overview basic information is a two-column key/value grid. `Edit info` opens an inline
   form for name, aliases, category and description; the ID is immutable. Saving sends the
   full structured record through `save` (`record`, not `yaml`) and then re-reads it.
 - Access summary counts hosts, accounts, endpoints and failed logins; the latest login time
-  and declared roles sit in the right rail.
-- `Hosts & logins` renders one card per host: name, status, IP/port, platform, admin user and
-  credential reference, then a table of accounts (user, purpose, protocol, auth type,
-  credential reference, last login, source). `Add host` and `Add account` open inline forms.
+  and declared roles sit in the right rail. The role card shows node counts per plane and
+  the four standard roles even when the environment declares only some of them.
+- `All nodes` and every plane tab share one node view:
+  - toolbar: search box (id, name, IP, platform, admin user or role), `Add node`,
+    `Batch import`;
+  - one compact card per host: name, active state, IP/port, platform, admin user, account
+    count, credential reference and role chips;
+  - `Edit node` opens the same form prefilled; `Accounts (n)` expands the account table;
+    `Add account` opens the account form for that host.
+- `Add node` / `Edit node` form fields: id (auto-slug when blank), name, IP, SSH port,
+  platform, admin user, credential reference, role checkboxes (at least one) and an
+  optional login username + password. Username and password must be filled together; when
+  present the password is written to `ctx.credentials.set` and the account/credential ref
+  is `env-manager/<environmentId>/<hostId>-<username>`. Editing a node preserves its
+  existing accounts; filling username + password again adds a new password account while
+  leaving the existing accounts and host credential reference intact. Opening the form
+  from a plane tab preselects that role.
+- `Batch import` accepts one node per line:
+  `IP,name,roles,port,user`; multiple roles use `|` or `/`, for example
+  `10.20.30.53,app-01,business|management,22,root`. Import creates hosts and optional
+  accounts but never passwords; the operator binds credentials per node afterwards. The
+  batch parser rejects unknown roles, duplicate IPs, duplicate host ids and invalid ports,
+  and reports the first offending line without saving a partial batch.
 - `Login records` sorts newest-first and shows time, result (success/failure), user, host,
   source IP, protocol and note. `Add login record` opens an inline form with host/account
   pickers; picking an account fills its username. A successful login also updates that
@@ -254,14 +285,17 @@ Environment overview | Hosts & logins | Login records | Endpoints | YAML
 - `Endpoints` lists id, kind, target, URL, port, credential reference and note.
 - `YAML` exposes the whole environment document with `Save` and `Delete`; it is the
   escape hatch, not the primary path. Account and login fields never contain secrets.
-- Forms validate required fields locally (id/name/user/time) and rely on the Host for
-  schema and referential-integrity failures. A Host rejection stays visible above the
-  detail view and the form remains open.
+- Forms validate required fields locally (name, at least one role, IP format/duplicates,
+  port range, and username/password pairing) and rely on the Host for schema and
+  referential-integrity failures. A Host rejection stays visible above the node form and
+  the form remains open; a failed save also removes any credential written for that
+  attempt.
 
 ### 6.4 YAML record editor
 
-Services, deployments, rule profiles and operation bindings. Environments are created
-through the guided form; an existing environment's YAML is editable from its detail tab.
+Services, deployments, rule profiles and operation bindings. Environments are created as
+shells through the dedicated shell form; an existing environment's YAML is editable from
+its detail tab.
 
 ```text
 test-a                                  [Save] [Delete]
@@ -435,14 +469,17 @@ EnvManagerPanel
 │   │   ├── EnvironmentList ── EnvironmentRow
 │   │   ├── EnvironmentDetail
 │   │   │   ├── DetailHeader (back, identity, actions)
-│   │   │   ├── DetailTabs (overview/hosts/logins/endpoints/yaml)
+│   │   │   ├── DetailTabs (overview/all nodes/plane tabs/logins/endpoints/yaml)
 │   │   │   ├── BasicInfo + BasicInfoForm
-│   │   │   ├── AccessSummary + RoleChips
-│   │   │   ├── HostCard ── AccountTable + AccountForm
+│   │   │   ├── AccessSummary + PlaneDistribution + RoleChips
+│   │   │   ├── NodeToolbar (search/add/batch)
+│   │   │   ├── NodeCard ── AccountTable + AccountForm
+│   │   │   ├── NodeForm (multi-role, optional credential)
+│   │   │   ├── BatchNodeForm
 │   │   │   ├── LoginTable + LoginForm
 │   │   │   ├── EndpointTable
 │   │   │   └── YamlEditor
-│   │   └── EnvironmentWizard (guided create: name/id/category/IP/port/user/password)
+│   │   └── EnvironmentWizard (shell create: name/id/category/description + default planes)
 │   ├── RecordsView
 │   │   └── YamlRecordEditor (service/deployment/rule/binding)
 │   ├── ContextView ── ResultBlock
@@ -451,8 +488,8 @@ EnvManagerPanel
 ```
 
 Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `call()`,
-`formatTime()`, `categoryLabel()`, `authLabel()` and the form primitives `Field`,
-`Select` and `TextArea`.
+`formatTime()`, `categoryLabel()`, `authLabel()`, `roleName()`, `countByRole()`,
+`stableSlug()` and the form primitives `Field`, `Select` and `TextArea`.
 
 ## 12. Manual QA checklist
 
@@ -461,17 +498,28 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 - [ ] The sidebar row shows one label, aligned with the shipped rows, and the active
       row uses the host highlight rather than plugin-provided styling.
 - [ ] Panel opens on **Environments**, not Overview or Records.
-- [ ] The header `New environment` action opens the guided form from any tab.
+- [ ] The header `New environment` action opens the guided shell form from any tab.
 - [ ] `Records` excludes Environments and keeps Services/Deployments/Rule Profiles/
       Operation Bindings YAML editing.
 - [ ] Panel renders with an empty `dataDir` and with several environments.
-- [ ] `New environment` creates one environment, host, account and SSH endpoint; the
-      YAML contains the credential reference and never the password.
+- [ ] `New environment` creates one environment shell with the four standard roles and
+      zero hosts; no password is requested and no credential is written.
 - [ ] Environment list summary shows hosts, accounts and login records.
 - [ ] Detail back link returns to the list and keeps the Records tab selected.
 - [ ] Basic info edit round-trips name, aliases, category and description.
-- [ ] Host tab shows every account with auth type and last login source.
-- [ ] Add host / add account / add login record persist and re-render without a reload.
+- [ ] Detail tabs wrap without clipping and show Overview, All nodes, each declared
+      plane, Login records, Endpoints and YAML.
+- [ ] A plane tab shows only nodes with that role; a multi-role node appears in every
+      plane it serves without duplicating the host record.
+- [ ] A plane with zero nodes shows its empty state and `Add node` preselects that role.
+- [ ] Add node requires a name and at least one role; optional username + password writes
+      a credential reference and never a plaintext secret.
+- [ ] Edit node preserves existing accounts and can add/remove roles.
+- [ ] Batch import parses `IP,name,roles,port,user`, supports `|` role separators and
+      rejects unknown roles/duplicate IPs without saving a partial batch.
+- [ ] Node search filters by id, name, IP, platform, admin user and role.
+- [ ] An expanded node card shows every account with auth type and last login source.
+- [ ] Add node / add account / add login record persist and re-render without a reload.
 - [ ] Login records are ordered newest-first and failures use the error color.
 - [ ] Endpoints show target name plus id and preserve URL/credential reference.
 - [ ] YAML tab saves the same document and clears stale detail state after delete.
@@ -488,8 +536,9 @@ Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `c
 ## 13. Out of scope for V1
 
 - Full CRUD forms for services, deployments, rules and bindings.
-- Editing or deleting individual hosts/accounts/logins from the table rows
-  (add + YAML is the V1 path).
+- Deleting individual hosts/accounts/logins from rows (edit + YAML is the V1 path).
+- Database primary/replica/sharding topology; V1 models the database plane as a role and
+  keeps topology detail in node notes.
 - YAML syntax highlighting, folding, or diff view.
 - Topology graphs and dependency visualizations.
 - Creating or editing the session default environment.

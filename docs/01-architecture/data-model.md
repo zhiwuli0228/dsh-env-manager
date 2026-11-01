@@ -87,7 +87,7 @@ interface Host {
   ip?: string;
   publicIp?: string;
   sshPort?: number;         // default 22
-  roles: string[];          // LogicalRole ids; many-to-many is expected
+  roles: string[];          // at least one declared LogicalRole id; many-to-many is expected
   adminUser?: string;
   isActive?: boolean;
   credentialRef?: string;
@@ -149,7 +149,7 @@ interface Environment extends RecordMeta {
   aliases: string[];
   category: EnvironmentCategory;
   description?: string;
-  roles: LogicalRole[];
+  roles: LogicalRole[];     // at least one; standard four are seeded on create
   hosts: Host[];
   clusters: Cluster[];
   endpoints: AccessEndpoint[];
@@ -158,15 +158,49 @@ interface Environment extends RecordMeta {
 }
 ```
 
-### 3.1 Co-location rule
+### 3.1 Environment, plane and node
+
+An **environment** is one complete network and one configuration page. Its management, business
+and database planes are **role views over the same `hosts[]`**, not separate environments and not
+duplicated host records. An environment may also have an expansion / other plane.
+
+```text
+Environment (one network, one YAML document)
+├── LogicalRole: management
+├── LogicalRole: business
+├── LogicalRole: database
+├── LogicalRole: extension
+├── Host: management-plane-01   roles: [management]
+├── Host: app-db-01             roles: [business, database]
+└── Host: app-01                roles: [business]
+```
+
+Consequences:
+
+- A host that serves both the management plane and the business plane is **one** `Host` with
+  `roles: [management, business]`.
+- A host may belong to any number of declared roles; co-location is represented once.
+- The UI renders one tab per role by filtering `hosts[]`; the same node therefore appears in every
+  plane it serves. No role-specific copy of the node exists.
+- A plane with no nodes is valid (for example, a network without a database tier is valid). A node
+  with no role is **not** valid.
+
+Standard role ids are `management`, `business`, `database` and `extension`. They are seeded on
+environment creation so the four plane pages exist before the first node is added. Custom role ids
+are allowed, but `roles` must contain at least one entry and every host must reference at least one
+declared role.
+
+### 3.2 Co-location rule
 
 A host that serves both the management plane and the business plane is **one** `Host` with `roles: [management, business]`.
 
 Forbidden: two host entries with the same hostname or IP that differ only by role.
 
-Validation must reject duplicate host ids within an environment and duplicate `ip` values within an environment.
+Validation must reject duplicate host ids within an environment and duplicate `ip` values within
+an environment. A host must declare at least one role, and every declared role id must exist in
+`Environment.roles`.
 
-### 3.2 Accounts and login audit
+### 3.3 Accounts and login audit
 
 `Host.accounts` records the identities used to access a host. Each account carries a purpose,
 protocol, authentication type, credential reference, and the last observed login time/source.
@@ -180,7 +214,7 @@ audit context remain one atomic write. The UI sorts them newest-first.
 These fields are intentionally lightweight and optional. They are not a replacement for a
 privileged-access-management (PAM) or SIEM system; they are context for DSH sessions.
 
-### 3.3 YAML example
+### 3.4 YAML example
 
 ```yaml
 id: test-a
@@ -771,6 +805,9 @@ Validated on every write and by `env_validate`:
 12. `OperationBinding.skill.name` is non-empty.
 
 Duplicate host ids and duplicate host IPs are also reported as integrity errors.
+Schema validation additionally rejects an environment whose `roles` is empty, and a host whose
+`roles` is empty. A host role that is not declared in `Environment.roles` is reported as
+`ROLE_NOT_FOUND` by integrity validation.
 
 Broken references are reported, never silently repaired.
 

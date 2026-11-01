@@ -67,10 +67,11 @@ Mitigation: a single formatting layer for tool results strips any field named `v
 
 A user may point a production deployment at a test credential. V1 cannot detect this; the result reports `configured: true` without revealing which secret it is. Operational review is required; this is documented as a residual risk.
 
-### 3.4 Threat: password exposure during environment creation
+### 3.4 Threat: password exposure while adding or editing a node
 
-The guided form necessarily holds the password in the browser input and sends it in the
-same-origin JSON request. Mitigations:
+The add/edit node form optionally holds a login password in the browser input and sends it
+in the same-origin JSON request. Shell creation and batch import collect no password.
+Mitigations:
 
 - the route is localhost-only, requires the custom request header, validates origin and
   sends `cache-control: no-store`;

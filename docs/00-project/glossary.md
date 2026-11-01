@@ -2,15 +2,32 @@
 
 ## Environment
 
-A logical target for deployment and operations, such as `dev`, `test-a`, `staging` or `production`.
+One complete network and one configuration page, such as `dev`, `test-a`, `staging` or
+`production`.
 
-Contains roles, hosts, clusters and access endpoints in one record.
+Contains the role catalogue, hosts, clusters and access endpoints in one record. An
+environment must declare at least one logical role; the panel seeds management, business,
+database and expansion by default.
+
+## Plane
+
+A role view over an environment's nodes: management, business, database or expansion.
+
+A plane is **not** a separate environment and has no node copies. Opening a plane tab
+filters the environment's single `hosts[]` collection. A node that serves two planes is one
+host with two roles.
+
+## Node
+
+The user-facing name for a host inside an environment. See **Host**.
 
 ## Host
 
 A single compute node (VM or physical) inside one environment.
 
-Attributes: hostname, OS, IP, SSH port, roles and a `credentialRef`. A host may carry several roles; that is how co-location is expressed.
+Attributes: hostname, OS, IP, SSH port, roles and a `credentialRef`. A host must declare at
+least one role; it may carry several roles, which is how co-location is expressed. It may
+have zero accounts, or accounts that each carry their own `credentialRef`.
 
 ## Cluster
 
@@ -20,9 +37,11 @@ Attributes: kind, API endpoint, namespaces and a `credentialRef`.
 
 ## Logical Role
 
-A named function a host can serve, such as `management`, `business` or `extension`.
+A named function a host can serve, such as `management`, `business`, `database` or
+`extension`.
 
-Hosts and roles are many-to-many via `Host.roles`.
+Hosts and roles are many-to-many via `Host.roles`. Standard role ids are seeded on
+environment creation; custom ids are allowed but must be declared before use.
 
 ## Service
 

@@ -132,6 +132,26 @@ describe('app', () => {
     expect(record.loginRecords?.[1]?.result).toBe('failure')
   })
 
+  it('rejects an environment without a logical role catalogue', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment) as any
+    broken.roles = []
+    await expect(app.save('environment', broken, { actor: 'agent' })).rejects.toMatchObject({
+      code: 'RECORD_INVALID',
+    })
+  })
+
+  it('rejects a host without at least one role', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir)
+    const broken = structuredClone(environment) as any
+    broken.hosts[0].roles = []
+    await expect(app.save('environment', broken, { actor: 'agent' })).rejects.toMatchObject({
+      code: 'RECORD_INVALID',
+    })
+  })
+
   it('reports login records that reference a missing host', async () => {
     const dir = await makeDir()
     const app = makeApp(dir)

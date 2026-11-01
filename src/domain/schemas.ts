@@ -145,7 +145,7 @@ function environmentFields(mode: Mode): Shape {
           mode,
         ),
       )
-      .default([]),
+      .min(1, 'At least one logical role is required'),
     hosts: z
       .array(
         o(
@@ -157,7 +157,7 @@ function environmentFields(mode: Mode): Shape {
             ip: z.string().optional(),
             publicIp: z.string().optional(),
             sshPort: z.number().int().min(1).max(65535).optional(),
-            roles: z.array(z.string().min(1)).default([]),
+            roles: z.array(z.string().min(1)).min(1, 'At least one host role is required'),
             adminUser: z.string().optional(),
             isActive: z.boolean().optional(),
             credentialRef: z.string().min(1).optional(),
