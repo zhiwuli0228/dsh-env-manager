@@ -145,82 +145,98 @@ async function call(op, payload, signal) {
 
 ## 5. Layout
 
+The implemented V1 panel is a centered content column, not a second navigation
+sidebar:
+
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Environment Manager                     [dataDir] [refresh]  │
-├──────────────┬───────────────────────────────────────────────┤
-│ Overview     │  Environments                       [+ New]   │
-│ Environments │  [search……………]                              │
-│ Services     │  ┌──────────────────────────────────────────┐ │
-│ Deployments  │  │ id        name        category   updated │ │
-│ Rules        │  │ test-a    Test A      test       …       │ │
-│ Bindings     │  └──────────────────────────────────────────┘ │
-│ Context      │                                               │
-│ Operation    │  <editor / detail replaces the table on select>│
-│ Diagnostics  │                                               │
-└──────────────┴───────────────────────────────────────────────┘
+│ [glyph] Environment Manager                                  │
+│         Environments, services, deployments, routing.        │
+│                                                              │
+│ Overview   Records   Context   Operations                    │
+│ ─────────                                                    │
+│ Overview                                [Refresh] [Validate] │
+│ ┌────────┬────────┬────────┬────────┬────────┐               │
+│ │ Env 0  │ Svc 0  │ Dep 0  │ Rule 0 │ Bind 0 │               │
+│ └────────┴────────┴────────┴────────┴────────┘               │
+│ ┌──────────────────────────┬──────────────────┐              │
+│ │ Runtime                  │ Warnings       0 │              │
+│ │ dataDir / total records  │ empty state      │              │
+│ └──────────────────────────┴──────────────────┘              │
+│ ┌ Get started (empty registry only) ──────────────────────┐  │
+│ │ 1 Environment → 2 Service → 3 Deployment → 4 Binding    │  │
+│ │                                          [Open records] │  │
+│ └─────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
+- The root is a plugin-owned `div.dem-root` with `height:100%; overflow:auto`; the
+  content column is capped at 1080 px and centered.
+- Title 22 px / 650; subtitle 13 px secondary. The header carries only identity; each
+  view supplies its own toolbar and primary action.
+- Tabs are a horizontal underline strip (`role="tablist"`), never host `nav` styling.
+  Overview / Records / Context / Operations are views; record kinds are a second,
+  segmented control inside Records.
 - Panel background: `--dsw-alias-bg-base`; cards `--dsw-alias-bg-layer-1`; borders
-  `--dsw-alias-border-l1`.
-- Section strip: 180 px fixed, `--dsw-alias-bg-layer-1`; active item uses
-  `--dsw-alias-brand-primary` text and a 2 px left bar.
-- Content scrolls independently; the header stays.
-- Minimum practical width 720 px; below 640 px the strip becomes a `<select>`.
+  `--dsw-alias-border-l1`; secondary text `--dsw-alias-label-secondary`.
+- The primary button is filled with `--dsw-alias-brand-primary` and uses
+  `--dsw-alias-bg-base` for its label; this stays legible in both themes because the
+  brand color and the base background are a contrast pair.
+- Content scrolls with the root. Minimum practical width is 720 px; below 820 px the
+  two-column blocks and the record split stack into one column.
+- Avoid bare `<nav>`/`<section>` layout containers: host global styles can impose
+  height on them. Use prefixed class names and plugin-owned elements.
 
 ## 6. Screens
 
 ### 6.1 Overview
 
-Cards: Environments, Services, Deployments, Rule Profiles, Operation Bindings,
-Diagnostics. Each card shows the count and the number of error/warning diagnostics.
-Below: `dataDir` (copyable), plugin version, last load time, and a "Validate" button.
+- Five compact stat cards: Environments, Services, Deployments, Rule Profiles,
+  Operation Bindings. Each shows the count only; no per-card diagnostics.
+- Two side-by-side cards: Runtime (`dataDir`, total records, version pill) and Warnings
+  (count pill, diagnostic list, or an empty state).
+- `Refresh` reloads `meta`; `Validate` calls `validate` and renders a result card with
+  a pass/fail pill and diagnostics.
+- When the registry is empty, a "Get started" card shows the registration order
+  (environment → service → deployment → operation binding) and opens Records.
 
-### 6.2 List screens (Environments, Services, Deployments, Rules, Bindings)
+### 6.2 Records
 
-A shared `RecordList` component:
-
-- search box filters by id/name/alias on the Host (`record.find`) after 2 characters,
-  debounced 200 ms; locally filters the loaded list otherwise;
-- table columns: `id`, `name`, one kind-specific column, `updatedAt`;
-- clicking a row loads `record.get` and opens the editor;
-- `+ New` opens an empty YAML template for that kind;
-- empty state names the kind and the `dataDir`, with a "Create the first one" action.
-
-Kind-specific column:
-
-| Kind | Column |
-|---|---|
-| environment | `category`, host count |
-| service | `category`, deploy modes |
-| deployment | `environmentId`, `runtimeMode` |
-| ruleProfile | path count, variable count |
-| operationBinding | `operation`, match summary |
+- A kind segmented control: Environments, Services, Deployments, Rule Profiles,
+  Operation Bindings.
+- `New record` loads the kind template into the editor; `Refresh` reloads the list.
+- Two-column master/detail: a bordered list card on the left (name, id, summary) and a
+  YAML editor card on the right. The empty editor offers the same "New record" action.
+- Empty lists show a dashed empty state with a short hint, not a blank card.
+- There is no search box in V1; the `record.find` HTTP operation remains available to
+  future screens.
 
 ### 6.3 Record editor
 
 Shared `RecordEditor`:
 
 ```text
-[back]  test-a                                    [validate] [save]
-──────────────────────────────────────────────────────────────────
- id: test-a                     |  Status: valid / 2 errors
- category: test                 |  (diagnostics list)
- ...                            |
- [YAML textarea, monospace,  |  [preview of parsed summary]
-  min 320px, tab inserts 2]   |
+test-a                                  [Save] [Delete]
+environment / test-a
+┌─────────────────────────────────────────────────────┐
+│ id: test-a                                          │
+│ schemaVersion: 1                                    │
+│ ...                                                 │
+└─────────────────────────────────────────────────────┘
 ```
 
 - The textarea is the source of truth; no form fields in V1. Structured forms are a
   later refinement, and YAML keeps round-tripping honest.
-- `validate` calls `record.save` with `dryRun: true`; the Host validates **without
-  writing**. A `RECORD_INVALID` failure is rendered as inline diagnostics from
-  `error.details.issues` (with `path`), not as a toast. The whole-registry check remains
-  `record.validate`.
-- `save` is disabled while the text is unchanged or invalid.
-- `Ctrl/Cmd+S` triggers save; `Esc` returns to the list.
-- Dirty state prompts before leaving the section.
-- Delete lives in an overflow menu, never beside Save.
+- `Save` sends the whole YAML through `save`; schema failures are shown in an alert with
+  the Host message and code. There is no per-record dry-run button in V1; `Validate`
+  on Overview checks the whole registry.
+- `Delete` asks for confirmation, then calls `remove`. The Host keeps a backup.
+- Production records are still protected by the Host write policy; the panel surfaces
+  `POLICY_DENIED` instead of retrying.
+- Empty editor state offers `New record`, so the user does not have to go back to the
+  toolbar.
+- Keyboard shortcuts (Ctrl/Cmd+S, Esc) and dirty-state prompts are not implemented in
+  V1; they remain on the roadmap.
 
 Production records show a persistent banner:
 "Production environment. Changes affect a live system." with
@@ -228,41 +244,29 @@ Production records show a persistent banner:
 
 ### 6.4 Context Preview
 
-Inputs: environment (select), service (select), deployment (select, optional).
+Inputs: environment id, service id, deployment id (optional), entered as free text with
+example placeholders (`test-a`, `aicoservice`, `deploy-001`).
 
-Output:
+Output in V1: the resolved context as formatted JSON in a scrollable `<pre>`. The Host
+already returns provenance and structured `paths`/`variables`/`logSources`; a table view
+with expandable provenance is a later refinement, not part of the current panel.
 
-1. Header: resolved environment/service/deployment ids and runtime mode.
-2. `paths` table: field, value, `definedBy` badge.
-3. Clicking a row expands `inputs` (field → layer) and `shadowed` (layer + profile).
-4. `variables` table: name, value, `definedBy`.
-5. `logSources[runtime]` and `classLocations[runtime]` cards, each property carrying its
-   own `definedBy` badge.
-6. Credential status list: `credentialRef`, configured source, never a value.
-7. Unknown fields are absent, not blank.
-
-If resolution fails, the diagnostics panel appears above the inputs, each with `code`,
-`message` and the field path.
+If resolution fails, the Host error (code and message) appears in the alert above the
+form.
 
 ### 6.5 Operation Preview
 
-Inputs: operation (`select` of the 13 standard ids), environment, service,
-deployment (optional).
+Inputs: operation id, environment id, service id, deployment id (optional).
 
-Output:
+Output in V1: the routing result as formatted JSON, including the selected binding,
+Skill, policy and parameters. Conflicts and missing Skills surface as the Host error
+alert. A per-field policy card and an "also matched" list are later refinements.
 
-1. Selected binding id, match level, and the reason it won.
-2. Skill: name, `available` (true/false/unknown), source, provider.
-3. Policy: `requiresApproval`, `allowProduction`, and the production verdict.
-4. Parameters table with resolved values.
-5. Every lower-level binding that was eligible, collapsed under "also matched".
+### 6.6 Validation
 
-Conflicts render as an error card listing all candidates — never a silent winner.
-
-### 6.6 Diagnostics
-
-Table: severity, code, message, file, field path. Filters: severity, kind. Buttons:
-"Reload registry" (`meta`), "Copy report".
+There is no separate Diagnostics tab in V1. `Validate` on Overview calls the whole
+registry check and renders its result card: pass/fail pill plus diagnostics with
+severity, code and message. `Refresh` reloads `meta` and its warnings.
 
 ### 6.7 Bundle config page
 

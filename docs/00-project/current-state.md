@@ -4,19 +4,26 @@ This file is the **project continuity snapshot**. Update it after every complete
 
 ## Current Phase
 
-**V1 is installed in the `desktop` profile and live-verified; visual QA of the panel
-remains.**
+**V1 is installed in the `desktop` profile and live-verified; the panel has been rebuilt
+and visually checked on Overview, Records and Context.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. The
 storage, registry, resolver, router, session store, application service, ten tools and
 same-origin HTTP API are in place, with 34 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The Host
 tools answer in this session, the HTTP API returns `200` for `meta`, and a
-save/list/remove round-trip through the panel transport succeeded. The sidebar glyph now
+save/list/remove round-trip through the panel transport succeeded. The sidebar glyph
 follows the host `sidebar.panellist` contract: it honors the owner's `size`/`active`
 props and renders monochrome with `currentColor`; the contract is recorded in
-[`client-ui-integration.md`](../02-harness/client-ui-integration.md). Visual layout and
-interaction QA in the browser is still pending.
+[`client-ui-integration.md`](../02-harness/client-ui-integration.md).
+
+The panel was rebuilt around the host's visual language: a centered 1080 px column,
+22 px title with a glyph mark, underline tabs, compact stat cards, two-column runtime /
+warnings cards, an empty-registry onboarding card, and a master/detail Records view.
+The old layout used a bare `nav` that host global CSS stretched to full height, producing
+a tall floating tab strip; the new panel uses plugin-owned elements and scoped classes.
+Overview, Records, Context and Operations were visually checked against the live desktop
+window. The editor with a real record still needs a click-through.
 
 ## Implemented
 
@@ -94,7 +101,9 @@ dsh-env-manager/
 
 ## Known Gaps
 
-- Panel visual layout and interaction QA in the browser is still pending.
+- The record editor with real data still needs a click-through in the live window;
+  Overview, Records empty state, Context and Operations were visually checked.
+- Light theme contrast has not been checked yet.
 - Runtime probes V4 (approval from a tool body) and V6 (live credential `describe`)
   in `api-verification.md` §4 are not exercised yet.
 - The profile currently has no registry records, so the panel shows empty lists.
