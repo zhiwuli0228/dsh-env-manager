@@ -46,6 +46,15 @@ as PR [#11185](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/111
 (`data/plugins/zhiwuli0228__dsh-env-manager.yml`, category `dev`). The repository has the
 `dsh-plugin` topic; the listing is pending CI/review.
 
+**Installation smoke test (2026-11-02):** removed the old local bundle
+`dsh-env-manager` from the `desktop` profile, including its package dependency, bundle
+entry, lockfile reference and stale `node_modules/dsh-env-manager` symlink. Reinstalled
+the published package as `dsh-env-manager-plugin@0.1.0` from npm. The discovery Skill,
+ten tools, sidebar panel and `/env-manager/api` transport all came back; the API reported
+the preserved registry data (2 environments, 3 services, 3 deployments, 0 rule profiles,
+0 operation bindings) and no warnings. Registry data was intentionally not deleted during
+uninstall.
+
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
