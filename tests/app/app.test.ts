@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { promises as fs } from 'node:fs'
+import { promises as fs, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { cleanup, environment, tempDir, writeFixture } from '../helpers.js'
 import { SessionStore } from '../../src/session/session.js'
-import { App } from '../../src/app/app.js'
+import { App, VERSION } from '../../src/app/app.js'
 import { parseRecordInput } from '../../src/domain/schemas.js'
 import { silentLogger } from '../../src/logger.js'
 
@@ -18,6 +18,13 @@ async function makeDir(): Promise<string> {
   dirs.push(dir)
   return dir
 }
+
+describe('version', () => {
+  it('matches package.json', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'))
+    expect(VERSION).toBe(pkg.version)
+  })
+})
 
 describe('session store', () => {
   it('sets, gets and clears the default environment', async () => {

@@ -149,13 +149,13 @@ an unrelated package). Install it as a profile bundle; do not install it with
 
 ### From npm
 
-`dsh-env-manager-plugin@0.1.1` is the install-hardening patch release; `0.1.0` was the
+`dsh-env-manager-plugin@0.1.2` is the install-hardening patch release; `0.1.0` was the
 first published release. Install the bundle through the Harness plugin manager; do **not**
 use `dsh plugin add` for activation:
 
 ```text
 action: install_bundle
-target: dsh-env-manager-plugin@0.1.1
+target: dsh-env-manager-plugin@0.1.2
 ```
 
 `plugin_manager` adds the package to the profile exactly once. Do not also add it to
@@ -233,10 +233,11 @@ Key documents:
 
 ## Release
 
-`v0.1.0` is published to [npm](https://www.npmjs.com/package/dsh-env-manager-plugin)
-and to [GitHub Releases](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.0).
-The 0.1.0 version was bootstrapped manually so the package name exists; later tags are
-published by the workflow through npm Trusted Publisher (OIDC).
+`v0.1.2` is the latest install-hardening release. `v0.1.0` was the first published
+release and was bootstrapped manually so the package name exists; later tags are
+published by the workflow through npm Trusted Publisher (OIDC). See
+[npm](https://www.npmjs.com/package/dsh-env-manager-plugin) and
+[GitHub Releases](https://github.com/zhiwuli0228/dsh-env-manager/releases).
 
 Pushing an annotated `v*` tag triggers `.github/workflows/release.yml`: it verifies the
 tag matches `package.json`, runs `npm run check`, packs the npm tarball, publishes with
@@ -245,8 +246,8 @@ If the npm version already exists, the workflow skips publish and still creates 
 Release, so a partial release can be recovered by dispatching the same tag.
 
 ```sh
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
+git tag -a v0.1.2 -m "v0.1.2"
+git push origin v0.1.2
 ```
 
 The **first** publish had to be bootstrapped manually so the npm package existed; bind

@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import { EnvManagerError, type ErrorCode } from '../domain/errors.js'
 import { LIMITS, isRecordKind } from '../domain/constants.js'
 import { parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
@@ -38,7 +39,10 @@ import { deleteRecordFile, readRecordRaw, writeRecordFile } from '../storage/rec
 import { ensureLayout } from '../storage/atomic.js'
 import type { Logger } from '../logger.js'
 
-export const VERSION = '0.1.0'
+const require = createRequire(import.meta.url)
+const packageJson = require('../../package.json') as { version: string }
+
+export const VERSION = packageJson.version
 
 export interface AppOptions {
   dataDir: string

@@ -1,6 +1,6 @@
 import type { Actor, CredentialDirectory, Diagnostic, FindResult, GetResult, ListResult, MetaResult, OperationResolution, RecordKind, RemoveOptions, RemoveResult, ResolveRequest, RouteRequest, SaveOptions, SaveResult, ServiceContext, SessionContext, SkillDirectory, ValidationReport } from '../domain/types.js';
 import type { Logger } from '../logger.js';
-export declare const VERSION = "0.1.0";
+export declare const VERSION: string;
 export interface AppOptions {
     dataDir: string;
     maxRecords: number;
