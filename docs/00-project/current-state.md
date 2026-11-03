@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 51 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 52 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -31,14 +31,16 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
-**Release status (2026-11-01):** `dsh-env-manager-plugin@0.1.0` is published and is the
-`latest` npm tag (`gitHead` `4d884e7`). The
-[GitHub Release v0.1.0](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.0)
-contains `dsh-env-manager-plugin-0.1.0.tgz`; workflow run
-[`41323001406`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/41323001406)
-completed successfully. The 0.1.0 publish itself was bootstrapped manually; the workflow
-detected the existing version, skipped npm publish, and created the Release. Later versions
-use npm Trusted Publisher/OIDC through the same workflow.
+**Release status (2026-11-03):** `dsh-env-manager-plugin@0.1.2` is the `latest` npm tag
+and the install-hardening patch release (committed `lib/`, clear missing-build error,
+`plugin_manager`-only install docs, `scripts/repair-profile.mjs`, runtime version
+reported from `package.json`). It is published by the Trusted Publisher workflow with
+npm provenance; the [GitHub Release
+v0.1.2](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.2) contains
+`dsh-env-manager-plugin-0.1.2.tgz`. `v0.1.1` shipped the same install fixes; `0.1.0`
+was bootstrapped manually before the Trusted Publisher binding, and its workflow
+([`41323001406`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/41323001406))
+skipped npm publish because the version already existed.
 
 **Plugin directory:** submitted to
 [`awesome-dsh-plugin/awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
@@ -62,6 +64,8 @@ error, and the install docs use `plugin_manager install_bundle` instead of the
 dependency-only `dsh plugin add` command. `scripts/repair-profile.mjs` detects duplicate
 or legacy bundle entries and offers an atomic `--fix` with a backup. The published
 `0.1.0` npm tarball already contained `lib/`; this fixes checkout and git installs.
+`0.1.2` additionally reports the runtime version from `package.json` so the API `meta`
+call no longer hardcodes `0.1.0`.
 
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
