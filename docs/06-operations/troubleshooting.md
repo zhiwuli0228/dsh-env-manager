@@ -1,5 +1,56 @@
 # Troubleshooting
 
+## Install fails with "Cannot find module .../lib/index.js"
+
+This means DSH found the bundle but the Host build output was absent or incomplete.
+
+1. Prefer the published package: `plugin_manager` → `install_bundle` with
+   `dsh-env-manager-plugin@0.1.0`. The npm tarball includes `lib/`.
+2. If installing a local checkout, use the current `main`; `lib/` is committed there on
+   purpose. Older clones did not include it.
+3. If the checkout is older or `lib/` was deleted, run `npm install && npm run build`
+   in the repository, then reinstall the bundle.
+4. Do not copy only `index.js` into a profile; the bundle needs `lib/`, `client.js`,
+   `cordis.patch.yml` and the locale files together.
+
+`index.js` now reports this condition with a dedicated message instead of a bare
+`ERR_MODULE_NOT_FOUND`.
+
+## DSH does not start: duplicate bundle registration
+
+The plugin must appear **once** in the profile. A failed manual install often leaves both
+an old `dsh-env-manager` entry and a new `dsh-env-manager-plugin` entry, which inserts the
+same loader row twice.
+
+For the affected profile, stop DSH, back up both files, and inspect:
+
+```powershell
+$p = Join-Path $HOME '.dsh\profiles\<profile>'
+Get-Content -Raw (Join-Path $p 'package.json')
+Get-ChildItem (Join-Path $p 'node_modules') | Where-Object Name -match 'env-manager'
+```
+
+In `package.json`:
+
+- keep `dsh-env-manager-plugin` exactly once in `dependencies`;
+- keep `dsh-env-manager-plugin` exactly once in `dsh.profile.bundles`;
+- remove the legacy `dsh-env-manager` dependency and bundle entry;
+- do not add a second bundle entry by hand.
+
+Then remove any stale `node_modules/dsh-env-manager` link and reinstall through
+`plugin_manager`. Do not copy files into the profile as a workaround.
+
+From a checkout you can run the repair helper before restarting:
+
+```powershell
+node scripts/repair-profile.mjs --profile <profile>
+node scripts/repair-profile.mjs --profile <profile> --fix
+```
+
+The helper edits only `package.json` (with a timestamped backup); it never deletes
+registry data. The same file ships in the npm package as
+`node_modules/dsh-env-manager-plugin/scripts/repair-profile.mjs`.
+
 ## Plugin is not visible after install
 
 1. Ask `plugin_manager` for `action: list_bundles` — confirm the bundle is listed.

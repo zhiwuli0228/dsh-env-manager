@@ -1,0 +1,10 @@
+import type { RecordKind } from '../domain/types.js';
+export declare function resolveDataDir(configured: string, profileDir: string, cwd: string, home: string): string;
+export declare function kindDir(dataDir: string, kind: RecordKind): string;
+export declare function isValidId(id: string): boolean;
+export declare function resolveRecordPath(dataDir: string, kind: RecordKind, id: string): string;
+export declare function sessionFileName(sessionId: string): string;
+export declare function sessionPath(dataDir: string, sessionId: string): string;
+export declare function backupsDir(dataDir: string): string;
+export declare function backupDir(dataDir: string, kind: RecordKind, id: string): string;
+export declare function sessionBackupDir(dataDir: string, sessionId: string): string;

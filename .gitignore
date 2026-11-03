@@ -4,7 +4,9 @@ yarn.lock
 pnpm-lock.yaml
 
 # Build outputs
-lib/
+# lib/ is intentionally tracked: DSH installs a bundle from the checkout or a
+# git tarball without running package lifecycle scripts, so a committed lib/
+# is what keeps `lib/index.js` present on every install path.
 dist/
 build/
 *.tsbuildinfo

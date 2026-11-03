@@ -28,7 +28,8 @@
     "icon.svg",
     "README.md",
     "LICENSE",
-    "docs/"
+    "docs/",
+    "scripts/repair-profile.mjs"
   ],
   "keywords": [
     "dsh",
@@ -82,7 +83,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run build && npm test && node --check client.js",
+    "check": "npm run typecheck && npm run build && npm test && node --check client.js && node --check index.js",
+    "repair:profile": "node scripts/repair-profile.mjs",
     "prepack": "npm run build"
   },
   "main": "index.js",

@@ -55,6 +55,14 @@ the preserved registry data (2 environments, 3 services, 3 deployments, 0 rule p
 0 operation bindings) and no warnings. Registry data was intentionally not deleted during
 uninstall.
 
+**Install hardening (2026-11-03):** reproduced the reported failure from a clean clone:
+`lib/` was git-ignored, so a checkout installed without a build had no `lib/index.js`.
+The compiled `lib/` tree is now committed, `index.js` reports a specific missing-build
+error, and the install docs use `plugin_manager install_bundle` instead of the
+dependency-only `dsh plugin add` command. `scripts/repair-profile.mjs` detects duplicate
+or legacy bundle entries and offers an atomic `--fix` with a backup. The published
+`0.1.0` npm tarball already contained `lib/`; this fixes checkout and git installs.
+
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,

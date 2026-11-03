@@ -212,7 +212,7 @@ dsh-env-manager/
 ├── package.json          # Bundle manifest
 ├── tsconfig.json         # Host build config
 ├── src/                  # TypeScript Host sources
-├── lib/                  # Build output (git-ignored)
+├── lib/                  # Compiled Host output (committed; see install docs)
 ├── locale/
 │   ├── en.json
 │   └── zh.json

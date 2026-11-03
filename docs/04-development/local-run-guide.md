@@ -2,6 +2,9 @@
 
 ## Build
 
+The repository commits the compiled `lib/` directory, so a fresh checkout is installable
+without a build. Rebuild only after changing `src/`:
+
 ```bash
 npm install
 npm run build
@@ -15,6 +18,9 @@ In a DSH session, call the `plugin_manager` tool:
 action: install_bundle
 target: <absolute path to this repository>
 ```
+
+The install is one bundle entry. Do not also edit `dsh.profile.bundles` by hand; a second
+entry loads the plugin twice and prevents DSH from starting.
 
 Restart DSH if the bundle was already installed before this change.
 

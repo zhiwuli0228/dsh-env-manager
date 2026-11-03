@@ -149,20 +149,33 @@ an unrelated package). Install it as a profile bundle; do not install it with
 
 ### From npm
 
-`dsh-env-manager-plugin@0.1.0` is the first published release.
+`dsh-env-manager-plugin@0.1.0` is the first published release. Install the bundle
+through the Harness plugin manager; do **not** use `dsh plugin add` for activation:
 
-```sh
-dsh plugin --profile <name> add dsh-env-manager-plugin@0.1.0
+```text
+action: install_bundle
+target: dsh-env-manager-plugin@0.1.0
 ```
+
+`plugin_manager` adds the package to the profile exactly once. Do not also add it to
+`dsh.profile.bundles` by hand, and do not install both the old local bundle name
+(`dsh-env-manager`) and the npm package: duplicate bundle entries load the same plugin
+twice and can prevent DSH from starting.
 
 ### From a local checkout
 
-Use the Harness `plugin_manager` tool:
+The repository includes the compiled `lib/` directory, so an unmodified checkout does not
+need a build step. Use the Harness `plugin_manager` tool with the absolute repository
+path:
 
 ```text
 action: install_bundle
 target: <absolute path to this repository>
 ```
+
+If you change `src/`, run `npm run build` before reinstalling. The build output is
+committed on purpose so installs from a checkout or a git tarball do not depend on
+lifecycle scripts running in the target profile.
 
 Then restart DSH if the bundle was already installed.
 
@@ -192,7 +205,7 @@ dsh-env-manager/
 ├── .github/workflows/    # GitHub Actions release pipeline
 ├── src/                  # TypeScript Host sources (V1)
 │   └── skill.ts          # bundled profile-wide discovery Skill
-├── lib/                  # Build output (git-ignored)
+├── lib/                  # Compiled Host output (committed for installs)
 ├── locale/               # en.json, zh.json
 ├── icon.svg
 ├── docs/                 # Design, harness and operations docs

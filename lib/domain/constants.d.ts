@@ -1,0 +1,21 @@
+import type { RecordKind } from './types.js';
+export declare const SCHEMA_VERSION = 1;
+export declare const ID_PATTERN: RegExp;
+export declare const SESSION_ID_PATTERN: RegExp;
+export declare const PARAMETER_KEY_PATTERN: RegExp;
+export declare const TEMPLATE_REF_PATTERN: RegExp;
+export declare const RECORD_KINDS: readonly RecordKind[];
+export declare const KIND_DIRECTORIES: Record<RecordKind, string>;
+export declare const STANDARD_OPERATIONS: readonly ["install", "deploy", "redeploy", "replace", "restart", "upgrade", "rollback", "uninstall", "collect-logs", "health-check", "inspect", "upload", "download"];
+export declare const WRITE_OPERATIONS: ReadonlySet<string>;
+export declare const LIMITS: {
+    readonly recordBytes: number;
+    readonly sessionBytes: number;
+    readonly templateLength: 2048;
+    readonly maxParameters: 50;
+    readonly maxDiagnostics: 200;
+    readonly maxWarnings: 20;
+    readonly backupCount: 5;
+    readonly maxSnapshotRecords: 5000;
+};
+export declare function isRecordKind(value: string): value is RecordKind;
