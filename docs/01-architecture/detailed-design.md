@@ -468,13 +468,14 @@ A binding is eligible when:
 
 | Field | Matches |
 |---|---|
-| `environmentId` | context environment id |
+| `environmentId` | context environment id (ineligible when the context has none) |
 | `serviceId` | context service id |
-| `deploymentId` | context deployment id (requires a deployment) |
-| `deploymentMode` | context runtime mode |
+| `deploymentId` | context deployment id (ineligible without a deployment) |
+| `deploymentMode` | context runtime mode (ineligible without a deployment) |
 | `serviceCategory` | service category |
 
-An empty `match` matches everything.
+An empty `match` matches everything. A context without an environment makes only the
+`service`, `category-mode` and `global` levels eligible.
 
 A binding whose `match` is not one of the five documented shapes is `RECORD_INVALID` at
 load (data-model §7); the router never sees such a binding.

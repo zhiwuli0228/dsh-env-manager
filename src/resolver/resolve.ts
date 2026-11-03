@@ -19,7 +19,7 @@ import { parseTemplate, refsOf, templateIsSingleRef, type TemplatePart } from '.
 import { buildLayers, mergeLayers, type MergedField } from './merge.js'
 
 export interface ResolveInput {
-  environment: Environment
+  environment?: Environment
   service: Service
   deployment?: Deployment
   ruleProfiles: Map<string, RuleProfile>
@@ -59,14 +59,16 @@ function flattenConstants(
 }
 
 function buildConstants(
-  environment: Environment,
+  environment: Environment | undefined,
   service: Service,
-  deployment: Deployment,
+  deployment: Deployment | undefined,
 ): Map<string, string> {
   const constants = new Map<string, string>()
-  constants.set('env.id', environment.id)
-  constants.set('env.name', environment.name)
-  constants.set('env.category', environment.category)
+  if (environment) {
+    constants.set('env.id', environment.id)
+    constants.set('env.name', environment.name)
+    constants.set('env.category', environment.category)
+  }
   constants.set('service.id', service.id)
   constants.set('service.name', service.name)
   constants.set('service.category', service.category)
@@ -74,10 +76,12 @@ function buildConstants(
     constants.set('service.artifact.name', service.artifact.name)
     if (service.artifact.path) constants.set('service.artifact.path', service.artifact.path)
   }
-  constants.set('deployment.id', deployment.id)
-  if (deployment.name) constants.set('deployment.name', deployment.name)
-  constants.set('deployment.runtimeMode', deployment.runtimeMode)
-  flattenConstants(deployment.location, 'deployment.location', constants)
+  if (deployment) {
+    constants.set('deployment.id', deployment.id)
+    if (deployment.name) constants.set('deployment.name', deployment.name)
+    constants.set('deployment.runtimeMode', deployment.runtimeMode)
+    flattenConstants(deployment.location, 'deployment.location', constants)
+  }
   return constants
 }
 
@@ -102,19 +106,6 @@ function errorDiagnostic(error: unknown, path: string): Diagnostic {
 export function resolveContext(input: ResolveInput): ResolveResult {
   const { environment, service, deployment, ruleProfiles } = input
   const diagnostics: Diagnostic[] = []
-
-  if (!deployment) {
-    return {
-      ok: false,
-      diagnostics: [
-        {
-          code: 'DEPLOYMENT_NOT_FOUND',
-          severity: 'error',
-          message: 'A deployment is required to build a service context',
-        },
-      ],
-    }
-  }
 
   const activeDeployment = deployment
   const { layers, missingProfiles } = buildLayers(service, environment, activeDeployment, ruleProfiles)
@@ -280,7 +271,8 @@ export function resolveContext(input: ResolveInput): ResolveResult {
   function structured<T extends LogSource | ClassLocation>(
     prefix: 'logSources' | 'classLocations',
   ): ResolvedStructured<T> | undefined {
-    const runtime: RuntimeMode = activeDeployment.runtimeMode
+    const runtime: RuntimeMode | undefined = activeDeployment?.runtimeMode
+    if (!runtime) return undefined
     const propertyPrefix = `${prefix}.${runtime}.`
     const keys = [...fields.keys()].filter((key) => key.startsWith(propertyPrefix))
     if (keys.length === 0) return undefined
@@ -304,15 +296,24 @@ export function resolveContext(input: ResolveInput): ResolveResult {
   }
 
   const context: ServiceContext = {
-    environmentId: environment.id,
-    environmentName: environment.name,
-    environmentCategory: environment.category,
+    ...(environment
+      ? {
+          environmentId: environment.id,
+          environmentName: environment.name,
+          environmentCategory: environment.category,
+        }
+      : {}),
     serviceId: service.id,
     serviceName: service.name,
     serviceCategory: service.category,
-    deploymentId: deployment.id,
-    deploymentName: deployment.name,
-    runtimeMode: activeDeployment.runtimeMode,
+    ...(activeDeployment
+      ? {
+          deploymentId: activeDeployment.id,
+          deploymentName: activeDeployment.name,
+          runtimeMode: activeDeployment.runtimeMode,
+          location: activeDeployment.location,
+        }
+      : {}),
     source: {
       gitUrl: service.git?.url,
       defaultBranch: service.git?.defaultBranch,
@@ -321,7 +322,6 @@ export function resolveContext(input: ResolveInput): ResolveResult {
     artifact: service.artifact
       ? { name: service.artifact.name, path: service.artifact.path }
       : undefined,
-    location: activeDeployment.location,
     variables,
     paths,
     logSource,

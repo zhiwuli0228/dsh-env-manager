@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { promises as fs, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { cleanup, environment, tempDir, writeFixture } from '../helpers.js'
+import { cleanup, environment, tempDir, writeFixture, writeRecord } from '../helpers.js'
 import { SessionStore } from '../../src/session/session.js'
 import { App, VERSION } from '../../src/app/app.js'
 import { parseRecordInput } from '../../src/domain/schemas.js'
@@ -309,6 +309,61 @@ describe('app', () => {
     expect(context.credentials.find((item) => item.ref === 'cred-test-a-kubeconfig')?.configured).toBe(true)
     expect(context.credentials.find((item) => item.ref === 'cred-test-a-root')?.configured).toBe(false)
     expect(warnings.some((item) => item.code === 'CREDENTIAL_MISSING')).toBe(true)
+  })
+
+  it('resolves a service-level context without an environment', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    const app = makeApp(dir)
+    const { context, warnings } = await app.resolve({ serviceId: 'aicoservice' })
+    expect(context.environmentId).toBeUndefined()
+    expect(context.deploymentId).toBeUndefined()
+    expect(context.runtimeMode).toBeUndefined()
+    expect(context.paths.jar?.value).toContain('aicoservice.jar')
+    expect(context.credentials).toEqual([])
+    expect(warnings.some((item) => item.code === 'CREDENTIAL_MISSING')).toBe(false)
+  })
+
+  it('infers the environment from a deployment when only deploymentId is given', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    const app = makeApp(dir)
+    const { context } = await app.resolve({ serviceId: 'aicoservice', deploymentId: 'deploy-001' })
+    expect(context.environmentId).toBe('test-a')
+    expect(context.deploymentId).toBe('deploy-001')
+    expect(context.runtimeMode).toBe('kubernetes')
+  })
+
+  it('routes an operation at service level without an environment', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    await writeRecord(dir, 'operationBinding', {
+      id: 'binding-svc',
+      schemaVersion: 1,
+      operation: 'redeploy',
+      match: { serviceId: 'aicoservice' },
+      skill: { name: 'redeploy-k8s-service' },
+      parameters: { home: '${paths.serviceHome}' },
+      policy: { requiresApproval: true, allowProduction: false },
+      enabled: true,
+      createdAt: '2026-11-01T03:00:00.000Z',
+      updatedAt: '2026-11-01T03:00:00.000Z',
+    })
+    const app = makeApp(dir, {
+      skills: {
+        async snapshot() {
+          return {
+            complete: true,
+            skills: [{ name: 'redeploy-k8s-service', source: 'project-dsh', provider: 'bundled' }],
+          }
+        },
+      },
+    })
+    const resolution = await app.route({ operation: 'redeploy', serviceId: 'aicoservice' })
+    expect(resolution.ok).toBe(true)
+    expect(resolution.matchLevel).toBe('service')
+    expect(resolution.requested.environmentId).toBeUndefined()
+    expect(resolution.parameters).toMatchObject({ home: '/opt/company/services/aicoservice' })
   })
 
   it('fails safely on ambiguous deployments', async () => {

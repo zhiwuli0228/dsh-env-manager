@@ -16,7 +16,7 @@ export interface MergeResult {
     fields: Map<string, MergedField>;
     layers: Layer[];
 }
-export declare function buildLayers(service: Service, environment: Environment, deployment: Deployment, ruleProfiles: Map<string, RuleProfile>): {
+export declare function buildLayers(service: Service, environment: Environment | undefined, deployment: Deployment | undefined, ruleProfiles: Map<string, RuleProfile>): {
     layers: Layer[];
     missingProfiles: string[];
 };

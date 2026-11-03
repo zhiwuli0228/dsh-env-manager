@@ -7,7 +7,9 @@ import type {
   AnyRecord,
   CredentialDirectory,
   CredentialStatus,
+  Deployment,
   Diagnostic,
+  Environment,
   FindHit,
   FindResult,
   GetResult,
@@ -441,14 +443,6 @@ export class App {
 
   async resolve(request: ResolveRequest): Promise<ResolveOutcome> {
     const snapshot = await this.snapshot()
-    const environment = lookupByRef(snapshot, 'environment', request.environmentId)
-    if (!environment) {
-      throw new EnvManagerError(
-        'ENV_NOT_FOUND',
-        `Environment "${request.environmentId}" was not found`,
-        { environmentId: request.environmentId },
-      )
-    }
     const service = lookupByRef(snapshot, 'service', request.serviceId)
     if (!service) {
       throw new EnvManagerError(
@@ -457,7 +451,48 @@ export class App {
         { serviceId: request.serviceId },
       )
     }
-    const deployment = this.selectDeployment(snapshot, environment.id, service.id, request.deploymentId)
+    // Environment and deployment are optional refinement layers. With neither, the
+    // context is service-level (service + global rule layers only). A deployment
+    // supplies its own environment when the caller did not name one.
+    let environment: Environment | undefined
+    if (request.environmentId) {
+      environment = lookupByRef(snapshot, 'environment', request.environmentId)
+      if (!environment) {
+        throw new EnvManagerError(
+          'ENV_NOT_FOUND',
+          `Environment "${request.environmentId}" was not found`,
+          { environmentId: request.environmentId },
+        )
+      }
+    }
+    let deployment: Deployment | undefined
+    if (request.deploymentId) {
+      deployment = lookup(snapshot, 'deployment', request.deploymentId)
+      if (!deployment || deployment.serviceId !== service.id) {
+        throw new EnvManagerError(
+          'DEPLOYMENT_NOT_FOUND',
+          `Deployment "${request.deploymentId}" does not bind service "${service.id}"`,
+          { deploymentId: request.deploymentId, serviceId: service.id },
+        )
+      }
+      if (environment && deployment.environmentId !== environment.id) {
+        throw new EnvManagerError(
+          'DEPLOYMENT_NOT_FOUND',
+          `Deployment "${request.deploymentId}" does not bind ${environment.id}/${service.id}`,
+          { deploymentId: request.deploymentId, environmentId: environment.id, serviceId: service.id },
+        )
+      }
+      environment ??= lookupByRef(snapshot, 'environment', deployment.environmentId)
+      if (!environment) {
+        throw new EnvManagerError(
+          'ENV_NOT_FOUND',
+          `Deployment "${request.deploymentId}" references missing environment "${deployment.environmentId}"`,
+          { deploymentId: request.deploymentId, environmentId: deployment.environmentId },
+        )
+      }
+    } else if (environment) {
+      deployment = this.selectDeployment(snapshot, environment.id, service.id)
+    }
     const result = resolveContext({
       environment,
       service,
@@ -472,7 +507,9 @@ export class App {
         { diagnostics: result.diagnostics },
       )
     }
-    const credentials = await this.describeCredentials(environment.hosts, environment.clusters, environment.endpoints)
+    const credentials = environment
+      ? await this.describeCredentials(environment.hosts, environment.clusters, environment.endpoints)
+      : []
     const context = result.context
     const warnings: Diagnostic[] = []
     for (const credential of credentials) {
@@ -571,34 +608,12 @@ export class App {
     snapshot: RegistrySnapshot,
     environmentId: string,
     serviceId: string,
-    deploymentId?: string,
-  ) {
-    if (deploymentId) {
-      const deployment = lookup(snapshot, 'deployment', deploymentId)
-      if (
-        !deployment ||
-        deployment.environmentId !== environmentId ||
-        deployment.serviceId !== serviceId
-      ) {
-        throw new EnvManagerError(
-          'DEPLOYMENT_NOT_FOUND',
-          `Deployment "${deploymentId}" does not bind ${environmentId}/${serviceId}`,
-          { deploymentId, environmentId, serviceId },
-        )
-      }
-      return deployment
-    }
+  ): Deployment | undefined {
     const candidates = [...snapshot.deployments.values()].filter(
       (deployment) =>
         deployment.environmentId === environmentId && deployment.serviceId === serviceId,
     )
-    if (candidates.length === 0) {
-      throw new EnvManagerError(
-        'DEPLOYMENT_NOT_FOUND',
-        `No deployment binds ${environmentId}/${serviceId}`,
-        { environmentId, serviceId },
-      )
-    }
+    if (candidates.length === 0) return undefined
     if (candidates.length > 1) {
       throw new EnvManagerError(
         'DEPLOYMENT_AMBIGUOUS',

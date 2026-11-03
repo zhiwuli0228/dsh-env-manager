@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 52 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 61 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -91,6 +91,24 @@ the implementation (including the wrong id) instead of the contract. It is now a
 `development-guide.md`; install smoke checks should confirm the client module actually
 materialized (Slots tree registrant equals the module name, not the shell placeholder
 row).
+
+**Operation routing decoupled from environments (2026-11-03):** the environment is no
+longer a mandatory axis for context resolution or operation routing. `env_resolve` and
+`env_resolve_operation` accept a bare `serviceId` (or `deploymentId`, which supplies its
+service and environment): the resolved `ServiceContext` then carries the service and
+global rule layers only, and routing matches `service` / `category-mode` / `global`
+bindings while `deployment` / `environment-service` predicates are simply ineligible
+without an environment. `OperationResolution.requested.environmentId` is optional.
+Write operations routed without an environment get a `PRODUCTION_CHECK_SKIPPED` warning
+instead of a production denial — production operations are expected to carry an
+environment. A deployment remains *current placement* (still `environmentId`-scoped) but
+is no longer a routing prerequisite: machine binding is resolved at execution time.
+Schema version stays `1` (fields only became optional; existing records remain valid).
+Tests grew to 61 (service-only context, environment-layer-without-deployment, service /
+global routing from an environment-less context, environment-scoped ineligibility,
+production-check skip, deployment→environment inference, service-level route through the
+app). Docs updated: `design.md` §7, `data-model.md` §4/§5/§8 and diagnostics catalogue,
+`operation-binding-template.md`, `deployment-template.md`, client hints.
 
 **Global name sweep (2026-11-03):** a full scan of `dsh-env-manager` vs
 `dsh-env-manager-plugin` across the repo and the `desktop` profile found no other runtime

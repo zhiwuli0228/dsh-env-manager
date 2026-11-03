@@ -39,6 +39,13 @@ Every declared selector must match. The highest eligible level wins. Two eligibl
 
 A `match` must be exactly one of these five shapes. For example `environmentId` alone, or `environmentId` + `deploymentMode`, is invalid (`RECORD_INVALID`).
 
+**Environment is optional in routing.** A context without an environment makes only the
+`service`, `category-mode` and `global` levels eligible (`deployment` and
+`environment-service` predicates need an environment). Prefer `service`-level or broader
+bindings for operations that apply wherever the service runs; use
+`environment-service` / `deployment` to narrow a route to one environment or instance.
+`deploymentMode` is only comparable when the context carries a deployment.
+
 ## Standard operations
 
 ```text

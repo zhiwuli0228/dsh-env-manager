@@ -6,7 +6,7 @@ P1 artifact. V1 defines the type and a null bridge; it does not persist records.
 interface OperationRecord {
   id: string;
   sessionId: string;
-  environmentId: string;
+  environmentId?: string;   // absent when the operation was routed at service level
   serviceId?: string;
   deploymentId?: string;
   operation: string;

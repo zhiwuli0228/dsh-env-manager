@@ -43,8 +43,8 @@ function layerFromOverride(override: RuleOverride | undefined, source: RuleSourc
 
 export function buildLayers(
   service: Service,
-  environment: Environment,
-  deployment: Deployment,
+  environment: Environment | undefined,
+  deployment: Deployment | undefined,
   ruleProfiles: Map<string, RuleProfile>,
 ): { layers: Layer[]; missingProfiles: string[] } {
   const layers: Layer[] = []
@@ -63,23 +63,27 @@ export function buildLayers(
       classLocations: profile.classLocations,
     })
   }
-  const environmentLayer = layerFromOverride(environment.ruleOverrides, {
-    layer: 'environment',
-    recordId: environment.id,
-  })
-  if (environmentLayer) layers.push(environmentLayer)
-
-  if (deployment.variables) {
-    layers.push({
-      source: { layer: 'deployment', recordId: deployment.id },
-      variables: deployment.variables,
+  if (environment) {
+    const environmentLayer = layerFromOverride(environment.ruleOverrides, {
+      layer: 'environment',
+      recordId: environment.id,
     })
+    if (environmentLayer) layers.push(environmentLayer)
   }
-  const deploymentLayer = layerFromOverride(deployment.ruleOverrides, {
-    layer: 'deployment',
-    recordId: deployment.id,
-  })
-  if (deploymentLayer) layers.push(deploymentLayer)
+
+  if (deployment) {
+    if (deployment.variables) {
+      layers.push({
+        source: { layer: 'deployment', recordId: deployment.id },
+        variables: deployment.variables,
+      })
+    }
+    const deploymentLayer = layerFromOverride(deployment.ruleOverrides, {
+      layer: 'deployment',
+      recordId: deployment.id,
+    })
+    if (deploymentLayer) layers.push(deploymentLayer)
+  }
 
   return { layers, missingProfiles }
 }

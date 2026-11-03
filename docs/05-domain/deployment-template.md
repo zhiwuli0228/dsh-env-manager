@@ -74,3 +74,7 @@ updatedAt: 2026-11-01T03:00:00.000Z
 - `variables` are deployment-level user variables; they win over environment-level variables for that field.
 - `ruleOverrides` is field-level: overriding `logSources` does not erase `paths`.
 - If a service has several bindings and the caller omits `deploymentId`, the resolver fails with `DEPLOYMENT_AMBIGUOUS` rather than guessing.
+- A deployment is **current placement, not a routing anchor**: operations route on
+  `operation` + service (with the environment as an optional refinement), and the machine
+  binding is resolved at execution time. Machines may change without re-routing skill
+  bindings; the deployment record simply describes where the service runs now.

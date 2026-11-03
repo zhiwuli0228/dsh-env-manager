@@ -32,10 +32,16 @@ export interface RouterInput {
 
 function matches(binding: OperationBinding, context: ServiceContext): boolean {
   const match = binding.match
+  // A selector is eligible only when the context carries the field and it is equal.
+  // With an environment-less context, environment/deployment/deploymentMode selectors
+  // are simply not eligible; service / category-mode / global levels still are.
+  if (match.environmentId !== undefined && context.environmentId === undefined) return false
   if (match.environmentId && match.environmentId !== context.environmentId) return false
-  if (match.serviceId && match.serviceId !== context.serviceId) return false
+  if (match.deploymentId !== undefined && context.deploymentId === undefined) return false
   if (match.deploymentId && match.deploymentId !== context.deploymentId) return false
+  if (match.deploymentMode !== undefined && context.runtimeMode === undefined) return false
   if (match.deploymentMode && match.deploymentMode !== context.runtimeMode) return false
+  if (match.serviceId && match.serviceId !== context.serviceId) return false
   if (match.serviceCategory && match.serviceCategory !== context.serviceCategory) return false
   return true
 }
@@ -170,7 +176,7 @@ async function checkSkill(
 export async function resolveOperation(input: RouterInput): Promise<OperationResolution> {
   const { operation, context, bindings, skills, signal } = input
   const requested = {
-    environmentId: context.environmentId,
+    ...(context.environmentId !== undefined ? { environmentId: context.environmentId } : {}),
     serviceId: context.serviceId,
     deploymentId: context.deploymentId,
   }
@@ -190,7 +196,9 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
       diagnostics: [
         skillDiagnostic(
           'BINDING_NOT_FOUND',
-          `No enabled operation binding matches "${operation}" for ${context.environmentId}/${context.serviceId}`,
+          `No enabled operation binding matches "${operation}" for ${
+            context.environmentId ? `${context.environmentId}/` : ''
+          }${context.serviceId}`,
           'error',
           { operation },
         ),
@@ -248,6 +256,18 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
         `Operation "${operation}" is not allowed in production by binding ${selectedBinding.id}`,
         'error',
         { binding: selectedBinding.id, environmentId: context.environmentId },
+      ),
+    )
+  } else if (
+    context.environmentCategory === undefined &&
+    WRITE_OPERATIONS.has(operation)
+  ) {
+    diagnostics.push(
+      skillDiagnostic(
+        'PRODUCTION_CHECK_SKIPPED',
+        `No environment context: production policy was not evaluated for "${operation}"`,
+        'warning',
+        { operation },
       ),
     )
   }

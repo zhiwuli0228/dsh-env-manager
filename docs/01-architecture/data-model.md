@@ -374,7 +374,11 @@ updatedAt: 2026-11-01T03:00:00.000Z
 
 ## 4. Service
 
-A service is environment-independent. Deployment placement lives in §5.
+A service is environment-independent. Deployment placement lives in §5. Service contexts,
+operation routing and rule resolution accept a service alone: the environment and
+deployment are optional refinement layers (§8.2). A deployment is *current placement*,
+not a routing prerequisite — machines can change, and the machine binding is resolved at
+execution time, not pinned in the registry.
 
 ```ts
 interface GitInfo {
@@ -717,6 +721,13 @@ interface ResolvedStructured<T> {
 
 ### 8.2 Service Context
 
+The environment and deployment are **optional refinement layers**, not prerequisites:
+`serviceId` is the only required anchor. Without an environment the context covers the
+service and global rule layers only; with an environment the environment override layer
+is added; with a deployment the deployment layer and runtime location are added too.
+Templates that reference `${env.*}` / `${deployment.*}` fail deterministically when the
+corresponding layer is absent, so service-level rules must stay environment-independent.
+
 ```ts
 interface CredentialStatus {
   ref: string;
@@ -725,15 +736,15 @@ interface CredentialStatus {
 }
 
 interface ServiceContext {
-  environmentId: string;
-  environmentName: string;
-  environmentCategory: EnvironmentCategory;
+  environmentId?: string;
+  environmentName?: string;
+  environmentCategory?: EnvironmentCategory;
   serviceId: string;
   serviceName: string;
   serviceCategory: string;
-  deploymentId: string;
+  deploymentId?: string;
   deploymentName?: string;
-  runtimeMode: RuntimeMode;
+  runtimeMode?: RuntimeMode;
   source: {
     gitUrl?: string;
     defaultBranch?: string;
@@ -743,7 +754,7 @@ interface ServiceContext {
     name: string;
     path?: string;
   };
-  location: DeploymentLocation;
+  location?: DeploymentLocation;
   variables: Record<string, ResolvedField<string | number | boolean>>;
   paths: Record<string, ResolvedField<string>>;
   logSource?: ResolvedStructured<LogSource>;
@@ -756,6 +767,7 @@ interface ServiceContext {
 ```
 
 `status` starts as `configured-not-verified`. Without an online check, V1 must not claim `verified`.
+`credentials` is populated only when an environment context is present (credentials attach to hosts/clusters).
 
 ### 8.3 Operation Resolution
 
@@ -780,7 +792,7 @@ interface OperationResolution {
   ok: boolean;
   operation: string;
   requested: {
-    environmentId: string;
+    environmentId?: string;
     serviceId?: string;
     deploymentId?: string;
   };
@@ -816,7 +828,7 @@ Session context is per session and never mutates registry records. It is stored 
 interface OperationRecord {
   id: string;
   sessionId: string;
-  environmentId: string;
+  environmentId?: string;   // absent when routed at service level
   serviceId?: string;
   deploymentId?: string;
   operation: string;
@@ -869,6 +881,7 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 | `SKILL_UNAVAILABLE` | error | Skill not registered, or source/provider mismatch |
 | `SKILL_REGISTRY_UNAVAILABLE` | warning | Skill registry cannot be queried; availability unknown |
 | `POLICY_DENIED` | error | Production policy or approval policy rejects the operation |
+| `PRODUCTION_CHECK_SKIPPED` | warning | Write operation routed without an environment context; production policy was not evaluated |
 | `PARAMETER_RESOLUTION_FAILED` | error | Parameter template failed to resolve |
 | `CREDENTIAL_MISSING` | warning | `credentialRef` has no configured value |
 | `MEMORY_BRIDGE_UNAVAILABLE` | warning | Memory plugin not installed |

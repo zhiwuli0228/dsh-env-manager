@@ -121,6 +121,44 @@ describe('resolver', () => {
     if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
     expect(result.context.paths.serviceHome!.value).toBe('/deployment/aicoservice')
   })
+
+  it('resolves a service-level context without an environment or deployment', () => {
+    const input = baseInput()
+    delete input.environment
+    delete input.deployment
+    const result = resolveContext(input)
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+    const context = result.context
+    expect(context.environmentId).toBeUndefined()
+    expect(context.environmentName).toBeUndefined()
+    expect(context.deploymentId).toBeUndefined()
+    expect(context.runtimeMode).toBeUndefined()
+    expect(context.location).toBeUndefined()
+    expect(context.logSource).toBeUndefined()
+    expect(context.paths.serviceHome?.value).toBe('/opt/company/services/aicoservice')
+    expect(context.paths.jar?.value).toBe(
+      '/opt/company/services/aicoservice/lib/aicoservice.jar',
+    )
+  })
+
+  it('applies the environment layer without a deployment', () => {
+    const input = baseInput()
+    delete input.deployment
+    input.environment.ruleOverrides = { variables: { installRoot: '/srv/apps' } }
+    const result = resolveContext(input)
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+    const context = result.context
+    expect(context.environmentId).toBe('test-a')
+    expect(context.deploymentId).toBeUndefined()
+    expect(context.runtimeMode).toBeUndefined()
+    expect(context.paths.serviceHome!.value).toBe('/srv/apps/aicoservice')
+    expect(context.paths.serviceHome!.provenance.inputs).toContainEqual(
+      expect.objectContaining({
+        name: 'installRoot',
+        source: expect.objectContaining({ layer: 'environment' }),
+      }),
+    )
+  })
 })
 
 describe('router', () => {
@@ -203,5 +241,84 @@ describe('router', () => {
     })
     expect(resolution.ok).toBe(false)
     expect(resolution.diagnostics.some((item) => item.code === 'POLICY_DENIED')).toBe(true)
+  })
+
+  function serviceOnlyContext(): ServiceContext {
+    const result = resolveContext({
+      service: structuredClone(service) as any,
+      ruleProfiles: new Map([['java-common', structuredClone(ruleProfile) as any]]),
+    })
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics))
+    return result.context
+  }
+
+  it('routes a service-level binding from an environment-less context', async () => {
+    const serviceLevel = {
+      ...structuredClone(binding),
+      id: 'binding-svc',
+      operation: 'redeploy',
+      match: { serviceId: 'aicoservice' },
+      parameters: { home: '${paths.serviceHome}' },
+    } as unknown as OperationBinding
+    const resolution = await resolveOperation({
+      operation: 'redeploy',
+      context: serviceOnlyContext(),
+      bindings: [serviceLevel],
+      skills,
+    })
+    expect(resolution.ok).toBe(true)
+    expect(resolution.matchLevel).toBe('service')
+    expect(resolution.requested.environmentId).toBeUndefined()
+    expect(resolution.parameters).toMatchObject({ home: '/opt/company/services/aicoservice' })
+  })
+
+  it('keeps environment-scoped bindings ineligible without an environment context', async () => {
+    const resolution = await resolveOperation({
+      operation: 'redeploy',
+      context: serviceOnlyContext(),
+      bindings: [structuredClone(binding) as unknown as OperationBinding],
+      skills,
+    })
+    expect(resolution.ok).toBe(false)
+    expect(resolution.diagnostics[0]?.code).toBe('BINDING_NOT_FOUND')
+  })
+
+  it('matches a global binding from an environment-less context', async () => {
+    const globalBinding = {
+      ...structuredClone(binding),
+      id: 'binding-global',
+      operation: 'restart',
+      match: {},
+      parameters: { home: '${paths.serviceHome}' },
+    } as unknown as OperationBinding
+    const resolution = await resolveOperation({
+      operation: 'restart',
+      context: serviceOnlyContext(),
+      bindings: [globalBinding],
+      skills,
+    })
+    expect(resolution.ok).toBe(true)
+    expect(resolution.matchLevel).toBe('global')
+  })
+
+  it('skips and reports the production check without an environment context', async () => {
+    const globalBinding = {
+      ...structuredClone(binding),
+      id: 'binding-global',
+      operation: 'deploy',
+      match: {},
+      parameters: { home: '${paths.serviceHome}' },
+      policy: { requiresApproval: true, allowProduction: false },
+    } as unknown as OperationBinding
+    const resolution = await resolveOperation({
+      operation: 'deploy',
+      context: serviceOnlyContext(),
+      bindings: [globalBinding],
+      skills,
+    })
+    expect(resolution.ok, JSON.stringify(resolution)).toBe(true)
+    expect(
+      resolution.diagnostics.some((item) => item.code === 'PRODUCTION_CHECK_SKIPPED'),
+    ).toBe(true)
   })
 })

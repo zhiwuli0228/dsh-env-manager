@@ -119,15 +119,12 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
   async function environmentIdFor(
     exec: any,
     explicit?: string,
-  ): Promise<string> {
+  ): Promise<string | undefined> {
     if (explicit) return explicit
     const context = await app.getContext(sessionIdOf(exec))
     if (context.defaultEnvironmentId) return context.defaultEnvironmentId
     if (defaults.environmentId) return defaults.environmentId
-    throw new EnvManagerError(
-      'INVALID_ARGUMENT',
-      'No environment selected; pass environmentId or call env_set_context first',
-    )
+    return undefined
   }
 
   const envList = defineTool({
@@ -243,11 +240,14 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
   const envResolve = defineTool({
     name: 'env_resolve',
     description:
-      'Use when the caller needs concrete paths, log sources, class locations or variables for a service in an environment. This is the authoritative answer; never reconstruct paths from templates.',
+      'Use when the caller needs concrete paths, log sources, class locations or variables for a service. This is the authoritative answer; never reconstruct paths from templates. An environment is optional: without one the result is the service-level context (service and global rule layers only).',
     parameters: {
-      environmentId: { type: 'string', description: 'Defaults to the session environment.' },
+      environmentId: {
+        type: 'string',
+        description: 'Optional; defaults to the session environment. Omit to resolve the service-level context.',
+      },
       serviceId: { type: 'string', required: true, description: 'Service id or alias.' },
-      deploymentId: { type: 'string', description: 'Required only when several deployments bind the pair.' },
+      deploymentId: { type: 'string', description: 'Optional; selects one deployment and its environment.' },
     },
     output: {
       schema: {
@@ -260,11 +260,13 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
       },
       render: (_args, value) => {
         const result = value as {
-          context: { serviceId: string; environmentId: string; runtimeMode: string; paths: object; variables: object }
+          context: { serviceId: string; environmentId?: string; runtimeMode?: string; paths: object; variables: object }
           warnings: unknown[]
         }
+        const scope = result.context.environmentId ? ` in ${result.context.environmentId}` : ''
+        const mode = result.context.runtimeMode ? ` (${result.context.runtimeMode})` : ''
         return text(
-          `Resolved ${result.context.serviceId} in ${result.context.environmentId} (${result.context.runtimeMode}): ${Object.keys(result.context.paths).length} paths, ${Object.keys(result.context.variables).length} variables, ${result.warnings.length} warning(s).`,
+          `Resolved ${result.context.serviceId}${scope}${mode}: ${Object.keys(result.context.paths).length} paths, ${Object.keys(result.context.variables).length} variables, ${result.warnings.length} warning(s).`,
         )
       },
     },
@@ -289,9 +291,12 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
       'Use before acting: ask which Skill handles an operation for this context and what parameters it expects. This tool does not execute the Skill.',
     parameters: {
       operation: { type: 'string', required: true, description: 'Standard or custom operation id.' },
-      environmentId: { type: 'string', description: 'Defaults to the session environment.' },
+      environmentId: {
+        type: 'string',
+        description: 'Optional; defaults to the session environment. Omit to match service / category-mode / global bindings only.',
+      },
       serviceId: { type: 'string', description: 'Service id; or supply deploymentId.' },
-      deploymentId: { type: 'string', description: 'Deployment id; supplies the service when omitted.' },
+      deploymentId: { type: 'string', description: 'Deployment id; supplies the service and environment when omitted.' },
     },
     output: {
       schema: {

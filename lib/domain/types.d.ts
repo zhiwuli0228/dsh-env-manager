@@ -258,15 +258,15 @@ export interface CredentialStatus {
     source?: string;
 }
 export interface ServiceContext {
-    environmentId: string;
-    environmentName: string;
-    environmentCategory: EnvironmentCategory;
+    environmentId?: string;
+    environmentName?: string;
+    environmentCategory?: EnvironmentCategory;
     serviceId: string;
     serviceName: string;
     serviceCategory: string;
-    deploymentId: string;
+    deploymentId?: string;
     deploymentName?: string;
-    runtimeMode: RuntimeMode;
+    runtimeMode?: RuntimeMode;
     source: {
         gitUrl?: string;
         defaultBranch?: string;
@@ -276,7 +276,7 @@ export interface ServiceContext {
         name: string;
         path?: string;
     };
-    location: DeploymentLocation;
+    location?: DeploymentLocation;
     variables: Record<string, ResolvedField<string | number | boolean>>;
     paths: Record<string, ResolvedField<string>>;
     logSource?: ResolvedStructured<LogSource>;
@@ -296,7 +296,7 @@ export interface OperationResolution {
     ok: boolean;
     operation: string;
     requested: {
-        environmentId: string;
+        environmentId?: string;
         serviceId?: string;
         deploymentId?: string;
     };
@@ -366,13 +366,13 @@ export interface RemoveOptions {
     dryRun?: boolean;
 }
 export interface ResolveRequest {
-    environmentId: string;
+    environmentId?: string;
     serviceId: string;
     deploymentId?: string;
 }
 export interface RouteRequest {
     operation: string;
-    environmentId: string;
+    environmentId?: string;
     serviceId?: string;
     deploymentId?: string;
 }

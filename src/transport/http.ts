@@ -209,14 +209,14 @@ export function registerHttpTransport(ctx: any, app: App, logger: Logger): () =>
         return app.unsetCredential(String(payload.ref ?? ''))
       case 'resolve':
         return app.resolve({
-          environmentId: String(payload.environmentId ?? ''),
+          environmentId: payload.environmentId ? String(payload.environmentId) : undefined,
           serviceId: String(payload.serviceId ?? ''),
           deploymentId: payload.deploymentId ? String(payload.deploymentId) : undefined,
         })
       case 'route':
         return app.route({
           operation: String(payload.operation ?? ''),
-          environmentId: String(payload.environmentId ?? ''),
+          environmentId: payload.environmentId ? String(payload.environmentId) : undefined,
           serviceId: payload.serviceId ? String(payload.serviceId) : undefined,
           deploymentId: payload.deploymentId ? String(payload.deploymentId) : undefined,
         })

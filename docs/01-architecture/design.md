@@ -309,7 +309,12 @@ Bindings are grouped by how specific their `match` predicate is:
 | `category-mode` | `match.serviceCategory` + `match.deploymentMode` | 4 |
 | `global` | empty match object | 5 (lowest) |
 
-A predicate is eligible only if **every** field it declares matches the resolved context. `deploymentMode` compares against `runtimeMode`; `serviceCategory` compares against the service category.
+A predicate is eligible only if **every** field it declares is present in the resolved
+context **and** equals it. The environment is an optional refinement axis: with an
+environment-less context, `deployment` and `environment-service` predicates are simply
+not eligible — `service`, `category-mode` and `global` levels still are. `deploymentMode`
+compares against `runtimeMode` (absent without a deployment); `serviceCategory` compares
+against the service category.
 
 A `match` that is not one of these five shapes (for example `environmentId` alone) is rejected at record validation; it never reaches routing.
 
@@ -343,7 +348,11 @@ Evaluation order:
 
 1. Write operation and `policy.requiresApproval !== false` → `requiresApproval: true`.
 2. `environmentCategory === 'production'` and `policy.allowProduction !== true` → `POLICY_DENIED`.
-3. Otherwise the policy is returned as declared.
+3. No environment context (`environmentCategory` absent): the production check cannot be
+   evaluated. Write operations get a `PRODUCTION_CHECK_SKIPPED` warning and the policy is
+   returned as declared — production operations are expected to be routed with an
+   environment selected.
+4. Otherwise the policy is returned as declared.
 
 V1 does not execute the operation. The resolved policy is returned to the caller; enforcement happens in the executing Skill or in the future executor.
 
@@ -358,17 +367,19 @@ V1 does not execute the operation. The resolved policy is returned to the caller
 
 ```text
 operation: redeploy
-context:   test-a / aicoservice / deploy-001 (kubernetes)
+context:   aicoservice (service-level; no environment selected)
 
 eligible:
-  binding-001  level=environment-service  skill=redeploy-k8s-service
-selected: binding-001
-parameters: namespace=dv-sop workload=aicoservice cluster=k8s-01
-policy: requiresApproval=true allowProduction=false
+  binding-svc  level=service  skill=redeploy-k8s-service
+selected: binding-svc
+parameters: home=/opt/company/services/aicoservice
+policy: requiresApproval=true allowProduction=false (PRODUCTION_CHECK_SKIPPED)
 skill: available=true
 ```
 
-If `redeploy-k8s-service` is missing, the result is an error with `SKILL_UNAVAILABLE`; it does not fall through to `binding-002`.
+With `test-a` selected, the same request matches an `environment-service` binding first if
+one exists. If `redeploy-k8s-service` is missing, the result is an error with
+`SKILL_UNAVAILABLE`; it does not fall through to a lower binding.
 
 ---
 

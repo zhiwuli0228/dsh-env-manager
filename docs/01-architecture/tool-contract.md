@@ -200,28 +200,31 @@ Render: `"3 matches for \"aico\"."`
 ### 2.4 `env_resolve`
 
 Use when the caller needs concrete paths, log sources, class locations or variables
-for a service in an environment. This is the authoritative answer; do not reconstruct
-paths from templates.
+for a service. This is the authoritative answer; do not reconstruct paths from templates.
+The environment is optional: without one the result is the service-level context
+(service and global rule layers only).
 
 ```ts
 parameters: {
-  environmentId: { type: 'string', required: false, description: 'Defaults to the session environment.' },
+  environmentId: { type: 'string', required: false, description: 'Optional; defaults to the session environment. Omit to resolve the service-level context.' },
   serviceId: { type: 'string', required: true },
   deploymentId: {
     type: 'string',
     required: false,
-    description: 'Required when the service has more than one binding in the environment; a single binding is selected automatically.',
+    description: 'Optional; selects one deployment and supplies its environment. Required when the service has more than one binding in the environment and no environment id is given; a single binding is selected automatically.',
   },
 }
 ```
 
 Returns the Service Context from `data-model.md` §8.2, including `provenance` and
-`warnings`.
+`warnings`. With no environment, `credentials` is empty and
+`environmentId`/`deploymentId`/`runtimeMode`/`location` are absent.
 
 Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
 `DEPLOYMENT_AMBIGUOUS` (lists candidates), `RULE_*`, `PARAMETER_RESOLUTION_FAILED`.
 
 Render: `"Resolved aicoservice in test-a (kubernetes): 7 paths, 2 variables, 1 warning."`
+(without an environment: `"Resolved aicoservice: 7 paths, 2 variables, 0 warnings."`)
 
 ### 2.5 `env_resolve_operation`
 
@@ -242,7 +245,8 @@ parameters: {
 ```
 
 - At least one of `serviceId` / `deploymentId` is required; `environmentId` falls back
-  to the session default.
+  to the session default and is otherwise optional — without an environment only
+  `service` / `category-mode` / `global` bindings are eligible.
 
 Returns `OperationResolution` from `data-model.md` §8.3:
 
