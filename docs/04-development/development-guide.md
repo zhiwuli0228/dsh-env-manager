@@ -69,8 +69,12 @@ Do not use `dsh plugin add` for bundle selection; that forwards to pnpm only.
 Keep the module-loader wrapper intact:
 
 ```js
-window.__ModuleLoader__.load({ id: 'dsh-env-manager', factory(require) { ... } })
+window.__ModuleLoader__.load({ id: 'dsh-env-manager-plugin', factory(require) { ... } })
 ```
+
+The loader `id` must be the full package name (`dsh-env-manager-plugin`): the client module
+table keys every entry by package name and materializes the factory under that exact id.
+Registering under any other name leaves the module unimportable and the panel never mounts.
 
 ## Data Directory
 

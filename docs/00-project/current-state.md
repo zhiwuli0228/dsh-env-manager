@@ -31,14 +31,19 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
-**Release status (2026-11-03):** `dsh-env-manager-plugin@0.1.2` is the `latest` npm tag
-and the install-hardening patch release (committed `lib/`, clear missing-build error,
-`plugin_manager`-only install docs, `scripts/repair-profile.mjs`, runtime version
-reported from `package.json`). It is published by the Trusted Publisher workflow with
-npm provenance; the [GitHub Release
-v0.1.2](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.2) contains
-`dsh-env-manager-plugin-0.1.2.tgz`. `v0.1.1` shipped the same install fixes; `0.1.0`
-was bootstrapped manually before the Trusted Publisher binding, and its workflow
+**Release status (2026-11-03):** `dsh-env-manager-plugin@0.1.3` is the `latest` npm tag
+and the client-module fix release: `client.js`'s `__ModuleLoader__.load` id now equals the
+package name (`dsh-env-manager-plugin`), the factory returns `name: 'dsh-env-manager-plugin'`,
+the client unit test is a contract test (asserts `package.json` `name`), the
+`id == package name` rule is documented in `api-verification.md` F13, and `ui-design.md`
+keys the bundle config page by package name. It is published by the Trusted Publisher
+workflow with npm provenance; the [GitHub Release
+v0.1.3](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.3) contains
+`dsh-env-manager-plugin-0.1.3.tgz`. `v0.1.2` shipped the install-hardening fixes
+(committed `lib/`, clear missing-build error, `plugin_manager`-only install docs,
+`scripts/repair-profile.mjs`, runtime version reported from `package.json`). `v0.1.1`
+shipped the same install fixes; `0.1.0` was bootstrapped manually before the Trusted
+Publisher binding, and its workflow
 ([`41323001406`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/41323001406))
 skipped npm publish because the version already existed.
 
@@ -66,6 +71,38 @@ or legacy bundle entries and offers an atomic `--fix` with a backup. The publish
 `0.1.0` npm tarball already contained `lib/`; this fixes checkout and git installs.
 `0.1.2` additionally reports the runtime version from `package.json` so the API `meta`
 call no longer hardcodes `0.1.0`.
+
+**Client module id fix (2026-11-03):** `client.js` called
+`window.__ModuleLoader__.load({ id: 'dsh-env-manager', ... })`, but the client module
+table keys every entry by the bundle's **package name** and materializes the factory under
+that exact id — the module was unimportable under its graph-row key. The `load` id is now
+the full package name (`dsh-env-manager-plugin`) and the factory returns
+`name: 'dsh-env-manager-plugin'` per the documented `{ name, inject, apply }` contract
+(same shape as the working `dsh-memory-hub`, `dsh-image-router` and
+`token-usage-statistic` client halves). `tests/client/client.test.ts` asserts both fields;
+all 52 tests pass.
+
+**Self-check hardening (2026-11-03):** the client unit test was the first place the bug
+should have failed — it asserted `loaded.id` against a hardcoded value, i.e. it captured
+the implementation (including the wrong id) instead of the contract. It is now a
+**contract test**: both `loaded.id` and `mod.name` are asserted against `package.json`'s
+`name`, so any divergence between `client.js` and the manifest fails the suite. The
+`id == package name` rule is now documented in `api-verification.md` F13 and
+`development-guide.md`; install smoke checks should confirm the client module actually
+materialized (Slots tree registrant equals the module name, not the shell placeholder
+row).
+
+**Global name sweep (2026-11-03):** a full scan of `dsh-env-manager` vs
+`dsh-env-manager-plugin` across the repo and the `desktop` profile found no other runtime
+occurrence of the same bug class. All remaining short-name uses are intentional: Host
+plugin `name`/row id, the discovery Skill name, the `data/dsh-env-manager` dataDir
+default, log prefixes, sidebar/main keys, legacy-install docs and the npm-name conflict
+note. The profile holds only `dsh-env-manager-plugin` (no stale `dsh-env-manager`
+dependency, symlink or lock entry). One latent doc hazard was corrected in
+`ui-design.md`: the bundle config page slot `plugins.bundle.config` is keyed by the
+**package name** (`dsh-env-manager-plugin`), not the row id — matching
+`api-verification.md` F-sheet. A page refresh (Ctrl+F5) is still required for the
+already-open GUI to materialize the fixed client module.
 
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
@@ -187,7 +224,7 @@ Code:
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (50 passing)
+- [x] Tests (52 passing)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints

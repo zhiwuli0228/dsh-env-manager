@@ -1,4 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+
+// Contract, not implementation: the client module table keys every entry by the
+// bundle's package name and materializes the factory under that exact id
+// (@deepseek-ai/dsh-client-modules: graph row id = package.json "name"). This test
+// asserts against package.json so a divergence between client.js and the manifest
+// fails the suite instead of being captured as the expected value.
+const pkgName = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).name as string
 
 describe('client module', () => {
   it('registers a sidebar id and the matching main key', async () => {
@@ -12,7 +20,7 @@ describe('client module', () => {
       },
     }
     await import('../../client.js')
-    expect(loaded?.id).toBe('dsh-env-manager')
+    expect(loaded?.id).toBe(pkgName)
     const React = {
       createElement: (type: unknown, props: any, ...children: unknown[]) => ({ type, props, children }),
       useState: () => [undefined, () => undefined],
@@ -24,6 +32,7 @@ describe('client module', () => {
       if (name === 'react') return React
       throw new Error(`unexpected require ${name}`)
     })
+    expect(mod.name).toBe(pkgName)
     const registrations: any[] = []
     const injected: string[] = []
     const ctx = {

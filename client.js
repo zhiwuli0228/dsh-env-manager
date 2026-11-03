@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-env-manager',
+  id: 'dsh-env-manager-plugin',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -2533,6 +2533,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
+      name: 'dsh-env-manager-plugin',
       inject: ['slots', 'locale'],
       apply(ctx) {
         ensureStyles();

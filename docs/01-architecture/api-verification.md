@@ -214,9 +214,12 @@ header plus an `Origin` check. See ADR-0009 and `ui-design.md` §4.
 ### F13 — Client module
 
 A bundle's `client.js` is served as `dsh.client`'s `./client` export and loaded by
-`window.__ModuleLoader__.load({ id, factory(require) { ... } })`. The factory may
-`require('react')`. The returned plugin declares `inject` services (`slots`,
-`locale`, …) and `apply(ctx)`.
+`window.__ModuleLoader__.load({ id, factory(require) { ... } })`. The `id` **must equal
+the bundle's package name** (`dsh-env-manager-plugin`): the client module table keys every
+entry by package name and materializes the factory under that exact id — a different id
+leaves the module unimportable (verified live: the sidebar row stayed a shell placeholder
+until the id matched). The factory may `require('react')`. The returned plugin declares
+`name` (also the package name), `inject` services (`slots`, `locale`, …) and `apply(ctx)`.
 
 The dynamic-Cordis builtins (`React`, `host.call`, `styles`, `console`) belong to
 runtime-defined packages, **not** to installed bundle client halves.

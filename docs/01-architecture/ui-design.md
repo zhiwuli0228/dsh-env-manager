@@ -100,9 +100,10 @@ rules are:
    card), not to the sidebar row; the sidebar uses host `currentColor` so light and dark
    themes stay consistent with shipped icons.
 
-The bundle page (`plugins.bundle.config`, keyed `dsh-env-manager`) shows a read-only
-summary: version, `dataDir`, record counts, last load time, warning count. It links to
-the panel's Diagnostics section.
+The bundle page (`plugins.bundle.config`, keyed by the **package name**
+`dsh-env-manager-plugin` — the slot's keyDomain is the bundle package name, not the row
+id) shows a read-only summary: version, `dataDir`, record counts, last load time, warning
+count. It links to the panel's Diagnostics section.
 
 ## 4. Client ↔ Host transport
 
