@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 50 Vitest tests passing. The Client panel is
+same-origin HTTP API are in place, with 51 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded

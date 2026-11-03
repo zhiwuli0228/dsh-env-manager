@@ -48,8 +48,8 @@ node scripts/repair-profile.mjs --profile <profile> --fix
 ```
 
 The helper edits only `package.json` (with a timestamped backup); it never deletes
-registry data. The same file ships in the npm package as
-`node_modules/dsh-env-manager-plugin/scripts/repair-profile.mjs`.
+registry data. It lives in the repository; the currently published `0.1.0` tarball
+predates it, so run it from a checkout. It is included in future package builds.
 
 ## Plugin is not visible after install
 

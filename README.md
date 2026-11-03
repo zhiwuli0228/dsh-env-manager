@@ -25,7 +25,7 @@ Works in DSH Web and Desktop.
 **Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
 implemented and installed in the `desktop` profile.**
 
-- 50 Vitest tests pass; `npm run build` emits `lib/`.
+- 51 Vitest tests pass; `npm run build` emits the committed `lib/` tree.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
