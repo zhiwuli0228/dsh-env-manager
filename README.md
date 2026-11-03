@@ -149,12 +149,13 @@ an unrelated package). Install it as a profile bundle; do not install it with
 
 ### From npm
 
-`dsh-env-manager-plugin@0.1.0` is the first published release. Install the bundle
-through the Harness plugin manager; do **not** use `dsh plugin add` for activation:
+`dsh-env-manager-plugin@0.1.1` is the install-hardening patch release; `0.1.0` was the
+first published release. Install the bundle through the Harness plugin manager; do **not**
+use `dsh plugin add` for activation:
 
 ```text
 action: install_bundle
-target: dsh-env-manager-plugin@0.1.0
+target: dsh-env-manager-plugin@0.1.1
 ```
 
 `plugin_manager` adds the package to the profile exactly once. Do not also add it to

@@ -5,7 +5,7 @@
 This means DSH found the bundle but the Host build output was absent or incomplete.
 
 1. Prefer the published package: `plugin_manager` → `install_bundle` with
-   `dsh-env-manager-plugin@0.1.0`. The npm tarball includes `lib/`.
+   `dsh-env-manager-plugin@0.1.1`. The npm tarball includes `lib/`.
 2. If installing a local checkout, use the current `main`; `lib/` is committed there on
    purpose. Older clones did not include it.
 3. If the checkout is older or `lib/` was deleted, run `npm install && npm run build`
@@ -48,8 +48,7 @@ node scripts/repair-profile.mjs --profile <profile> --fix
 ```
 
 The helper edits only `package.json` (with a timestamped backup); it never deletes
-registry data. It lives in the repository; the currently published `0.1.0` tarball
-predates it, so run it from a checkout. It is included in future package builds.
+registry data. It lives in the repository and in `dsh-env-manager-plugin@0.1.1`+.
 
 ## Plugin is not visible after install
 
