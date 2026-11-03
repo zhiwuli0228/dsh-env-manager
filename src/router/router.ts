@@ -17,9 +17,10 @@ import { resolveParameters } from './params.js'
 const RANK: Record<MatchLevel, number> = {
   deployment: 1,
   'environment-service': 2,
-  service: 3,
-  'category-mode': 4,
-  global: 5,
+  environment: 3,
+  service: 4,
+  'category-mode': 5,
+  global: 6,
 }
 
 export interface RouterInput {
@@ -32,14 +33,11 @@ export interface RouterInput {
 
 function matches(binding: OperationBinding, context: ServiceContext): boolean {
   const match = binding.match
-  // A selector is eligible only when the context carries the field and it is equal.
-  // With an environment-less context, environment/deployment/deploymentMode selectors
-  // are simply not eligible; service / category-mode / global levels still are.
-  if (match.environmentId !== undefined && context.environmentId === undefined) return false
+  // Operations always run inside an environment (resolveOperation enforces this), so
+  // environment-scoped predicates compare directly. A deployment-scoped predicate needs
+  // a deployment context; without one it simply does not match and a lower level wins.
   if (match.environmentId && match.environmentId !== context.environmentId) return false
-  if (match.deploymentId !== undefined && context.deploymentId === undefined) return false
   if (match.deploymentId && match.deploymentId !== context.deploymentId) return false
-  if (match.deploymentMode !== undefined && context.runtimeMode === undefined) return false
   if (match.deploymentMode && match.deploymentMode !== context.runtimeMode) return false
   if (match.serviceId && match.serviceId !== context.serviceId) return false
   if (match.serviceCategory && match.serviceCategory !== context.serviceCategory) return false
@@ -187,6 +185,22 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
     diagnostics: [],
   }
 
+  // No downgrade: an operation must never silently fall back to service/global
+  // bindings when no environment was selected. The caller must pick one first.
+  if (context.environmentId === undefined) {
+    return {
+      ...base,
+      diagnostics: [
+        skillDiagnostic(
+          'ENVIRONMENT_REQUIRED',
+          `An environment is required to route "${operation}"; select one first (env_set_context) or pass environmentId`,
+          'error',
+          { operation },
+        ),
+      ],
+    }
+  }
+
   const candidates = bindings.filter(
     (binding) => binding.enabled && binding.operation === operation && matches(binding, context),
   )
@@ -196,9 +210,9 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
       diagnostics: [
         skillDiagnostic(
           'BINDING_NOT_FOUND',
-          `No enabled operation binding matches "${operation}" for ${
-            context.environmentId ? `${context.environmentId}/` : ''
-          }${context.serviceId}`,
+          `No enabled operation binding matches "${operation}" for ${context.environmentId}/${
+            context.serviceId ?? '(environment)'
+          }`,
           'error',
           { operation },
         ),
@@ -256,18 +270,6 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
         `Operation "${operation}" is not allowed in production by binding ${selectedBinding.id}`,
         'error',
         { binding: selectedBinding.id, environmentId: context.environmentId },
-      ),
-    )
-  } else if (
-    context.environmentCategory === undefined &&
-    WRITE_OPERATIONS.has(operation)
-  ) {
-    diagnostics.push(
-      skillDiagnostic(
-        'PRODUCTION_CHECK_SKIPPED',
-        `No environment context: production policy was not evaluated for "${operation}"`,
-        'warning',
-        { operation },
       ),
     )
   }

@@ -381,6 +381,11 @@ export function matchShape(match: Record<string, unknown>): string | null {
     const allowed = new Set(['environmentId', 'serviceId'])
     return keys.every((key) => allowed.has(key)) ? 'environment-service' : null
   }
+  // Environment-scoped operations (e.g. deploy-environment) target the whole
+  // environment, not one service.
+  if (has('environmentId')) {
+    return keys.length === 1 ? 'environment' : null
+  }
   if (has('serviceId')) {
     return keys.length === 1 ? 'service' : null
   }

@@ -9,9 +9,11 @@ export function buildParameterConstants(context: ServiceContext): Map<string, st
   if (context.environmentCategory !== undefined) {
     constants.set('env.category', context.environmentCategory)
   }
-  constants.set('service.id', context.serviceId)
-  constants.set('service.name', context.serviceName)
-  constants.set('service.category', context.serviceCategory)
+  if (context.serviceId !== undefined) constants.set('service.id', context.serviceId)
+  if (context.serviceName !== undefined) constants.set('service.name', context.serviceName)
+  if (context.serviceCategory !== undefined) {
+    constants.set('service.category', context.serviceCategory)
+  }
   if (context.deploymentId !== undefined) constants.set('deployment.id', context.deploymentId)
   if (context.deploymentName) constants.set('deployment.name', context.deploymentName)
   if (context.runtimeMode !== undefined) constants.set('deployment.runtimeMode', context.runtimeMode)

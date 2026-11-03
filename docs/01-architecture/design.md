@@ -305,18 +305,25 @@ Bindings are grouped by how specific their `match` predicate is:
 |---|---|---|
 | `deployment` | `match.deploymentId` set | 1 (highest) |
 | `environment-service` | `match.environmentId` + `match.serviceId` | 2 |
-| `service` | `match.serviceId` only | 3 |
-| `category-mode` | `match.serviceCategory` + `match.deploymentMode` | 4 |
-| `global` | empty match object | 5 (lowest) |
+| `environment` | `match.environmentId` only (environment-scoped ops) | 3 |
+| `service` | `match.serviceId` only | 4 |
+| `category-mode` | `match.serviceCategory` + `match.deploymentMode` | 5 |
+| `global` | empty match object | 6 (lowest) |
 
-A predicate is eligible only if **every** field it declares is present in the resolved
-context **and** equals it. The environment is an optional refinement axis: with an
-environment-less context, `deployment` and `environment-service` predicates are simply
-not eligible — `service`, `category-mode` and `global` levels still are. `deploymentMode`
-compares against `runtimeMode` (absent without a deployment); `serviceCategory` compares
-against the service category.
+A predicate is eligible only if **every** field it declares equals the resolved context.
+`deploymentMode` compares against `runtimeMode`; `serviceCategory` compares against the
+service category. The `environment` level exists for environment-scoped operations such as
+`deploy-environment`, whose target is the environment itself, not a service.
 
-A `match` that is not one of these five shapes (for example `environmentId` alone) is rejected at record validation; it never reaches routing.
+**Operations always run inside an environment, and routing never downgrades.** An
+operation invoked without an environment fails with `ENVIRONMENT_REQUIRED` instead of
+falling through to `service`/`global` bindings: if a binding is scoped to an environment,
+that environment is where the operation must run. The flow is: select the environment →
+pick the operation → route to its binding. Service-level and global bindings still apply,
+but only within whatever environment was selected.
+
+A `match` that is not one of these six shapes (for example `environmentId` +
+`deploymentMode`) is rejected at record validation; it never reaches routing.
 
 ### 7.2 Conflict rule
 
@@ -348,11 +355,10 @@ Evaluation order:
 
 1. Write operation and `policy.requiresApproval !== false` → `requiresApproval: true`.
 2. `environmentCategory === 'production'` and `policy.allowProduction !== true` → `POLICY_DENIED`.
-3. No environment context (`environmentCategory` absent): the production check cannot be
-   evaluated. Write operations get a `PRODUCTION_CHECK_SKIPPED` warning and the policy is
-   returned as declared — production operations are expected to be routed with an
-   environment selected.
-4. Otherwise the policy is returned as declared.
+3. Otherwise the policy is returned as declared.
+
+Every routed operation carries an environment (routing refuses to proceed without one), so
+the production check is always evaluated.
 
 V1 does not execute the operation. The resolved policy is returned to the caller; enforcement happens in the executing Skill or in the future executor.
 
@@ -367,19 +373,23 @@ V1 does not execute the operation. The resolved policy is returned to the caller
 
 ```text
 operation: redeploy
-context:   aicoservice (service-level; no environment selected)
+context:   test-a / aicoservice (deploy-001 kubernetes)
 
 eligible:
-  binding-svc  level=service  skill=redeploy-k8s-service
-selected: binding-svc
-parameters: home=/opt/company/services/aicoservice
-policy: requiresApproval=true allowProduction=false (PRODUCTION_CHECK_SKIPPED)
+  binding-001  level=environment-service  skill=redeploy-k8s-service
+selected: binding-001
+parameters: namespace=dv-sop workload=aicoservice cluster=k8s-01
+policy: requiresApproval=true allowProduction=false
 skill: available=true
 ```
 
-With `test-a` selected, the same request matches an `environment-service` binding first if
-one exists. If `redeploy-k8s-service` is missing, the result is an error with
-`SKILL_UNAVAILABLE`; it does not fall through to a lower binding.
+Environment-scoped example: `deploy-environment` with `match: { environmentId }` targets
+the whole environment (management plane; VM scenarios) and needs no service — routing it
+requires only the environment.
+
+If `redeploy-k8s-service` is missing, the result is an error with
+`SKILL_UNAVAILABLE`; it does not fall through to a lower binding. Invoking either
+operation without an environment is `ENVIRONMENT_REQUIRED`, not a downgrade.
 
 ---
 

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { EnvManagerError, type ErrorCode } from '../domain/errors.js'
-import { LIMITS, isRecordKind } from '../domain/constants.js'
+import { ENVIRONMENT_SCOPED_OPERATIONS, LIMITS, isRecordKind } from '../domain/constants.js'
 import { parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
 import type {
   Actor,
@@ -529,25 +529,99 @@ export class App {
 
   async route(request: RouteRequest): Promise<OperationResolution> {
     const snapshot = await this.snapshot()
-    let serviceId = request.serviceId
-    if (!serviceId && request.deploymentId) {
-      serviceId = snapshot.deployments.get(request.deploymentId)?.serviceId
-    }
-    if (!serviceId) {
+    // Operations always run inside an environment: select one (explicit, session
+    // default via the tools layer, or supplied by a deployment) before routing.
+    // Routing never silently downgrades to service/global bindings without one.
+    if (!request.environmentId && !request.deploymentId) {
       throw new EnvManagerError(
-        'SERVICE_NOT_FOUND',
-        'env_resolve_operation requires serviceId or a deploymentId that supplies one',
-        { environmentId: request.environmentId, deploymentId: request.deploymentId },
+        'INVALID_ARGUMENT',
+        'An environment is required to route an operation; pass environmentId/deploymentId or select one with env_set_context first',
       )
     }
-    const resolved = await this.resolve({
-      environmentId: request.environmentId,
-      serviceId,
-      deploymentId: request.deploymentId,
-    })
+    let environment: Environment | undefined
+    if (request.environmentId) {
+      environment = lookupByRef(snapshot, 'environment', request.environmentId)
+      if (!environment) {
+        throw new EnvManagerError(
+          'ENV_NOT_FOUND',
+          `Environment "${request.environmentId}" was not found`,
+          { environmentId: request.environmentId },
+        )
+      }
+    }
+    let serviceId = request.serviceId
+    if (request.deploymentId) {
+      const deployment = lookup(snapshot, 'deployment', request.deploymentId)
+      if (!deployment) {
+        throw new EnvManagerError(
+          'DEPLOYMENT_NOT_FOUND',
+          `Deployment "${request.deploymentId}" was not found`,
+          { deploymentId: request.deploymentId },
+        )
+      }
+      environment ??= lookupByRef(snapshot, 'environment', deployment.environmentId)
+      if (!environment) {
+        throw new EnvManagerError(
+          'ENV_NOT_FOUND',
+          `Deployment "${request.deploymentId}" references missing environment "${deployment.environmentId}"`,
+          { deploymentId: request.deploymentId, environmentId: deployment.environmentId },
+        )
+      }
+      serviceId ??= deployment.serviceId
+    }
+    const environmentScoped = ENVIRONMENT_SCOPED_OPERATIONS.has(request.operation)
+    let context: ServiceContext
+    if (environmentScoped) {
+      // Environment-scoped operations (e.g. deploy-environment, management plane) target
+      // the environment itself; a service is optional and only refines the context.
+      if (serviceId) {
+        context = (
+          await this.resolve({
+            environmentId: environment!.id,
+            serviceId,
+            deploymentId: request.deploymentId,
+          })
+        ).context
+      } else {
+        if (!environment) {
+          throw new EnvManagerError(
+            'ENV_NOT_FOUND',
+            `An environment is required to route "${request.operation}"`,
+            { operation: request.operation },
+          )
+        }
+        context = {
+          environmentId: environment.id,
+          environmentName: environment.name,
+          environmentCategory: environment.category,
+          source: {},
+          variables: {},
+          paths: {},
+          ruleProfiles: [],
+          status: 'configured-not-verified',
+          credentials: [],
+          diagnostics: [],
+        }
+      }
+    } else {
+      if (!serviceId) {
+        throw new EnvManagerError(
+          'SERVICE_NOT_FOUND',
+          'env_resolve_operation requires serviceId or a deploymentId that supplies one',
+          { environmentId: request.environmentId, deploymentId: request.deploymentId },
+        )
+      }
+      context = (
+        await this.resolve({
+          environmentId: request.environmentId,
+          serviceId,
+          deploymentId: request.deploymentId,
+        })
+      ).context
+    }
     const resolution = await resolveOperation({
       operation: request.operation,
-      context: resolved.context,
+      context,
       bindings: [...snapshot.operationBindings.values()],
       skills: this.options.skills,
     })

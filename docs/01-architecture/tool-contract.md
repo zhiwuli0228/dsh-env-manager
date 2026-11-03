@@ -238,15 +238,17 @@ parameters: {
     required: true,
     description: 'deploy | redeploy | restart | rollback | collect-logs | health-check | … (standard id or a bound custom id).',
   },
-  environmentId: { type: 'string', required: false },
-  serviceId: { type: 'string', required: false },
-  deploymentId: { type: 'string', required: false },
+  environmentId: { type: 'string', required: false, description: 'Defaults to the session environment; required unless deploymentId supplies one.' },
+  serviceId: { type: 'string', required: false, description: 'Service id; required unless the operation is environment-scoped (deploy-environment) or deploymentId supplies one.' },
+  deploymentId: { type: 'string', required: false, description: 'Deployment id; supplies the service and environment when omitted.' },
 }
 ```
 
-- At least one of `serviceId` / `deploymentId` is required; `environmentId` falls back
-  to the session default and is otherwise optional — without an environment only
-  `service` / `category-mode` / `global` bindings are eligible.
+- `serviceId` / `deploymentId` are required unless the operation is environment-scoped
+  (`deploy-environment` targets the environment, not a service). `environmentId` falls
+  back to the session default and is otherwise required — routing an operation without an
+  environment fails (`INVALID_ARGUMENT` / `ENVIRONMENT_REQUIRED`) instead of downgrading
+  to a lower binding.
 
 Returns `OperationResolution` from `data-model.md` §8.3:
 

@@ -63,6 +63,7 @@ type Status = 'configured-not-verified' | 'partially-verified' | 'verified';
 type MatchLevel =
   | 'deployment'
   | 'environment-service'
+  | 'environment'
   | 'service'
   | 'category-mode'
   | 'global';
@@ -627,25 +628,35 @@ interface OperationBinding extends RecordMeta {
 }
 ```
 
-`match` must be one of five shapes; any other combination is `RECORD_INVALID`:
+`match` must be one of six shapes; any other combination is `RECORD_INVALID`:
 
 | Shape | Level |
 |---|---|
 | `{ deploymentId }` plus optional `environmentId`/`serviceId` | `deployment` |
 | `{ environmentId, serviceId }` | `environment-service` |
+| `{ environmentId }` | `environment` |
 | `{ serviceId }` | `service` |
 | `{ serviceCategory, deploymentMode }` | `category-mode` |
 | `{}` | `global` |
 
-`environmentId` alone, `deploymentMode` alone, or `environmentId` + `deploymentMode` are
-invalid: they would create a sixth level with no defined precedence.
+`deploymentMode` alone, or `environmentId` + `deploymentMode`, is invalid. The
+`environment` shape exists for environment-scoped operations (see §7.1): their target is
+the environment itself, not a service.
 
 ### 7.1 Standard operation ids
 
 ```text
 install, deploy, redeploy, replace, restart, upgrade, rollback, uninstall,
-collect-logs, health-check, inspect, upload, download
+collect-logs, health-check, inspect, upload, download,
+deploy-environment
 ```
+
+**Environment deployment is separate from code replacement.** The code operations
+(`deploy`, `replace`, `redeploy`, `restart`, `rollback`, ...) target a service inside an
+already-provisioned environment. `deploy-environment` provisions/deploys the environment
+itself: it is environment-scoped (`match: { environmentId }`), generally runs on the
+**management plane**, and is used in VM scenarios where the environment has no
+service-level target yet.
 
 Any other id is treated as a custom operation and must appear explicitly in a binding.
 
@@ -728,6 +739,10 @@ is added; with a deployment the deployment layer and runtime location are added 
 Templates that reference `${env.*}` / `${deployment.*}` fail deterministically when the
 corresponding layer is absent, so service-level rules must stay environment-independent.
 
+Environment-scoped routing contexts (for `deploy-environment` and similar) carry
+`environmentId` as their anchor and **no** `serviceId`; at least one anchor is always
+present.
+
 ```ts
 interface CredentialStatus {
   ref: string;
@@ -739,9 +754,9 @@ interface ServiceContext {
   environmentId?: string;
   environmentName?: string;
   environmentCategory?: EnvironmentCategory;
-  serviceId: string;
-  serviceName: string;
-  serviceCategory: string;
+  serviceId?: string;          // present unless the context is environment-scoped
+  serviceName?: string;
+  serviceCategory?: string;
   deploymentId?: string;
   deploymentName?: string;
   runtimeMode?: RuntimeMode;
@@ -792,7 +807,7 @@ interface OperationResolution {
   ok: boolean;
   operation: string;
   requested: {
-    environmentId?: string;
+    environmentId?: string;   // always present on a successful route: operations require an environment
     serviceId?: string;
     deploymentId?: string;
   };
@@ -881,7 +896,7 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 | `SKILL_UNAVAILABLE` | error | Skill not registered, or source/provider mismatch |
 | `SKILL_REGISTRY_UNAVAILABLE` | warning | Skill registry cannot be queried; availability unknown |
 | `POLICY_DENIED` | error | Production policy or approval policy rejects the operation |
-| `PRODUCTION_CHECK_SKIPPED` | warning | Write operation routed without an environment context; production policy was not evaluated |
+| `ENVIRONMENT_REQUIRED` | error | An operation was routed without an environment; routing never downgrades to a lower binding |
 | `PARAMETER_RESOLUTION_FAILED` | error | Parameter template failed to resolve |
 | `CREDENTIAL_MISSING` | warning | `credentialRef` has no configured value |
 | `MEMORY_BRIDGE_UNAVAILABLE` | warning | Memory plugin not installed |

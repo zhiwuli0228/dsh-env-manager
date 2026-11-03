@@ -468,22 +468,24 @@ A binding is eligible when:
 
 | Field | Matches |
 |---|---|
-| `environmentId` | context environment id (ineligible when the context has none) |
+| `environmentId` | context environment id |
 | `serviceId` | context service id |
-| `deploymentId` | context deployment id (ineligible without a deployment) |
-| `deploymentMode` | context runtime mode (ineligible without a deployment) |
+| `deploymentId` | context deployment id |
+| `deploymentMode` | context runtime mode |
 | `serviceCategory` | service category |
 
-An empty `match` matches everything. A context without an environment makes only the
-`service`, `category-mode` and `global` levels eligible.
+An empty `match` matches everything. Routing always runs inside an environment: a context
+without one is refused (`ENVIRONMENT_REQUIRED`) — never downgraded to a lower binding.
+The `environment` level (environmentId-only match) covers environment-scoped operations
+such as `deploy-environment`.
 
 A binding whose `match` is not one of the five documented shapes is `RECORD_INVALID` at
 load (data-model §7); the router never sees such a binding.
 
 ### 8.2 Level and selection
 
-Rank: `deployment` 1, `environment-service` 2, `service` 3, `category-mode` 4,
-`global` 5. Level is derived from which match fields are present, with
+Rank: `deployment` 1, `environment-service` 2, `environment` 3, `service` 4,
+`category-mode` 5, `global` 6. Level is derived from which match fields are present, with
 `deploymentId` winning over `environmentId`+`serviceId`, which wins over `serviceId`,
 then `serviceCategory`+`deploymentMode`, then empty.
 

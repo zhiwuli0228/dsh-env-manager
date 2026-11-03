@@ -31,26 +31,35 @@ updatedAt: 2026-11-01T03:00:00.000Z
 |---|---|
 | `deployment` | `deploymentId` |
 | `environment-service` | `environmentId` + `serviceId` |
+| `environment` | `environmentId` only (environment-scoped ops) |
 | `service` | `serviceId` |
 | `category-mode` | `serviceCategory` + `deploymentMode` |
 | `global` | none (empty `match: {}`) |
 
 Every declared selector must match. The highest eligible level wins. Two eligible bindings at the same level are a conflict, never a coin flip.
 
-A `match` must be exactly one of these five shapes. For example `environmentId` alone, or `environmentId` + `deploymentMode`, is invalid (`RECORD_INVALID`).
+A `match` must be exactly one of these six shapes. For example `environmentId` +
+`deploymentMode`, or `deploymentMode` alone, is invalid (`RECORD_INVALID`).
 
-**Environment is optional in routing.** A context without an environment makes only the
-`service`, `category-mode` and `global` levels eligible (`deployment` and
-`environment-service` predicates need an environment). Prefer `service`-level or broader
-bindings for operations that apply wherever the service runs; use
-`environment-service` / `deployment` to narrow a route to one environment or instance.
-`deploymentMode` is only comparable when the context carries a deployment.
+**Operations always run inside an environment; routing never downgrades.** Invoking an
+operation without an environment is `ENVIRONMENT_REQUIRED` — routing never falls through
+to `service`/`global` bindings. If you bind to an environment, that is where the operation
+must run. The flow is: select the environment → pick the operation → route to its binding.
+`service`-level and `global` bindings still apply, within whichever environment is
+selected.
+
+**Environment deployment is separate from code replacement.** Code operations
+(`deploy`, `replace`, `redeploy`, ...) are service-scoped: use `environment-service` /
+`service` / `deployment` matches. `deploy-environment` provisions the environment itself:
+use the `environment` level (`match: { environmentId }`), no service; it generally runs on
+the management plane and is used in VM scenarios.
 
 ## Standard operations
 
 ```text
 install, deploy, redeploy, replace, restart, upgrade, rollback, uninstall,
-collect-logs, health-check, inspect, upload, download
+collect-logs, health-check, inspect, upload, download,
+deploy-environment        # environment-scoped; management plane, VM scenarios
 ```
 
 Custom operations are allowed but must be bound explicitly.

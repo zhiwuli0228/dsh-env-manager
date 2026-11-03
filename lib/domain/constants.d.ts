@@ -6,8 +6,9 @@ export declare const PARAMETER_KEY_PATTERN: RegExp;
 export declare const TEMPLATE_REF_PATTERN: RegExp;
 export declare const RECORD_KINDS: readonly RecordKind[];
 export declare const KIND_DIRECTORIES: Record<RecordKind, string>;
-export declare const STANDARD_OPERATIONS: readonly ["install", "deploy", "redeploy", "replace", "restart", "upgrade", "rollback", "uninstall", "collect-logs", "health-check", "inspect", "upload", "download"];
+export declare const STANDARD_OPERATIONS: readonly ["install", "deploy", "redeploy", "replace", "restart", "upgrade", "rollback", "uninstall", "collect-logs", "health-check", "inspect", "upload", "download", "deploy-environment"];
 export declare const WRITE_OPERATIONS: ReadonlySet<string>;
+export declare const ENVIRONMENT_SCOPED_OPERATIONS: ReadonlySet<string>;
 export declare const LIMITS: {
     readonly recordBytes: number;
     readonly sessionBytes: number;

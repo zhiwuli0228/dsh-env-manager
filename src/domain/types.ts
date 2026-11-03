@@ -16,6 +16,7 @@ export type Severity = 'info' | 'warning' | 'error'
 export type MatchLevel =
   | 'deployment'
   | 'environment-service'
+  | 'environment'
   | 'service'
   | 'category-mode'
   | 'global'
@@ -335,9 +336,11 @@ export interface ServiceContext {
   environmentId?: string
   environmentName?: string
   environmentCategory?: EnvironmentCategory
-  serviceId: string
-  serviceName: string
-  serviceCategory: string
+  // At least one anchor is required: serviceId for service-scoped operations and
+  // contexts, or environmentId for environment-scoped ones (e.g. deploy-environment).
+  serviceId?: string
+  serviceName?: string
+  serviceCategory?: string
   deploymentId?: string
   deploymentName?: string
   runtimeMode?: RuntimeMode

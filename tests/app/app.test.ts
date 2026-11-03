@@ -334,9 +334,33 @@ describe('app', () => {
     expect(context.runtimeMode).toBe('kubernetes')
   })
 
-  it('routes an operation at service level without an environment', async () => {
+  it('refuses to route an operation without an environment instead of downgrading', async () => {
     const dir = await makeDir()
     await writeFixture(dir)
+    await writeRecord(dir, 'operationBinding', {
+      id: 'binding-svc',
+      schemaVersion: 1,
+      operation: 'redeploy',
+      match: { serviceId: 'aicoservice' },
+      skill: { name: 'redeploy-k8s-service' },
+      parameters: { home: '${paths.serviceHome}' },
+      policy: { requiresApproval: true, allowProduction: false },
+      enabled: true,
+      createdAt: '2026-11-01T03:00:00.000Z',
+      updatedAt: '2026-11-01T03:00:00.000Z',
+    })
+    const app = makeApp(dir)
+    await expect(
+      app.route({ operation: 'redeploy', serviceId: 'aicoservice' }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+  })
+
+  it('routes a service-level binding within an environment', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    await fs.rm(path.join(dir, 'operations', 'binding-001.yaml'), { force: true })
     await writeRecord(dir, 'operationBinding', {
       id: 'binding-svc',
       schemaVersion: 1,
@@ -359,11 +383,74 @@ describe('app', () => {
         },
       },
     })
-    const resolution = await app.route({ operation: 'redeploy', serviceId: 'aicoservice' })
+    const resolution = await app.route({
+      operation: 'redeploy',
+      environmentId: 'test-a',
+      serviceId: 'aicoservice',
+    })
     expect(resolution.ok).toBe(true)
     expect(resolution.matchLevel).toBe('service')
-    expect(resolution.requested.environmentId).toBeUndefined()
+    expect(resolution.requested.environmentId).toBe('test-a')
     expect(resolution.parameters).toMatchObject({ home: '/opt/company/services/aicoservice' })
+  })
+
+  it('routes an environment-scoped operation without a service', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    await writeRecord(dir, 'operationBinding', {
+      id: 'binding-env',
+      schemaVersion: 1,
+      operation: 'deploy-environment',
+      match: { environmentId: 'test-a' },
+      skill: { name: 'deploy-env-skill' },
+      parameters: { envId: '${env.id}' },
+      policy: { requiresApproval: true, allowProduction: false },
+      enabled: true,
+      createdAt: '2026-11-01T03:00:00.000Z',
+      updatedAt: '2026-11-01T03:00:00.000Z',
+    })
+    const app = makeApp(dir, {
+      skills: {
+        async snapshot() {
+          return {
+            complete: true,
+            skills: [{ name: 'deploy-env-skill', source: 'project-dsh', provider: 'bundled' }],
+          }
+        },
+      },
+    })
+    const resolution = await app.route({
+      operation: 'deploy-environment',
+      environmentId: 'test-a',
+    })
+    expect(resolution.ok).toBe(true)
+    expect(resolution.matchLevel).toBe('environment')
+    expect(resolution.requested.environmentId).toBe('test-a')
+    expect(resolution.requested.serviceId).toBeUndefined()
+    expect(resolution.parameters).toMatchObject({ envId: 'test-a' })
+  })
+
+  it('accepts an environment-only match shape and rejects invalid combinations', () => {
+    const base = {
+      id: 'binding-shape',
+      schemaVersion: 1,
+      operation: 'deploy-environment',
+      skill: { name: 'deploy-env-skill' },
+      parameters: {},
+      policy: { requiresApproval: true, allowProduction: false },
+      enabled: true,
+      createdAt: '2026-11-01T03:00:00.000Z',
+      updatedAt: '2026-11-01T03:00:00.000Z',
+    }
+    expect(
+      parseRecordInput('operationBinding', { ...base, match: { environmentId: 'test-a' } }).ok,
+    ).toBe(true)
+    expect(
+      parseRecordInput('operationBinding', {
+        ...base,
+        match: { environmentId: 'test-a', deploymentMode: 'kubernetes' },
+      }).ok,
+    ).toBe(false)
   })
 
   it('fails safely on ambiguous deployments', async () => {

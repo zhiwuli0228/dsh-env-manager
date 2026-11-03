@@ -37,6 +37,9 @@ export const STANDARD_OPERATIONS = [
   'inspect',
   'upload',
   'download',
+  // Environment-scoped operations: deploying/provisioning the environment itself,
+  // management-plane only (VM scenarios). Kept apart from the code operations above.
+  'deploy-environment',
 ] as const
 
 export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
@@ -49,6 +52,13 @@ export const WRITE_OPERATIONS: ReadonlySet<string> = new Set([
   'rollback',
   'uninstall',
   'upload',
+  'deploy-environment',
+])
+
+// Operations whose target is the environment itself (management plane), not a service.
+// Routing them requires an environment and matches environment-level bindings.
+export const ENVIRONMENT_SCOPED_OPERATIONS: ReadonlySet<string> = new Set([
+  'deploy-environment',
 ])
 
 export const LIMITS = {

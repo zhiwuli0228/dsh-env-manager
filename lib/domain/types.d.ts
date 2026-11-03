@@ -3,7 +3,7 @@ export type RuntimeMode = 'native' | 'docker' | 'kubernetes';
 export type EnvironmentCategory = 'dev' | 'test' | 'staging' | 'production' | 'custom';
 export type Status = 'configured-not-verified' | 'partially-verified' | 'verified';
 export type Severity = 'info' | 'warning' | 'error';
-export type MatchLevel = 'deployment' | 'environment-service' | 'service' | 'category-mode' | 'global';
+export type MatchLevel = 'deployment' | 'environment-service' | 'environment' | 'service' | 'category-mode' | 'global';
 export type Actor = 'agent' | 'ui';
 export interface Diagnostic {
     code: string;
@@ -261,9 +261,9 @@ export interface ServiceContext {
     environmentId?: string;
     environmentName?: string;
     environmentCategory?: EnvironmentCategory;
-    serviceId: string;
-    serviceName: string;
-    serviceCategory: string;
+    serviceId?: string;
+    serviceName?: string;
+    serviceCategory?: string;
     deploymentId?: string;
     deploymentName?: string;
     runtimeMode?: RuntimeMode;

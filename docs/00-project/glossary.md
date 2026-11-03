@@ -146,7 +146,7 @@ A predicate mapping an operation in a given context to a specific Skill, with pa
 
 ## Match Level
 
-How specific a binding is: `deployment`, `environment-service`, `service`, `category-mode`, `global`.
+How specific a binding is: `deployment`, `environment-service`, `environment`, `service`, `category-mode`, `global`.
 
 Higher levels win; same-level ties are conflicts.
 

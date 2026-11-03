@@ -2,7 +2,7 @@ import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { App } from '../app/app.js'
 import { EnvManagerError, asEnvManagerError } from '../domain/errors.js'
-import { RECORD_KINDS, isRecordKind } from '../domain/constants.js'
+import { ENVIRONMENT_SCOPED_OPERATIONS, RECORD_KINDS, isRecordKind } from '../domain/constants.js'
 import type { Diagnostic, RecordKind, SessionContext } from '../domain/types.js'
 
 const kindProperty = {
@@ -288,14 +288,14 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
   const envResolveOperation = defineTool({
     name: 'env_resolve_operation',
     description:
-      'Use before acting: ask which Skill handles an operation for this context and what parameters it expects. This tool does not execute the Skill.',
+      'Use before acting: ask which Skill handles an operation for this context and what parameters it expects. This tool does not execute the Skill. Operations always run inside an environment: select one first (env_set_context or environmentId); without an environment routing fails instead of downgrading to a lower binding.',
     parameters: {
       operation: { type: 'string', required: true, description: 'Standard or custom operation id.' },
       environmentId: {
         type: 'string',
-        description: 'Optional; defaults to the session environment. Omit to match service / category-mode / global bindings only.',
+        description: 'Defaults to the session environment; required unless deploymentId supplies one.',
       },
-      serviceId: { type: 'string', description: 'Service id; or supply deploymentId.' },
+      serviceId: { type: 'string', description: 'Service id; required unless the operation is environment-scoped (e.g. deploy-environment) or deploymentId supplies one.' },
       deploymentId: { type: 'string', description: 'Deployment id; supplies the service and environment when omitted.' },
     },
     output: {
@@ -315,7 +315,8 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
     },
     async execute(args: any, exec: any): Promise<any> {
       try {
-        if (!args.serviceId && !args.deploymentId) {
+        const environmentScoped = ENVIRONMENT_SCOPED_OPERATIONS.has(args.operation)
+        if (!args.serviceId && !args.deploymentId && !environmentScoped) {
           throw new EnvManagerError(
             'INVALID_ARGUMENT',
             'Pass serviceId or deploymentId so the operation can be bound to a service',
