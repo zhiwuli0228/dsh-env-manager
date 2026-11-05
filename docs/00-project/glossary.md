@@ -166,6 +166,11 @@ Write operations default to requiring approval; production defaults to denied.
 
 A `credentialRef` string stored in a registry record.
 
+It must match the DSH credential grammar `^[A-Za-z_][A-Za-z0-9_]*$` (a POSIX
+environment-variable-style name). The plugin's own refs use the
+`DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` shape; the DSH file store rejects other key
+shapes inside `refs:` at boot.
+
 The value behind it lives in the DSH credential service or an external vault and is never returned by this plugin.
 
 ## Credential Status

@@ -143,6 +143,8 @@ non-grant. Approval is per call; nothing is cached.
 the value. `set(ref, value)` writes to a provider-managed writable source and
 `unset(ref)` removes it. `resolve(ref)` returns the value and must not be called by this
 plugin. `CredentialRef` is a branded string; at runtime an ordinary string is accepted.
+Refs this plugin writes are POSIX-style `DSH_ENV_MANAGER_*` names: the file-backed store
+rejects any other key inside its `refs:` section at boot.
 
 Evidence: Service contract `credentials`; live `POST /env-manager/api` with
 `op: "credential"` returned `{ ref, configured: true }`, and `op: "credentialUnset"`

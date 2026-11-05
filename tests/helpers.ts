@@ -33,7 +33,7 @@ export const environment = {
       roles: ['management', 'business'],
       adminUser: 'root',
       isActive: true,
-      credentialRef: 'cred-test-a-root',
+      credentialRef: 'DSH_ENV_MANAGER_TEST_A_ROOT',
       accounts: [
         {
           id: 'root',
@@ -42,7 +42,7 @@ export const environment = {
           protocol: 'ssh',
           port: 22,
           authType: 'private-key',
-          credentialRef: 'cred-test-a-root',
+          credentialRef: 'DSH_ENV_MANAGER_TEST_A_ROOT',
           lastLoginAt: '2026-10-31T08:12:00.000Z',
           lastLoginFrom: '10.0.8.21',
         },
@@ -56,7 +56,7 @@ export const environment = {
       kind: 'kubernetes',
       apiEndpoint: 'https://10.0.1.20:6443',
       namespaces: ['dv-sop'],
-      credentialRef: 'cred-test-a-kubeconfig',
+      credentialRef: 'DSH_ENV_MANAGER_TEST_A_KUBECONFIG',
     },
   ],
   endpoints: [

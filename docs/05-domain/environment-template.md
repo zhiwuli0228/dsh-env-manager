@@ -36,7 +36,7 @@ hosts:
     access: [ssh]
     adminUser: root
     isActive: true
-    credentialRef: cred-test-a-root
+    credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
     accounts:
       - id: root
         username: root
@@ -44,7 +44,7 @@ hosts:
         protocol: ssh
         port: 22
         authType: private-key
-        credentialRef: cred-test-a-root
+        credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
         lastLoginAt: 2026-10-31T08:12:00.000Z
         lastLoginFrom: 10.0.8.21
       - id: console
@@ -53,7 +53,7 @@ hosts:
         protocol: web
         loginUrl: https://test-a.example.internal/login
         authType: password
-        credentialRef: env-manager/test-a/console
+        credentialRef: DSH_ENV_MANAGER_TEST_A_CONSOLE
   - id: db-01
     name: test-a-db-01
     kind: physical
@@ -97,14 +97,14 @@ clusters:
     topology: all-in-one             # all-in-one | separate | external
     apiEndpoint: https://10.0.1.20:6443
     namespaces: [dv-sop]
-    credentialRef: cred-test-a-kubeconfig
+    credentialRef: DSH_ENV_MANAGER_TEST_A_KUBECONFIG
 
 endpoints:
   - id: ep-ssh-01
     kind: ssh
     hostRef: host-001
     port: 22
-    credentialRef: cred-test-a-root
+    credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
   - id: ep-web-01
     kind: web
     url: https://test-a.example.internal
@@ -148,7 +148,10 @@ updatedAt: 2026-11-01T03:00:00.000Z
   optional. Per-host `kind` is authoritative.
 - `endpoints[].hostRef` / `clusterRef` must resolve within this environment.
 - `credentialRef` is a reference only; never put a value here. The same rule applies to
-  every `accounts[].credentialRef`.
+  every `accounts[].credentialRef`. A ref must be a POSIX-style name
+  (`^[A-Za-z_][A-Za-z0-9_]*$`); the UI generates `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>`.
+  The DSH credential store rejects any other key shape at boot, so an invalid ref breaks
+  client startup.
 - `category: production` triggers the approval gate on management writes.
 - `accounts[]` is capped at 50 per host; `loginRecords[]` is capped at 200 per
   environment. Login records may reference a host and an account on that host.

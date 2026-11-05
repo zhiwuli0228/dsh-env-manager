@@ -82,6 +82,20 @@ the full package name (`dsh-env-manager-plugin`) and the factory returns
 `token-usage-statistic` client halves). `tests/client/client.test.ts` asserts both fields;
 all 52 tests pass.
 
+**Credential refs moved to the DSH credential grammar (2026-11-05):** account passwords
+(especially SSH passwords) were stored under `env-manager/<environmentId>/<accountId>`
+refs, but the DSH credential store (`@deepseek-ai/dsh-credentials-local`) accepts only
+POSIX environment-variable-style keys (`^[A-Za-z_][A-Za-z0-9_]*$`) inside its `refs:`
+section and **rejects any other key at boot** — the malformed entries made the whole
+`.credentials.yaml` unloadable and broke client startup. Fix: every credential the plugin
+writes now uses `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` (uppercase, digits, underscores);
+`setCredential`/`unsetCredential` reject refs outside that namespace or grammar; the
+registry schema validates every `credentialRef` against the DSH grammar so a bad ref fails
+at save instead of at boot; the Client generates the new refs. The live `desktop` profile
+was migrated (`.credentials.yaml` keys renamed, `real-test.yaml` refs updated, backup
+kept) and verified to parse under the strict DSH rules. Tests grew (grammar rejection,
+old-shape rejection); 64 passing.
+
 **Self-check hardening (2026-11-03):** the client unit test was the first place the bug
 should have failed — it asserted `loaded.id` against a hardcoded value, i.e. it captured
 the implementation (including the wrong id) instead of the contract. It is now a
@@ -263,8 +277,9 @@ Code:
 - Passwords are accepted only transiently by the add/edit node form and forwarded to
   `ctx.credentials.set`; the record keeps `credentialRef` only. Shell creation and batch
   import never accept passwords.
-- Credential writes/deletes are restricted to `env-manager/<environmentId>/<accountId>`
-  (node-add refs use `<hostId>-<username>` as the account id).
+- Credential writes/deletes are restricted to `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>`
+  refs (uppercase letters, digits and underscores only — the DSH credential grammar); an
+  invalid ref would break the whole credentials document at client boot.
 - No arbitrary code in rule templates.
 - No remote execution in V1.
 - No production auto-apply.

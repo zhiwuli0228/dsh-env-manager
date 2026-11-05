@@ -41,7 +41,11 @@ interface RecordMeta {
   hand-edited file is inspectable before it is fixed.
 - Records with an unknown `schemaVersion` are skipped on read with a warning diagnostic.
 - Records failing schema validation are skipped on read with a warning; they are not deleted.
-- No field may contain a plain-text secret. `credentialRef` is a reference only.
+- No field may contain a plain-text secret. `credentialRef` is a reference only, and it must
+  satisfy the DSH credential grammar `^[A-Za-z_][A-Za-z0-9_]*$` (a POSIX
+  environment-variable-style name, e.g. `DSH_ENV_MANAGER_TEST_A_ROOT`). The DSH file store
+  rejects a non-conforming key inside `refs:` at boot, so an invalid ref saved here would
+  break client startup rather than just this record.
 
 ---
 
@@ -286,7 +290,8 @@ web account is still attached to the machine or business host that exposes the c
 `loginUrl` is optional but must be an absolute `http(s)` URL.
 Accounts never carry password, key, token, or kubeconfig material; only `credentialRef` is stored.
 When the node form or account form receives a password, the Client writes it through the DSH
-credential service and stores the generated reference; the password is not written to YAML.
+credential service and stores the generated `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>`
+reference; the password is not written to YAML.
 
 `Environment.loginRecords` records login observations, including failed attempts. Records are
 bounded (200 per environment) and may reference a host and one of its accounts. Entries are
@@ -322,7 +327,7 @@ hosts:
     access: [ssh]
     adminUser: root
     isActive: true
-    credentialRef: cred-test-a-root
+    credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
     accounts:
       - id: root
         username: root
@@ -330,7 +335,7 @@ hosts:
         protocol: ssh
         port: 22
         authType: private-key
-        credentialRef: cred-test-a-root
+        credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
         lastLoginAt: 2026-10-31T08:12:00.000Z
         lastLoginFrom: 10.0.8.21
       - id: console
@@ -339,7 +344,7 @@ hosts:
         protocol: web
         loginUrl: https://test-a.example.internal/login
         authType: password
-        credentialRef: env-manager/test-a/console
+        credentialRef: DSH_ENV_MANAGER_TEST_A_CONSOLE
 clusters:
   - id: k8s-01
     name: test-a-k8s
@@ -347,13 +352,13 @@ clusters:
     topology: separate
     apiEndpoint: https://10.0.1.20:6443
     namespaces: [dv-sop]
-    credentialRef: cred-test-a-kubeconfig
+    credentialRef: DSH_ENV_MANAGER_TEST_A_KUBECONFIG
 endpoints:
   - id: ep-ssh-01
     kind: ssh
     hostRef: host-001
     port: 22
-    credentialRef: cred-test-a-root
+    credentialRef: DSH_ENV_MANAGER_TEST_A_ROOT
   - id: ep-web-01
     kind: web
     url: https://test-a.example.internal

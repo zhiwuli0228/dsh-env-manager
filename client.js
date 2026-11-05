@@ -128,7 +128,7 @@ window.__ModuleLoader__.load({
         noNodesHint: 'Add the first node and assign one or more planes.',
         noNodesForPlane: 'No nodes in this plane',
         noNodesForPlaneHint: 'Add a node to this plane or import several at once.',
-        accountScopeHint: 'Account ids are unique within this environment and form the credential reference.',
+        accountScopeHint: 'Account ids are unique within this environment and build the DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT> credential reference.',
         accessSummary: 'Access summary',
         loginSummary: 'Login summary',
         hostCount: 'Hosts',
@@ -348,7 +348,7 @@ window.__ModuleLoader__.load({
         noNodesHint: '添加第一个节点，可同时选择多个平面。',
         noNodesForPlane: '该平面暂无节点',
         noNodesForPlaneHint: '向该平面添加节点，或批量导入多个节点。',
-        accountScopeHint: '账号 ID 在本环境内唯一，并用于生成凭据引用。',
+        accountScopeHint: '账号 ID 在本环境内唯一，并用于生成 DSH_ENV_MANAGER_<环境>_<账号> 凭据引用。',
         accessSummary: '访问概况',
         loginSummary: '登录概况',
         hostCount: '主机',
@@ -1002,6 +1002,17 @@ window.__ModuleLoader__.load({
         }
         return candidate;
       };
+      // Build the plugin-owned credential ref. It must be a POSIX-style name
+      // (letters, digits, underscores) because the DSH credential store
+      // rejects any other key inside its `refs:` section at boot.
+      const envManagerCredentialRef = (environmentId, accountId) => {
+        const norm = (segment) =>
+          String(segment || '')
+            .toUpperCase()
+            .replace(/[^A-Z0-9_]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+        return 'DSH_ENV_MANAGER_' + norm(environmentId) + '_' + norm(accountId);
+      };
       const saveNext = async (next, cleanupRef) => {
         setSaving(true);
         setFormError(null);
@@ -1166,7 +1177,7 @@ window.__ModuleLoader__.load({
         let cleanupRef = null;
         if (username && password) {
           const accountId = uniqueAccountId(id, username);
-          const credentialRef = 'env-manager/' + record.id + '/' + accountId;
+          const credentialRef = envManagerCredentialRef(record.id, accountId);
           try {
             await props.onCredential(credentialRef, password);
           } catch (next) {
@@ -1287,9 +1298,9 @@ window.__ModuleLoader__.load({
         let cleanupRef = null;
         if (password) {
           const existingRef = existingAccount && existingAccount.credentialRef;
-          const ref = existingRef && existingRef.startsWith('env-manager/')
+          const ref = existingRef && existingRef.startsWith('DSH_ENV_MANAGER_')
             ? existingRef
-            : 'env-manager/' + record.id + '/' + id;
+            : envManagerCredentialRef(record.id, id);
           try {
             await props.onCredential(ref, password);
           } catch (next) {
@@ -1580,7 +1591,7 @@ window.__ModuleLoader__.load({
           h(Field, { label: t('sshPort'), value: draft.sshPort || '', onChange: field('sshPort'), type: 'number', inputMode: 'numeric' }),
           h(Field, { label: t('platform'), value: draft.platform || '', onChange: field('platform'), placeholder: 'Linux / x86_64' }),
           h(Field, { label: t('adminUser'), value: draft.adminUser || '', onChange: field('adminUser'), placeholder: 'root' }),
-          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-host-root' })),
+          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'DSH_ENV_MANAGER_HOST_ROOT' })),
         h('div', { className: 'dem-field' },
           h('span', { className: 'dem-label' }, t('roles')),
           h('div', { className: 'dem-check-grid' }, roleCatalog.map((role) =>
@@ -1911,7 +1922,7 @@ window.__ModuleLoader__.load({
           }),
           h(Field, { label: t('clusterApiEndpoint'), value: draft.apiEndpoint || '', onChange: field('apiEndpoint'), placeholder: 'https://10.0.1.20:6443' }),
           h(Field, { label: t('clusterNamespaces'), value: draft.namespaces || '', onChange: field('namespaces'), placeholder: 'dv-sop, business' }),
-          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'cred-k8s-prod' })),
+          h(Field, { label: t('credentialRef'), value: draft.credentialRef || '', onChange: field('credentialRef'), placeholder: 'DSH_ENV_MANAGER_K8S_CLUSTER' })),
         h(TextArea, { label: t('note'), value: draft.note || '', onChange: field('note'), rows: 2, wide: true }),
         formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
         h('div', { className: 'dem-form-foot' },

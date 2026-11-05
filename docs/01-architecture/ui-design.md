@@ -275,7 +275,8 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
   access set; the operator can override it. `k8s-all-in-one` and `k8s-worker` require an
   existing cluster; `pod-host` may omit one for a Docker-only machine. Username and password
   must be filled together; when present the password is written to `ctx.credentials.set`
-  and the account/credential ref is `env-manager/<environmentId>/<hostId>-<username>`.
+  and the account/credential ref is `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` (uppercase
+  letters, digits and underscores — the DSH store rejects any other shape at boot).
   Editing a node preserves its existing accounts; filling username + password again adds a
   new password account while leaving the existing accounts and host credential reference
   intact. Opening the form from a plane tab preselects that role.

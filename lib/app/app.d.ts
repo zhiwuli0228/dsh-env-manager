@@ -44,7 +44,10 @@ export declare class App {
     validate(): Promise<ValidationReport>;
     /**
      * Store one SSH/web credential in the DSH credential service and return only
-     * its reference. Registry YAML must never contain the value itself.
+     * its reference. Registry YAML must never contain the value itself. Refs are
+     * restricted to the plugin's POSIX-style `DSH_ENV_MANAGER_*` namespace: the
+     * DSH store rejects any other key shape at boot, so a bad ref here would
+     * break the whole credentials document, not just this entry.
      */
     setCredential(ref: string, value: string): Promise<{
         ref: string;

@@ -47,7 +47,11 @@ credential service is the only component allowed to hold secret values.
 2. The Host calls `ctx.credentials.describe(ref)` and keeps only `{ configured, source?, writable }`.
 3. The Host never calls `ctx.credentials.resolve(ref)` and never forwards a resolved value to a tool result, diagnostic or log.
 4. Tool and HTTP outputs contain `{ ref, configured, source }` only.
-5. `credentialRef` values are validated against the credential reference pattern if one exists; otherwise a conservative pattern (`^[A-Za-z0-9._:/-]{1,200}$`) is applied.
+5. `credentialRef` values are validated against the DSH credential grammar
+   (`^[A-Za-z_][A-Za-z0-9_]*$`, a POSIX environment-variable-style name). The DSH
+   file-backed store (`@deepseek-ai/dsh-credentials-local`) rejects any other key inside
+   the `refs:` section of `.credentials.yaml` **at boot** — an invalid ref written here
+   would make the whole credentials document unloadable and break client startup.
 6. Host accounts and login records follow the same rule: `Host.accounts[].credentialRef` is a
    reference, and `LoginRecord` stores username, time, source and result only. A web login
    `loginUrl` is configuration, not a secret; it must be an absolute `http(s)` URL. Password,
@@ -57,8 +61,9 @@ credential service is the only component allowed to hold secret values.
    `{ ref, configured }`. The value is never written to YAML, never logged and never
    returned. The Host still never calls `resolve`.
 8. Credential writes are restricted to refs matching
-   `env-manager/<environmentId>/<accountId>` so the form cannot overwrite an ambient
-   credential such as `OPENAI_API_KEY`.
+   `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` (uppercase letters, digits and underscores,
+   always prefixed) so the form cannot overwrite an ambient credential such as
+   `OPENAI_API_KEY`.
 
 ### 3.2 Threat: exfiltration through tool output
 
@@ -84,7 +89,7 @@ Mitigations:
 
 A compromised same-origin page could still submit a credential write while the user is
 present; this is accepted for a local single-user tool and documented as a residual risk.
-Credential deletion is restricted to the same `env-manager/` namespace.
+Credential deletion is restricted to the same `DSH_ENV_MANAGER_` namespace.
 
 ### 3.5 Command access is metadata, not authorization
 

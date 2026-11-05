@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ID_PATTERN, PARAMETER_KEY_PATTERN, SCHEMA_VERSION, WRITE_OPERATIONS } from './constants.js'
+import { CREDENTIAL_REF_PATTERN } from './credential-ref.js'
 import type {
   AnyRecord,
   Environment,
@@ -30,6 +31,19 @@ const timestampSchema = z
 
 const scalarSchema = z.union([z.string(), z.number(), z.boolean()])
 
+/**
+ * A credential reference must satisfy the DSH credential grammar — the store
+ * rejects any other key inside `refs:` at boot, so an invalid ref saved here
+ * would break the whole credentials document.
+ */
+const credentialRefSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) => CREDENTIAL_REF_PATTERN.test(value),
+    'Must be a POSIX-style credential ref such as DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT> (letters, digits and underscores only)',
+  )
+
 const loginProtocolSchema = z.enum(['ssh', 'rdp', 'web', 'k8s-api', 'docker', 'custom'])
 const loginAuthTypeSchema = z.enum(['password', 'private-key', 'agent', 'token', 'other'])
 const webLoginUrlSchema = z
@@ -47,7 +61,7 @@ function hostAccountSchema(mode: Mode) {
       loginUrl: webLoginUrlSchema.optional(),
       port: z.number().int().min(1).max(65535).optional(),
       authType: loginAuthTypeSchema.optional(),
-      credentialRef: z.string().min(1).optional(),
+      credentialRef: credentialRefSchema.optional(),
       lastLoginAt: timestampSchema.optional(),
       lastLoginFrom: z.string().optional(),
       note: z.string().optional(),
@@ -171,7 +185,7 @@ function environmentFields(mode: Mode): Shape {
             clusterRef: z.string().min(1).optional(),
             adminUser: z.string().optional(),
             isActive: z.boolean().optional(),
-            credentialRef: z.string().min(1).optional(),
+            credentialRef: credentialRefSchema.optional(),
             accounts: z.array(hostAccountSchema(mode)).max(50).optional(),
             note: z.string().optional(),
           },
@@ -189,7 +203,7 @@ function environmentFields(mode: Mode): Shape {
             topology: clusterTopologySchema.optional(),
             apiEndpoint: z.string().optional(),
             namespaces: z.array(z.string().min(1)).optional(),
-            credentialRef: z.string().min(1).optional(),
+            credentialRef: credentialRefSchema.optional(),
             note: z.string().optional(),
           },
           mode,
@@ -206,7 +220,7 @@ function environmentFields(mode: Mode): Shape {
             clusterRef: z.string().min(1).optional(),
             url: z.string().optional(),
             port: z.number().int().min(1).max(65535).optional(),
-            credentialRef: z.string().min(1).optional(),
+            credentialRef: credentialRefSchema.optional(),
             note: z.string().optional(),
           },
           mode,

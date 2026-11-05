@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { PLUGIN_CREDENTIAL_PREFIX, isCredentialRef } from '../domain/credential-ref.js'
 import { EnvManagerError, type ErrorCode } from '../domain/errors.js'
 import { ENVIRONMENT_SCOPED_OPERATIONS, LIMITS, isRecordKind } from '../domain/constants.js'
 import { parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
@@ -386,14 +387,17 @@ export class App {
 
   /**
    * Store one SSH/web credential in the DSH credential service and return only
-   * its reference. Registry YAML must never contain the value itself.
+   * its reference. Registry YAML must never contain the value itself. Refs are
+   * restricted to the plugin's POSIX-style `DSH_ENV_MANAGER_*` namespace: the
+   * DSH store rejects any other key shape at boot, so a bad ref here would
+   * break the whole credentials document, not just this entry.
    */
   async setCredential(ref: string, value: string): Promise<{ ref: string; configured: boolean }> {
     const cleanRef = String(ref || '').trim()
-    if (!/^env-manager\/[A-Za-z0-9._-]{1,80}\/[A-Za-z0-9._-]{1,80}$/.test(cleanRef)) {
+    if (!isCredentialRef(cleanRef) || !cleanRef.startsWith(PLUGIN_CREDENTIAL_PREFIX)) {
       throw new EnvManagerError(
         'INVALID_ARGUMENT',
-        'Credential ref must look like env-manager/<environmentId>/<accountId>',
+        'Credential ref must be a POSIX-style DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT> name (letters, digits and underscores only)',
       )
     }
     if (typeof value !== 'string' || value.length === 0 || value.length > 8192) {
@@ -420,10 +424,10 @@ export class App {
   /** Remove a credential owned by this plugin; other namespaces are rejected. */
   async unsetCredential(ref: string): Promise<{ ref: string; removed: true }> {
     const cleanRef = String(ref || '').trim()
-    if (!/^env-manager\/[A-Za-z0-9._-]{1,80}\/[A-Za-z0-9._-]{1,80}$/.test(cleanRef)) {
+    if (!isCredentialRef(cleanRef) || !cleanRef.startsWith(PLUGIN_CREDENTIAL_PREFIX)) {
       throw new EnvManagerError(
         'INVALID_ARGUMENT',
-        'Credential ref must look like env-manager/<environmentId>/<accountId>',
+        'Credential ref must be a POSIX-style DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT> name (letters, digits and underscores only)',
       )
     }
     if (!this.options.credentials) {

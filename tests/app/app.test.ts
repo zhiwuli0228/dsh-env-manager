@@ -74,7 +74,7 @@ describe('app', () => {
       skills: null,
       credentials: {
         async describe(ref: string) {
-          return { configured: ref.includes('kubeconfig'), source: 'store' }
+          return { configured: ref.toUpperCase().includes('KUBECONFIG'), source: 'store' }
         },
         async set() {
           return undefined
@@ -133,7 +133,7 @@ describe('app', () => {
     expect(record.hosts[0]?.accounts?.[0]).toMatchObject({
       username: 'root',
       authType: 'private-key',
-      credentialRef: 'cred-test-a-root',
+      credentialRef: 'DSH_ENV_MANAGER_TEST_A_ROOT',
       lastLoginFrom: '10.0.8.21',
     })
     expect(record.loginRecords).toHaveLength(2)
@@ -265,7 +265,7 @@ describe('app', () => {
       protocol: 'web',
       loginUrl: 'https://console.example.internal/login',
       authType: 'password',
-      credentialRef: 'env-manager/test-a/console',
+      credentialRef: 'DSH_ENV_MANAGER_TEST_A_CONSOLE',
     })
     await app.save('environment', value, { actor: 'agent' })
     const got = await app.get('environment', 'test-a')
@@ -273,7 +273,7 @@ describe('app', () => {
       .toMatchObject({
         protocol: 'web',
         loginUrl: 'https://console.example.internal/login',
-        credentialRef: 'env-manager/test-a/console',
+        credentialRef: 'DSH_ENV_MANAGER_TEST_A_CONSOLE',
       })
     expect(got.yaml).toContain('loginUrl')
     expect(got.yaml).toContain('https://console.example.internal/login')
@@ -306,8 +306,8 @@ describe('app', () => {
     })
     expect(context.deploymentId).toBe('deploy-001')
     expect(context.paths.jar?.value).toContain('aicoservice.jar')
-    expect(context.credentials.find((item) => item.ref === 'cred-test-a-kubeconfig')?.configured).toBe(true)
-    expect(context.credentials.find((item) => item.ref === 'cred-test-a-root')?.configured).toBe(false)
+    expect(context.credentials.find((item) => item.ref === 'DSH_ENV_MANAGER_TEST_A_KUBECONFIG')?.configured).toBe(true)
+    expect(context.credentials.find((item) => item.ref === 'DSH_ENV_MANAGER_TEST_A_ROOT')?.configured).toBe(false)
     expect(warnings.some((item) => item.code === 'CREDENTIAL_MISSING')).toBe(true)
   })
 
@@ -496,23 +496,31 @@ describe('app', () => {
         },
       },
     })
-    const result = await app.setCredential('env-manager/oracle-prod/root', 's3cret-value')
-    expect(result).toEqual({ ref: 'env-manager/oracle-prod/root', configured: true })
-    expect(writes).toEqual([{ ref: 'env-manager/oracle-prod/root', value: 's3cret-value' }])
-    await app.unsetCredential('env-manager/oracle-prod/root')
-    expect(removals).toEqual(['env-manager/oracle-prod/root'])
+    const result = await app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 's3cret-value')
+    expect(result).toEqual({ ref: 'DSH_ENV_MANAGER_ORACLE_PROD_ROOT', configured: true })
+    expect(writes).toEqual([{ ref: 'DSH_ENV_MANAGER_ORACLE_PROD_ROOT', value: 's3cret-value' }])
+    await app.unsetCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT')
+    expect(removals).toEqual(['DSH_ENV_MANAGER_ORACLE_PROD_ROOT'])
   })
 
-  it('rejects credentials outside the env-manager namespace and empty values', async () => {
+  it('rejects credentials outside the DSH_ENV_MANAGER namespace, non-POSIX refs and empty values', async () => {
     const dir = await makeDir()
     const app = makeApp(dir)
     await expect(app.setCredential('OTHER_API_KEY', 'x')).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     })
-    await expect(app.setCredential('env-manager/oracle-prod/root', '')).rejects.toMatchObject({
+    // The old env-manager/<environment>/<account> shape is not a POSIX name and
+    // would break the DSH credentials document at boot; it must be rejected.
+    await expect(app.setCredential('env-manager/oracle-prod/root', 'x')).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     })
-    await expect(app.setCredential('env-manager/oracle-prod/root', 'x'.repeat(8193))).rejects.toMatchObject({
+    await expect(app.setCredential('cred-test-a-root', 'x')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+    await expect(app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', '')).rejects.toMatchObject({
+      code: 'INVALID_ARGUMENT',
+    })
+    await expect(app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 'x'.repeat(8193))).rejects.toMatchObject({
       code: 'INVALID_ARGUMENT',
     })
   })
@@ -520,7 +528,7 @@ describe('app', () => {
   it('fails safely when the credential service is unavailable', async () => {
     const dir = await makeDir()
     const app = makeApp(dir, { credentials: null })
-    await expect(app.setCredential('env-manager/oracle-prod/root', 'secret')).rejects.toMatchObject({
+    await expect(app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 'secret')).rejects.toMatchObject({
       code: 'CREDENTIAL_UNAVAILABLE',
     })
   })

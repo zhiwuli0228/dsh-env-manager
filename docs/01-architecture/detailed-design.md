@@ -295,7 +295,7 @@ diagnostic, and the snapshot keeps the other kinds.
 | operation binding `match.environmentId` | environment exists | `ENV_NOT_FOUND` |
 | operation binding `match.serviceId` | service exists | `SERVICE_NOT_FOUND` |
 | operation binding `match.deploymentId` | deployment exists | `DEPLOYMENT_NOT_FOUND` |
-| any `credentialRef` | non-empty string matching the agreed ref pattern | `RECORD_INVALID` |
+| any `credentialRef` | non-empty string matching the DSH credential grammar `^[A-Za-z_][A-Za-z0-9_]*$` | `RECORD_INVALID` |
 
 Schema validation rejects an environment with zero logical roles and a host with zero
 roles before integrity checks run; both fail as `RECORD_INVALID`. A host role id that is
@@ -627,9 +627,12 @@ Rules:
   `CredentialDirectory { describe(ref); set(ref, value); unset(ref) }`. The Host
   adapter calls `ctx.credentials.describe`; tests use a fake. A missing ref yields
   `{ ref, configured: false }` plus `CREDENTIAL_MISSING`; no value is ever requested.
-- `setCredential` accepts only `env-manager/<environmentId>/<accountId>` refs and a
-  non-empty value, forwards them to `ctx.credentials.set`, and returns only
-  `{ ref, configured: true }`. It never writes the value to a record or log.
+- `setCredential` accepts only refs in the plugin namespace that also satisfy the DSH
+  credential grammar — `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` (`^[A-Za-z_][A-Za-z0-9_]*$`)
+  — plus a non-empty value, forwards them to `ctx.credentials.set`, and returns only
+  `{ ref, configured: true }`. It never writes the value to a record or log. The grammar
+  check is not cosmetic: the DSH file store rejects an invalid key inside `refs:` at boot,
+  so one bad write makes the whole credentials document unloadable.
   `unsetCredential` uses the same namespace check and calls `ctx.credentials.unset`.
   A missing service yields `CREDENTIAL_UNAVAILABLE`; provider failures yield
   `CREDENTIAL_WRITE_FAILED` without exposing the provider message to the UI.
@@ -856,7 +859,7 @@ The UI cannot read or write session context; that is agent-only in V1 (§9).
 - `record.remove` requires `confirm: true` unless `dryRun: true`;
 - every write is logged with actor, op, kind, id and outcome (no record content).
 
-`credential` and `credentialUnset` are UI-only, restricted to the `env-manager/`
+`credential` and `credentialUnset` are UI-only, restricted to the `DSH_ENV_MANAGER_`
 namespace and never write to the registry. They log only the ref and outcome.
 
 ## 13. Client module

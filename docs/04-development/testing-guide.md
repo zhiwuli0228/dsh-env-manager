@@ -94,7 +94,7 @@ tests/
 ## Fixtures
 
 - Under `tests/fixtures/`, one directory per scenario.
-- Fake values only: `test-a`, `10.0.0.x`, `example.internal`, `cred-test-*`.
+- Fake values only: `test-a`, `10.0.0.x`, `example.internal`, `DSH_ENV_MANAGER_*` refs.
 - A fixture that needs a secret-like string must use an obvious placeholder and must not be a real credential.
 
 ## Coverage expectations
