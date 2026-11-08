@@ -29,6 +29,19 @@ function fakeRunner(exitCode = 0, stdout = 'ok') {
   return { runner, specs }
 }
 
+function expectNoUndefined(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (const item of value) expectNoUndefined(item)
+    return
+  }
+  if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      expect(item, `key "${key}" must not be undefined`).not.toBeUndefined()
+      expectNoUndefined(item)
+    }
+  }
+}
+
 function makeApp(dataDir: string, runner?: ProcessRunner) {
   return new App({
     dataDir,
@@ -136,6 +149,24 @@ describe('experience loop', () => {
     expect(result.experience!.kind).toBe('failure-lesson')
     expect(result.experience!.outcome).toBe('failure')
     expect(result.experience!.content).toContain('exit code: 3')
+  })
+
+  it('returns strict-JSON-safe operate results (no undefined values)', async () => {
+    const dir = await makeDir()
+    await writeCommandBindingFixture(dir, ['echo', 'hi'])
+    const { runner, specs } = fakeRunner(0, 'done-1')
+    const app = makeApp(dir, runner)
+    const result = await app.operate({
+      operation: 'redeploy',
+      environmentId: 'test-a',
+      serviceId: 'aicoservice',
+      confirm: true,
+    })
+    expect(specs).toHaveLength(1)
+    expect(result.experience).toBeDefined()
+    expectNoUndefined(result)
+    // Lossless JSON: round-tripping through JSON keeps the object identical.
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result)
   })
 
   it('surfaces related experiences on later routes, failures first', async () => {

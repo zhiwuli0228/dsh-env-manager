@@ -11,6 +11,21 @@ import {
 import { parseExperienceInput, parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
 import { executeTarget, type ExecuteInput } from '../executor/executor.js'
 import { nodeRunner, type ProcessRunner } from '../executor/runner.js'
+
+/** Recursively drop `undefined` values so results survive strict JSON round-trips. */
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as unknown as T
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (item !== undefined) out[key] = stripUndefined(item)
+    }
+    return out as T
+  }
+  return value
+}
 import type {
   Actor,
   AnyRecord,
@@ -657,7 +672,7 @@ export class App {
       )
     }
     resolution.experiences = await this.relevantExperiences(request.operation, context)
-    return resolution
+    return stripUndefined(resolution)
   }
 
   /**
@@ -712,14 +727,14 @@ export class App {
       const id = await this.experiences.nextId()
       const record = this.buildExperience(id, request, resolution, execution)
       await this.experiences.write(record)
-      return {
+      return stripUndefined({
         resolution,
         execution,
         experience: this.experienceSummaryOf(record),
         warnings: execution.diagnostics,
-      }
+      })
     }
-    return { resolution, execution, warnings: execution.diagnostics }
+    return stripUndefined({ resolution, execution, warnings: execution.diagnostics })
   }
 
   async listExperiences(filter: ExperienceFilter = {}): Promise<{
@@ -748,7 +763,7 @@ export class App {
       ...(note ? { reviewNote: note.slice(0, 2000) } : {}),
     }
     await this.experiences.write(reviewed)
-    return reviewed
+    return stripUndefined(reviewed)
   }
 
   /**
