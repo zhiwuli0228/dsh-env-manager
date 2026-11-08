@@ -19,4 +19,26 @@ export declare const LIMITS: {
     readonly backupCount: 5;
     readonly maxSnapshotRecords: 5000;
 };
+export declare const EXPERIENCE_DIR = "experiences";
+export declare const SCRIPTS_DIR = "scripts";
+export declare const EXECUTION_LIMITS: {
+    readonly defaultTimeoutSeconds: 600;
+    readonly maxTimeoutSeconds: 3600;
+    /** Captured stdout/stderr cap per stream. */
+    readonly outputBytes: number;
+    readonly maxArgs: 64;
+    readonly argBytes: 1024;
+    readonly commandBytes: 4096;
+};
+export declare const EXPERIENCE_LIMITS: {
+    readonly contentBytes: 8000;
+    readonly titleLength: 120;
+    readonly maxTags: 12;
+    readonly maxList: 100;
+    /** How many related experiences a resolution embeds for the model. */
+    readonly relatedOnRoute: 5;
+    readonly contentPreview: 300;
+};
+/** Default interpreter for a script path when the binding does not name one. */
+export declare const INTERPRETER_BY_EXTENSION: Readonly<Record<string, string>>;
 export declare function isRecordKind(value: string): value is RecordKind;

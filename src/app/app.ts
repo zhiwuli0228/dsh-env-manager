@@ -1,8 +1,16 @@
 import { createRequire } from 'node:module'
 import { PLUGIN_CREDENTIAL_PREFIX, isCredentialRef } from '../domain/credential-ref.js'
 import { EnvManagerError, type ErrorCode } from '../domain/errors.js'
-import { ENVIRONMENT_SCOPED_OPERATIONS, LIMITS, isRecordKind } from '../domain/constants.js'
-import { parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
+import {
+  ENVIRONMENT_SCOPED_OPERATIONS,
+  EXPERIENCE_LIMITS,
+  LIMITS,
+  WRITE_OPERATIONS,
+  isRecordKind,
+} from '../domain/constants.js'
+import { parseExperienceInput, parseRecord, parseRecordInput, withTimestamps } from '../domain/schemas.js'
+import { executeTarget, type ExecuteInput } from '../executor/executor.js'
+import { nodeRunner, type ProcessRunner } from '../executor/runner.js'
 import type {
   Actor,
   AnyRecord,
@@ -11,11 +19,16 @@ import type {
   Deployment,
   Diagnostic,
   Environment,
+  ExperienceFilter,
+  ExperienceRecord,
+  ExperienceSummary,
   FindHit,
   FindResult,
   GetResult,
   ListResult,
   MetaResult,
+  OperateRequest,
+  OperateResult,
   OperationBinding,
   OperationResolution,
   RecordKind,
@@ -39,6 +52,7 @@ import { resolveOperation } from '../router/router.js'
 import { SessionStore } from '../session/session.js'
 import { parseYamlText, stringifyRecord } from '../storage/records.js'
 import { deleteRecordFile, readRecordRaw, writeRecordFile } from '../storage/records.js'
+import { ExperienceStore } from '../storage/experiences.js'
 import { ensureLayout } from '../storage/atomic.js'
 import type { Logger } from '../logger.js'
 
@@ -57,6 +71,8 @@ export interface AppOptions {
   credentials: CredentialDirectory | null
   logger: Logger
   defaults?: { environmentId?: string }
+  /** Injectable process runner; defaults to the node child-process runner. */
+  runner?: ProcessRunner
 }
 
 export interface SaveContext {
@@ -121,7 +137,7 @@ function summaryOf(kind: RecordKind, record: AnyRecord): RecordSummary {
     }
     case 'operationBinding': {
       const binding = record as OperationBinding
-      summary = `${binding.operation} → ${binding.skill.name}`
+      summary = `${binding.operation} → ${binding.skill?.name ?? `execute:${binding.execute?.mode ?? 'none'}`}`
       break
     }
   }
@@ -135,10 +151,12 @@ function errorDiagnostic(code: string, message: string, details?: Record<string,
 export class App {
   private readonly loader: RegistryLoader
   private readonly sessions: SessionStore
+  private readonly experiences: ExperienceStore
 
   constructor(private readonly options: AppOptions) {
     this.loader = new RegistryLoader(options.dataDir)
     this.sessions = new SessionStore(options.dataDir)
+    this.experiences = new ExperienceStore({ dataDir: options.dataDir, logger: options.logger })
   }
 
   get dataDir(): string {
@@ -628,6 +646,7 @@ export class App {
       context,
       bindings: [...snapshot.operationBindings.values()],
       skills: this.options.skills,
+      hosts: environment?.hosts,
     })
     if (!resolution.ok) {
       const first = resolution.diagnostics.find((item) => item.severity === 'error')
@@ -637,7 +656,231 @@ export class App {
         { resolution },
       )
     }
+    resolution.experiences = await this.relevantExperiences(request.operation, context)
     return resolution
+  }
+
+  /**
+   * Execute a routed operation. Skill targets are prepared (the agent invokes the
+   * Skill); script/command targets run a bounded local process; remote targets are
+   * prepared as an ssh descriptor. Every completed execution writes an experience
+   * into the review queue (success → summary, failure → lesson).
+   */
+  async operate(request: OperateRequest): Promise<OperateResult> {
+    const resolution = await this.route({
+      operation: request.operation,
+      environmentId: request.environmentId,
+      serviceId: request.serviceId,
+      deploymentId: request.deploymentId,
+    })
+    if (!resolution.ok || !resolution.target) {
+      throw new EnvManagerError(
+        'EXECUTION_TARGET_INVALID',
+        'The routed binding has no executable target',
+        { resolution },
+      )
+    }
+    if (request.dryRun) {
+      return {
+        resolution,
+        execution: {
+          status: 'prepared',
+          durationMs: 0,
+          prepared: { kind: resolution.target.mode },
+          diagnostics: resolution.diagnostics,
+        },
+        warnings: resolution.diagnostics,
+      }
+    }
+    const snapshot = await this.snapshot()
+    const environment = resolution.requested.environmentId
+      ? lookupByRef(snapshot, 'environment', resolution.requested.environmentId)
+      : undefined
+    const input: ExecuteInput = {
+      target: resolution.target,
+      policy: resolution.policy!,
+      writeOperation: WRITE_OPERATIONS.has(request.operation),
+      environmentCategory: environment?.category,
+      confirm: request.confirm === true,
+      dataDir: this.options.dataDir,
+      signal: request.signal,
+      runner: this.options.runner ?? nodeRunner,
+      logger: this.options.logger,
+    }
+    const execution = await executeTarget(input)
+    if (execution.status === 'completed' || execution.status === 'failed') {
+      const id = await this.experiences.nextId()
+      const record = this.buildExperience(id, request, resolution, execution)
+      await this.experiences.write(record)
+      return {
+        resolution,
+        execution,
+        experience: this.experienceSummaryOf(record),
+        warnings: execution.diagnostics,
+      }
+    }
+    return { resolution, execution, warnings: execution.diagnostics }
+  }
+
+  async listExperiences(filter: ExperienceFilter = {}): Promise<{
+    items: ExperienceSummary[]
+    warnings: Diagnostic[]
+  }> {
+    const records = await this.experiences.list(filter)
+    return { items: records.map((record) => this.experienceSummaryOf(record)), warnings: [] }
+  }
+
+  async reviewExperience(
+    id: string,
+    action: 'approve' | 'reject',
+    actor: Actor,
+    note?: string,
+  ): Promise<ExperienceRecord> {
+    const record = await this.experiences.read(id)
+    if (!record) {
+      throw new EnvManagerError('EXPERIENCE_NOT_FOUND', `Experience "${id}" was not found`, { id })
+    }
+    const reviewed: ExperienceRecord = {
+      ...record,
+      status: action === 'approve' ? 'accepted' : 'rejected',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: actor,
+      ...(note ? { reviewNote: note.slice(0, 2000) } : {}),
+    }
+    await this.experiences.write(reviewed)
+    return reviewed
+  }
+
+  /**
+   * Add a hand-written experience (e.g. a lesson from a Skill run the agent
+   * observed, or an out-of-band deployment note). Always enters the review queue
+   * as `proposed`; nothing auto-applies.
+   */
+  async addExperience(input: {
+    operation: string
+    environmentId?: string
+    serviceId?: string
+    deploymentId?: string
+    bindingId?: string
+    mode: import('../domain/types.js').ExecutionMode
+    outcome: import('../domain/types.js').ExperienceOutcome
+    kind: import('../domain/types.js').ExperienceKind
+    title: string
+    content: string
+    tags?: string[]
+    evidenceRefs?: string[]
+  }): Promise<ExperienceRecord> {
+    const now = new Date().toISOString()
+    const id = await this.experiences.nextId()
+    const parsed = parseExperienceInput({
+      id,
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
+      executedAt: now,
+      status: 'proposed',
+      tags: input.tags ?? [],
+      evidenceRefs: input.evidenceRefs ?? [],
+      ...input,
+    })
+    if (!parsed.ok) {
+      throw new EnvManagerError('RECORD_INVALID', 'Experience failed validation', {
+        issues: parsed.issues,
+      })
+    }
+    const finalized = withTimestamps({ ...parsed.record, id }, undefined, now)
+    await this.experiences.write(finalized)
+    return finalized
+  }
+
+  /** Experiences matching an operation+scope, newest first, failures ranked first. */
+  private async relevantExperiences(
+    operation: string,
+    context: ServiceContext,
+  ): Promise<ExperienceSummary[]> {
+    const limit = EXPERIENCE_LIMITS.relatedOnRoute
+    const records = await this.experiences.list({ limit: 100 })
+    const preview = EXPERIENCE_LIMITS.contentPreview
+    return records
+      .filter(
+        (record) =>
+          record.operation === operation &&
+          (record.status === 'accepted' || record.status === 'proposed') &&
+          (record.environmentId === undefined ||
+            record.environmentId === context.environmentId) &&
+          (record.serviceId === undefined ||
+            record.serviceId === context.serviceId),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.kind === 'failure-lesson') - Number(a.kind === 'failure-lesson') ||
+          b.executedAt.localeCompare(a.executedAt),
+      )
+      .slice(0, limit)
+      .map((record) => ({
+        ...this.experienceSummaryOf(record),
+        content: record.content.length > preview ? `${record.content.slice(0, preview)}…` : record.content,
+      }))
+  }
+
+  private buildExperience(
+    id: string,
+    request: OperateRequest,
+    resolution: OperationResolution,
+    execution: import('../domain/types.js').ExecutionOutcome,
+  ): ExperienceRecord {
+    const now = new Date()
+    const mode = resolution.target?.mode ?? 'skill'
+    const success = execution.status === 'completed'
+    const scope =
+      `${resolution.requested.environmentId ?? '(env)'}` +
+      (resolution.requested.serviceId ? `/${resolution.requested.serviceId}` : '')
+    const title = success
+      ? `Succeeded ${request.operation} @ ${scope}`
+      : `Failed ${request.operation} @ ${scope}`
+    const parts: string[] = []
+    parts.push(
+      `[${mode}] ${request.operation} ${success ? 'completed' : 'failed'} on ${scope} in ${
+        Math.round(execution.durationMs / 100) / 10
+      }s`,
+    )
+    if (!success && execution.exitCode !== undefined) parts.push(`exit code: ${execution.exitCode}`)
+    if (execution.stdout) parts.push(`stdout:\n${execution.stdout.slice(0, 1200)}`)
+    if (execution.stderr) parts.push(`stderr:\n${execution.stderr.slice(0, 1200)}`)
+    if (request.note) parts.push(`note: ${request.note.slice(0, 1000)}`)
+    const content = parts.join('\n').slice(0, 8000)
+    return {
+      id,
+      schemaVersion: 1,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      operation: request.operation,
+      bindingId: resolution.matchedBindingId,
+      environmentId: resolution.requested.environmentId,
+      serviceId: resolution.requested.serviceId,
+      deploymentId: resolution.requested.deploymentId,
+      mode,
+      outcome: success ? 'success' : 'failure',
+      kind: success ? 'success-summary' : 'failure-lesson',
+      title: title.slice(0, 120),
+      content,
+      tags: [request.operation, mode],
+      status: 'proposed',
+      evidenceRefs: [],
+      executedAt: now.toISOString(),
+    }
+  }
+
+  private experienceSummaryOf(record: ExperienceRecord): ExperienceSummary {
+    return {
+      id: record.id,
+      kind: record.kind,
+      outcome: record.outcome,
+      title: record.title,
+      status: record.status,
+      executedAt: record.executedAt,
+      content: record.content,
+    }
   }
 
   async getContext(sessionId: string): Promise<SessionContext> {

@@ -1,18 +1,22 @@
+import { INTERPRETER_BY_EXTENSION } from '../domain/constants.js'
 import { WRITE_OPERATIONS } from '../domain/constants.js'
 import { EnvManagerError } from '../domain/errors.js'
 import type {
   Diagnostic,
+  ExecutionTarget,
+  Host,
   MatchLevel,
   OperationBinding,
   OperationPolicy,
   OperationResolution,
   ResolvedSkillReference,
+  ResolvedTarget,
   ServiceContext,
   SkillDirectory,
   SkillSummary,
 } from '../domain/types.js'
 import { matchShape } from '../domain/schemas.js'
-import { resolveParameters } from './params.js'
+import { interpolateText, resolveArgv, resolveParameters } from './params.js'
 
 const RANK: Record<MatchLevel, number> = {
   deployment: 1,
@@ -28,6 +32,8 @@ export interface RouterInput {
   context: ServiceContext
   bindings: OperationBinding[]
   skills: SkillDirectory | null
+  /** Environment hosts, used to prepare remote targets. Never includes credential values. */
+  hosts?: Host[]
   signal?: AbortSignal
 }
 
@@ -59,6 +65,7 @@ function skillDiagnostic(
 }
 
 async function checkSkill(
+  ref: import('../domain/types.js').SkillReference,
   binding: OperationBinding,
   context: ServiceContext,
   skills: SkillDirectory | null,
@@ -68,7 +75,6 @@ async function checkSkill(
   diagnostics: Diagnostic[]
   ok: boolean
 }> {
-  const ref = binding.skill
   if (!skills) {
     return {
       skill: { name: ref.name, available: 'unknown' },
@@ -253,15 +259,14 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
 
   const selected = winners[0]!
   const selectedBinding = selected.binding
-  const skillResult = await checkSkill(selectedBinding, context, skills, signal)
 
   const policy: OperationPolicy = {
     requiresApproval:
       selectedBinding.policy?.requiresApproval ?? WRITE_OPERATIONS.has(operation),
     allowProduction: selectedBinding.policy?.allowProduction ?? false,
   }
-  const diagnostics = [...skillResult.diagnostics]
-  let ok = skillResult.ok
+  const diagnostics: Diagnostic[] = []
+  let ok = true
   if (context.environmentCategory === 'production' && policy.allowProduction !== true) {
     ok = false
     diagnostics.push(
@@ -295,17 +300,148 @@ export async function resolveOperation(input: RouterInput): Promise<OperationRes
     )
   }
 
+  let skill: ResolvedSkillReference | undefined
+  let target: ResolvedTarget | undefined
+  const skillRef = selectedBinding.skill
+  if (skillRef) {
+    const skillResult = await checkSkill(skillRef, selectedBinding, context, skills, signal)
+    diagnostics.push(...skillResult.diagnostics)
+    skill = skillResult.skill
+    ok = ok && skillResult.ok
+    target = { mode: 'skill', skill: skillResult.skill }
+  } else if (selectedBinding.execute) {
+    const resolved = resolveExecutionTarget(
+      selectedBinding.execute,
+      parameters ?? {},
+      context,
+      input.hosts,
+      selectedBinding.id,
+    )
+    if (!resolved.ok) {
+      ok = false
+      diagnostics.push(...resolved.diagnostics)
+    } else {
+      target = resolved.target
+    }
+  } else {
+    ok = false
+    diagnostics.push(
+      skillDiagnostic(
+        'EXECUTION_TARGET_INVALID',
+        `Binding ${selectedBinding.id} declares neither a skill nor an execute target`,
+        'error',
+        { binding: selectedBinding.id },
+      ),
+    )
+  }
+
   return {
     ok,
     operation,
     requested,
     matchedBindingId: selectedBinding.id,
     matchLevel: selected.level,
-    skill: skillResult.skill,
+    skill,
+    target,
     parameters,
     policy,
     diagnostics,
   }
+}
+
+function resolveExecutionTarget(
+  execute: ExecutionTarget,
+  parameters: Record<string, string>,
+  context: ServiceContext,
+  hosts: Host[] | undefined,
+  bindingId: string,
+):
+  | { ok: true; target: ResolvedTarget }
+  | { ok: false; diagnostics: Diagnostic[] } {
+  const fail = (code: string, message: string, details?: Record<string, unknown>) => ({
+    ok: false as const,
+    diagnostics: [skillDiagnostic(code, message, 'error', { binding: bindingId, ...details })],
+  })
+  try {
+    switch (execute.mode) {
+      case 'script': {
+        const extension = execute.path.split('.').pop() ?? ''
+        return {
+          ok: true,
+          target: {
+            mode: 'script',
+            script: {
+              path: execute.path,
+              interpreter: execute.interpreter ?? INTERPRETER_BY_EXTENSION[extension] ?? 'bash',
+              args: resolveArgv(execute.args ?? [], context, 'execute.script.args', parameters),
+            },
+            timeoutSeconds: execute.timeoutSeconds,
+          },
+        }
+      }
+      case 'command':
+        return {
+          ok: true,
+          target: {
+            mode: 'command',
+            command: {
+              argv: resolveArgv(execute.argv, context, 'execute.command.argv', parameters),
+              ...(execute.workingDirectory ? { workingDirectory: execute.workingDirectory } : {}),
+            },
+            timeoutSeconds: execute.timeoutSeconds,
+          },
+        }
+      case 'remote': {
+        const host = pickHost(hosts, execute.hostRef)
+        if (!host) {
+          return fail(
+            'HOST_NOT_FOUND',
+            execute.hostRef
+              ? `Remote target host "${execute.hostRef}" does not exist in environment ${context.environmentId}`
+              : `Remote target needs an ssh host in environment ${context.environmentId}; none is configured`,
+            { environmentId: context.environmentId, hostRef: execute.hostRef ?? null },
+          )
+        }
+        const sshAccount = (host.accounts ?? []).find(
+          (account) => account.protocol === 'ssh' && account.credentialRef,
+        )
+        const username =
+          execute.username !== undefined
+            ? interpolateText(execute.username, context, 'execute.remote.username', parameters)
+            : host.adminUser ?? sshAccount?.username ?? 'root'
+        return {
+          ok: true,
+          target: {
+            mode: 'remote',
+            remote: {
+              hostId: host.id,
+              hostName: host.name,
+              address: host.publicIp ?? host.ip,
+              port: host.sshPort ?? 22,
+              username,
+              command: interpolateText(execute.command, context, 'execute.remote.command', parameters),
+              credentialRef: host.credentialRef ?? sshAccount?.credentialRef,
+            },
+            timeoutSeconds: execute.timeoutSeconds,
+          },
+        }
+      }
+      default:
+        return fail('EXECUTION_TARGET_INVALID', `Unknown execute mode "${(execute as { mode: string }).mode}"`)
+    }
+  } catch (error) {
+    return fail(
+      error instanceof EnvManagerError ? error.code : 'PARAMETER_RESOLUTION_FAILED',
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
+
+function pickHost(hosts: Host[] | undefined, hostRef: string | undefined): Host | undefined {
+  const list = hosts ?? []
+  if (hostRef) return list.find((host) => host.id === hostRef)
+  const ssh = list.find((host) => host.access?.includes('ssh'))
+  return ssh ?? list[0]
 }
 
 export { RANK }

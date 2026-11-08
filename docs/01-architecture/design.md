@@ -31,18 +31,20 @@ Give every DSH session a shared, queryable environment context, and make the pat
 2. File-based registry storage under the plugin data directory.
 3. Manual management of environments, services, deployment bindings, rule profiles and operation bindings.
 4. Layered rule resolution with provenance and validation.
-5. Deterministic operation-to-Skill routing with conflict detection, availability checks and approval policy evaluation.
-6. Read-only Agent tools usable from any session in the profile.
-7. Session-scoped default environment.
-8. A minimal Web/Desktop configuration UI; file editing remains a supported baseline.
+5. Deterministic operation routing with conflict detection, availability checks and approval policy evaluation; bindings resolve to a Skill **or** an executable target (script / local command / prepared remote command).
+6. `env_operate` runs approved local targets and writes an experience (success → summary, failure → lesson) into a review queue; routing surfaces related experiences so the tool gets smarter with use.
+7. Read-only Agent tools usable from any session in the profile.
+8. Session-scoped default environment.
+9. A minimal Web/Desktop configuration UI; file editing remains a supported baseline.
 
 ### 1.3 V1 does not deliver
 
-- SSH/SFTP, Docker, Kubernetes or browser execution adapters.
+- SSH/SFTP, Docker, Kubernetes or browser execution adapters; `remote` targets are
+  prepared as an ssh descriptor, not executed by the plugin.
 - Automatic deployment, rollback or self-healing.
 - Automatic extraction of service facts from Git, Maven, Dockerfile or Helm.
 - Automatic rule or Skill modification without review.
-- A persistent memory store of its own.
+- A persistent memory store of its own; experiences are plugin-owned YAML files in a review queue.
 - Guarantees that a derived path exists. Only an online check may mark a value verified.
 
 ---
@@ -78,13 +80,16 @@ DSH Host process
   ├── storage      atomic YAML read/write
   ├── registry     validated per-request snapshot of storage
   ├── resolver     pure context + rule resolution
-  ├── router       pure operation→Skill matching
+  ├── router       pure operation→target matching (skill | script | command | remote)
+  ├── executor     approval-gated local execution of script/command targets
   ├── session      per-session default environment
   └── memory-bridge  optional P1 contract
           │
           ▼
 Plugin data directory
   ├── environments/  services/  deployments/  rules/  operations/
+  ├── scripts/       execution scripts referenced by bindings
+  ├── experiences/   review-queue records (success summaries / failure lessons)
   └── sessions/
 ```
 

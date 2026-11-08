@@ -53,3 +53,45 @@ evidence:{environmentId}/{deploymentId}/{kind}-{timestamp}
 ```
 
 `kind` is a short token such as `log`, `config` or `check`. The content lives outside the record.
+
+---
+
+## Experience record (execution loop)
+
+Each `env_operate` run with a script/command target writes one experience into
+`<dataDir>/experiences/<id>.yaml`. Successes become `success-summary`, failures become
+`failure-lesson`. Hand-written lessons from Skill runs use `env_experience add`. All
+records enter the review queue as `proposed`; `env_experience approve|reject` moves them
+to `accepted`/`rejected`. Nothing auto-applies.
+
+```yaml
+id: exp-20261108-120412
+schemaVersion: 1
+operation: redeploy
+bindingId: binding-exec
+environmentId: test-a
+serviceId: aicoservice
+mode: command
+outcome: failure
+kind: failure-lesson
+title: "Failed redeploy @ test-a/aicoservice"
+content: |
+  [command] redeploy failed on test-a/aicoservice in 3.1s
+  exit code: 3
+  stdout:
+  …[bounded output tail, secrets redacted]
+createdAt: 2026-11-08T04:04:12.000Z
+updatedAt: 2026-11-08T04:04:12.000Z
+executedAt: 2026-11-08T04:04:12.000Z
+tags: [redeploy, command]
+status: proposed
+evidenceRefs: []
+```
+
+Rules:
+
+- `content` is bounded (8000 chars) and redacted; never embed raw secrets.
+- Experiences live outside the registry: they are not validated by registry integrity and
+  cannot be referenced by other records.
+- Routing embeds the most relevant experiences (failures first, newest second, ≤5) so the
+  model learns from the queue as it is reviewed.

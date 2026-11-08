@@ -10,8 +10,8 @@ network, its planes are role views, and hosts also record their machine kind and
 surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
-registry, resolver, router, session store, application service, ten tools and the
-same-origin HTTP API are in place, with 64 Vitest tests passing. The Client panel is
+registry, resolver, router, executor, session store, application service, twelve tools and
+the same-origin HTTP API are in place, with 102 Vitest tests passing. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -30,6 +30,40 @@ on `windows-latest`, verifies the tag against `package.json`, runs `npm run chec
 the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Release.
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
+
+**Executable bindings + experience loop (2026-11-08, unreleased):** an operation binding is
+no longer Skill-only. It declares exactly one target — `skill` (discovery only) **xor**
+`execute` — where `execute` is one of:
+
+- `script` — a file under `<dataDir>/scripts` (absolute paths and `..` rejected at save and
+  re-checked at execution), interpreter explicit or by extension (`.sh/.ps1/.py/.js`…),
+  interpolated args;
+- `command` — a local CLI as an `argv` array (spawned with `shell: false`, no shell
+  interpolation), optional working directory under `<dataDir>`;
+- `remote` — an SSH command **prepared** as a descriptor (address/port/username/
+  `credentialRef`); the plugin never reads credential values, so it cannot open the
+  connection itself.
+
+New tool `env_operate` routes and executes: it enforces the approval gate
+(`APPROVAL_REQUIRED` → native `ctx.approval` prompt → retry with `confirm: true`) and the
+production guard (`POLICY_DENIED` unless `allowProduction`), then runs script/command
+targets via the new `executor` module with bounded output (64 KiB), a timeout (default
+600 s, max 3600 s, `SIGTERM`→`SIGKILL`) and `password=`-style redaction.
+
+Every completed or failed execution writes an **experience** (`<dataDir>/experiences/
+<id>.yaml`): success → `success-summary`, failure → `failure-lesson`. Experiences are
+plugin-owned, never registry records, and always enter the review queue as `proposed`;
+new tool `env_experience` lists/adds/approves/rejects (HTTP ops `experienceList`,
+`experienceAdd`, `experienceReview`). Routing now embeds up to 5 related experiences
+(failures first, newest second, scope-matched, proposed+accepted, 300-char previews) in
+`OperationResolution.experiences`, so the model sees prior lessons before acting — the
+tool gets smarter as the queue is reviewed, with no auto-apply path. Tests: 102 passing
+(new `tests/executor/`, `tests/experience/`, `tests/router/router.test.ts`; tool count 12).
+Docs updated: `data-model.md`, `module-boundaries.md` (§6.1 executor), `security-model.md`
+(§4.2, §8, §9, §10), `design.md` (§1.2/§1.3/§3), `storage-contract.md` §1,
+`operation-binding-template.md`, `operation-record-template.md`, `AGENTS.md` §6/§7,
+README. The running `desktop` process still executes its cached pre-upgrade module; a DSH
+restart is required before the new host code is live.
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so

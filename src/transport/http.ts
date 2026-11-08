@@ -220,6 +220,46 @@ export function registerHttpTransport(ctx: any, app: App, logger: Logger): () =>
           serviceId: payload.serviceId ? String(payload.serviceId) : undefined,
           deploymentId: payload.deploymentId ? String(payload.deploymentId) : undefined,
         })
+      case 'operate':
+        return app.operate({
+          operation: String(payload.operation ?? ''),
+          environmentId: payload.environmentId ? String(payload.environmentId) : undefined,
+          serviceId: payload.serviceId ? String(payload.serviceId) : undefined,
+          deploymentId: payload.deploymentId ? String(payload.deploymentId) : undefined,
+          confirm: Boolean(payload.confirm),
+          dryRun: Boolean(payload.dryRun),
+          note: payload.note ? String(payload.note) : undefined,
+        })
+      case 'experienceList':
+        return app.listExperiences({
+          operation: payload.operation ? String(payload.operation) : undefined,
+          environmentId: payload.environmentId ? String(payload.environmentId) : undefined,
+          serviceId: payload.serviceId ? String(payload.serviceId) : undefined,
+          kind: payload.kind,
+          status: payload.status,
+          limit: payload.limit,
+        })
+      case 'experienceAdd':
+        return app.addExperience({
+          operation: String(payload.operation ?? ''),
+          environmentId: payload.environmentId ? String(payload.environmentId) : undefined,
+          serviceId: payload.serviceId ? String(payload.serviceId) : undefined,
+          deploymentId: payload.deploymentId ? String(payload.deploymentId) : undefined,
+          bindingId: payload.bindingId ? String(payload.bindingId) : undefined,
+          mode: payload.mode,
+          outcome: payload.outcome,
+          kind: payload.kind,
+          title: String(payload.title ?? ''),
+          content: String(payload.content ?? ''),
+          tags: Array.isArray(payload.tags) ? payload.tags.map(String) : undefined,
+        })
+      case 'experienceReview':
+        return app.reviewExperience(
+          String(payload.id ?? ''),
+          payload.action === 'reject' ? 'reject' : 'approve',
+          'ui',
+          payload.note ? String(payload.note) : undefined,
+        )
       default:
         throw new EnvManagerError('INVALID_ARGUMENT', `Unknown operation "${op}"`)
     }

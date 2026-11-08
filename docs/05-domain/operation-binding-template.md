@@ -25,6 +25,87 @@ createdAt: 2026-11-01T03:00:00.000Z
 updatedAt: 2026-11-01T03:00:00.000Z
 ```
 
+## Execute targets
+
+A binding declares **either** `skill` (discovery only — the agent invokes the Skill)
+**or** one `execute` target. Both or neither is `RECORD_INVALID`.
+
+Every `${ref}` in `execute` is interpolated like parameters (context refs and resolved
+parameters such as `${namespace}` are available).
+
+### Script under `<dataDir>/scripts`
+
+```yaml
+id: binding-provision
+schemaVersion: 1
+operation: deploy-environment
+match: { environmentId: test-a }
+execute:
+  mode: script
+  path: provision/provision.sh      # relative; absolute paths and ".." are rejected
+  interpreter: bash                 # optional; defaults by extension
+  args: ["${env.id}", "${service.name}"]
+  timeoutSeconds: 900
+policy: { requiresApproval: true, allowProduction: false }
+enabled: true
+createdAt: 2026-11-01T03:00:00.000Z
+updatedAt: 2026-11-01T03:00:00.000Z
+```
+
+### Local CLI command (no shell)
+
+```yaml
+id: binding-restart
+schemaVersion: 1
+operation: restart
+match: { environmentId: test-a, serviceId: aicoservice }
+execute:
+  mode: command
+  argv: ["kubectl", "rollout", "restart", "deployment/${workload}", "-n", "${namespace}"]
+  workingDirectory: null           # optional, relative to <dataDir>
+  timeoutSeconds: 300
+parameters:
+  workload: ${deployment.location.workload.name}
+  namespace: ${deployment.location.namespace}
+policy: { requiresApproval: true, allowProduction: false }
+enabled: true
+createdAt: 2026-11-01T03:00:00.000Z
+updatedAt: 2026-11-01T03:00:00.000Z
+```
+
+### Remote command (prepared ssh descriptor)
+
+```yaml
+id: binding-restart-vm
+schemaVersion: 1
+operation: restart
+match: { environmentId: test-a }
+execute:
+  mode: remote
+  hostRef: host-001                # optional; defaults to the first ssh host
+  username: root                   # optional; never a secret
+  command: "systemctl restart ${service.name}"
+  timeoutSeconds: 300
+policy: { requiresApproval: true, allowProduction: false }
+enabled: true
+createdAt: 2026-11-01T03:00:00.000Z
+updatedAt: 2026-11-01T03:00:00.000Z
+```
+
+`remote` returns `{ address, port, username, command, credentialRef }` for the caller to
+run over ssh; the plugin cannot read credential values, so it never opens the connection
+itself.
+
+## Approval and production rules
+
+- Write operations default to `requiresApproval: true`.
+- `env_operate` refuses a gated write execution without `confirm: true` (`APPROVAL_REQUIRED`);
+  the tool turns that into the native approval prompt and retries once approved.
+- `allowProduction` defaults to `false`; production execution is denied unless the binding
+  sets it to `true`.
+- Every completed or failed execution writes an experience (success → summary, failure →
+  lesson) into the review queue; nothing auto-applies.
+
 ## Match levels
 
 | Level | Selectors present |
@@ -68,4 +149,6 @@ Custom operations are allowed but must be bound explicitly.
 
 - Write operations default to `requiresApproval: true`.
 - `allowProduction` defaults to `false`.
-- A binding is discovery information. It does not execute anything.
+- A binding is discovery information. `env_operate` is the only path that runs an
+  `execute` target, and it enforces approval + production gates first. Skill targets are
+  never executed by the plugin.

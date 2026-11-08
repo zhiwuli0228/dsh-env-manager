@@ -267,10 +267,54 @@ export interface OperationPolicy {
   allowProduction: boolean
 }
 
+/**
+ * How a binding's operation is carried out. `skill` keeps the V1 discovery-only
+ * behavior (the agent invokes the Skill); `script` and `command` run a local
+ * process through the executor; `remote` is prepared as an SSH command descriptor
+ * because the plugin cannot read credential values.
+ */
+export type ExecutionMode = 'skill' | 'script' | 'command' | 'remote'
+
+export interface ScriptExecution {
+  mode: 'script'
+  /** Script path relative to `<dataDir>/scripts`; absolute paths and `..` are rejected. */
+  path: string
+  /** Explicit interpreter; defaults by extension (.sh→bash, .ps1→pwsh, .py→python, .js/.mjs/.cjs→node). */
+  interpreter?: 'bash' | 'sh' | 'pwsh' | 'python' | 'node'
+  /** Extra argv items appended to the interpreter invocation; interpolated like parameters. */
+  args?: string[]
+  timeoutSeconds?: number
+}
+
+export interface CommandExecution {
+  mode: 'command'
+  /** argv[0] is the executable; every item is interpolated. Spawned without a shell. */
+  argv: string[]
+  /** Working directory relative to `<dataDir>`; defaults to the data directory. */
+  workingDirectory?: string
+  timeoutSeconds?: number
+}
+
+export interface RemoteExecution {
+  mode: 'remote'
+  /** Environment host id; defaults to the first host that accepts ssh. */
+  hostRef?: string
+  /** SSH user or account username; may be a template. Must never be a secret. */
+  username?: string
+  /** Shell command executed on the host; interpolated. */
+  command: string
+  timeoutSeconds?: number
+}
+
+export type ExecutionTarget = ScriptExecution | CommandExecution | RemoteExecution
+
 export interface OperationBinding extends RecordMeta {
   operation: string
   match: OperationMatch
-  skill: SkillReference
+  /** Discovery-only target: the agent invokes the named Skill. */
+  skill?: SkillReference
+  /** Executable target: script, local command or prepared remote command. */
+  execute?: ExecutionTarget
   parameters?: Record<string, string | number | boolean>
   policy: OperationPolicy
   enabled: boolean
@@ -371,6 +415,23 @@ export interface ResolvedSkillReference {
   available: boolean | 'unknown'
 }
 
+export interface ResolvedTarget {
+  mode: ExecutionMode
+  skill?: ResolvedSkillReference
+  script?: { path: string; interpreter: string; args: string[] }
+  command?: { argv: string[]; workingDirectory?: string }
+  remote?: {
+    hostId?: string
+    hostName?: string
+    address?: string
+    port?: number
+    username?: string
+    command: string
+    credentialRef?: string
+  }
+  timeoutSeconds?: number
+}
+
 export interface OperationResolution {
   ok: boolean
   operation: string
@@ -382,9 +443,106 @@ export interface OperationResolution {
   matchedBindingId?: string
   matchLevel?: MatchLevel
   skill?: ResolvedSkillReference
+  target?: ResolvedTarget
   parameters?: Record<string, string>
   policy?: OperationPolicy
+  /** Lessons and summaries relevant to this operation/scope, newest first. */
+  experiences?: ExperienceSummary[]
   diagnostics: Diagnostic[]
+}
+
+// ---------------------------------------------------------------------------
+// Executed operations and the experience loop
+// ---------------------------------------------------------------------------
+
+export type ExperienceOutcome = 'success' | 'failure' | 'skipped'
+
+export type ExperienceKind = 'success-summary' | 'failure-lesson'
+
+export type ExperienceStatus = 'proposed' | 'accepted' | 'rejected'
+
+export interface ExperienceRecord extends RecordMeta {
+  operation: string
+  bindingId?: string
+  environmentId?: string
+  serviceId?: string
+  deploymentId?: string
+  mode: ExecutionMode
+  outcome: ExperienceOutcome
+  kind: ExperienceKind
+  title: string
+  /** Redacted, bounded (8000 chars) narrative: what happened, why it worked or failed, what to do next time. */
+  content: string
+  tags: string[]
+  status: ExperienceStatus
+  evidenceRefs: string[]
+  executedAt: string
+  reviewedAt?: string
+  reviewedBy?: Actor
+  reviewNote?: string
+}
+
+export interface ExperienceSummary {
+  id: string
+  kind: ExperienceKind
+  outcome: ExperienceOutcome
+  title: string
+  status: ExperienceStatus
+  executedAt: string
+  content: string
+}
+
+export interface OperateRequest {
+  operation: string
+  environmentId?: string
+  serviceId?: string
+  deploymentId?: string
+  /** true only after the user (or the native approval prompt) approved a gated execution. */
+  confirm?: boolean
+  /** Resolve and gate but do not run anything. */
+  dryRun?: boolean
+  /** Free-form note stored with the experience record. */
+  note?: string
+  signal?: AbortSignal
+}
+
+export interface ExecutionOutcome {
+  status: 'prepared' | 'completed' | 'failed' | 'rejected'
+  exitCode?: number
+  stdout?: string
+  stderr?: string
+  durationMs: number
+  prepared?: {
+    kind: ExecutionMode
+    skill?: ResolvedSkillReference
+    script?: { path: string; interpreter: string }
+    command?: { argv: string[]; workingDirectory?: string }
+    remote?: {
+      command: string
+      hostId?: string
+      address?: string
+      port?: number
+      username?: string
+      credentialRef?: string
+    }
+  }
+  diagnostics: Diagnostic[]
+}
+
+export interface OperateResult {
+  resolution: OperationResolution
+  execution: ExecutionOutcome
+  experience?: ExperienceSummary
+  warnings: Diagnostic[]
+}
+
+export interface ExperienceFilter {
+  operation?: string
+  environmentId?: string
+  serviceId?: string
+  kind?: ExperienceKind
+  status?: ExperienceStatus
+  limit?: number
 }
 
 export interface SessionContext {

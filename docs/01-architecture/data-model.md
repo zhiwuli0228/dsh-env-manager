@@ -626,15 +626,38 @@ interface OperationPolicy {
 interface OperationBinding extends RecordMeta {
   operation: string;              // standard id or custom id
   match: OperationMatch;          // empty object means global
-  skill: SkillReference;
+  skill?: SkillReference;         // discovery-only target: the agent invokes the Skill
+  execute?: ExecutionTarget;      // executable target: script | command | remote
   parameters?: Record<string, string>;
   policy: OperationPolicy;
   enabled: boolean;
 }
 ```
 
-`match` must be one of six shapes; any other combination is `RECORD_INVALID`:
+Exactly one of `skill` or `execute` must be present; both or neither is `RECORD_INVALID`.
 
+```ts
+type ExecutionTarget =
+  | { mode: 'script'; path: string; interpreter?: 'bash'|'sh'|'pwsh'|'python'|'node';
+      args?: string[]; timeoutSeconds?: number }
+  | { mode: 'command'; argv: string[]; workingDirectory?: string; timeoutSeconds?: number }
+  | { mode: 'remote'; hostRef?: string; username?: string; command: string;
+      timeoutSeconds?: number };
+```
+
+- `script` — a file under `<dataDir>/scripts` (absolute paths and `..` are rejected at
+  save and re-checked at execution). The interpreter defaults by extension
+  (`.sh`→bash, `.ps1`→pwsh, `.py`→python, `.js`/`.mjs`/`.cjs`→node).
+- `command` — a local CLI spawned without a shell (`argv[0]` is the executable), with
+  an optional working directory relative to `<dataDir>`.
+- `remote` — an SSH command prepared as a descriptor (host, address, port, username,
+  `credentialRef`) for the caller to run; the plugin never reads credential values, so
+  it cannot open the connection itself.
+
+Every `${ref}` in `execute` is interpolated like parameters; resolved parameters are
+available as refs too (`${namespace}` → `parameters.namespace`).
+
+`match` must be one of six shapes; any other combination is `RECORD_INVALID`:
 | Shape | Level |
 |---|---|
 | `{ deploymentId }` plus optional `environmentId`/`serviceId` | `deployment` |
@@ -819,9 +842,21 @@ interface OperationResolution {
   matchedBindingId?: string;
   matchLevel?: MatchLevel;
   skill?: ResolvedSkillReference;
+  target?: ResolvedTarget;    // mode skill | script | command | remote
   parameters?: Record<string, string>;
   policy?: OperationPolicy;
+  experiences?: ExperienceSummary[];  // related lessons/summaries, failures first
   diagnostics: Diagnostic[];
+}
+
+interface ResolvedTarget {
+  mode: ExecutionMode;
+  skill?: ResolvedSkillReference;
+  script?: { path: string; interpreter: string; args: string[] };
+  command?: { argv: string[]; workingDirectory?: string };
+  remote?: { hostId?: string; hostName?: string; address?: string; port?: number;
+             username?: string; command: string; credentialRef?: string };
+  timeoutSeconds?: number;
 }
 ```
 
@@ -865,6 +900,41 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 
 ---
 
+## 10.1 Experience record (execution loop)
+
+Executed operations (script/command targets) write one experience per run; hand-written
+lessons from Skill runs can be added through `env_experience add`. Experiences are
+plugin-owned YAML files under `<dataDir>/experiences/` — separate from the registry, so
+they never participate in registry validation or referential integrity.
+
+```ts
+interface ExperienceRecord extends RecordMeta {
+  operation: string;
+  bindingId?: string;
+  environmentId?: string;
+  serviceId?: string;
+  deploymentId?: string;
+  mode: 'skill' | 'script' | 'command' | 'remote';
+  outcome: 'success' | 'failure' | 'skipped';
+  kind: 'success-summary' | 'failure-lesson';   // success → summary, failure → lesson
+  title: string;                                // ≤120 chars
+  content: string;                              // ≤8000 chars, redacted output tail + note
+  tags: string[];                               // ≤12
+  status: 'proposed' | 'accepted' | 'rejected'; // review queue; never auto-applies
+  evidenceRefs: string[];                       // opaque, sanitized
+  executedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: 'agent' | 'ui';
+  reviewNote?: string;
+}
+```
+
+Routing embeds the most relevant experiences (`experiences`, failures first, newest
+second, at most 5) so the model sees prior lessons before it acts — the tool gets
+smarter with use without any auto-apply path.
+
+---
+
 ## 11. Diagnostics catalogue
 
 | Code | Severity | Meaning |
@@ -903,6 +973,13 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 | `POLICY_DENIED` | error | Production policy or approval policy rejects the operation |
 | `ENVIRONMENT_REQUIRED` | error | An operation was routed without an environment; routing never downgrades to a lower binding |
 | `PARAMETER_RESOLUTION_FAILED` | error | Parameter template failed to resolve |
+| `EXECUTION_TARGET_INVALID` | error | Binding has no valid skill/execute target |
+| `SCRIPT_NOT_FOUND` | error | Script file missing under `<dataDir>/scripts` |
+| `SCRIPT_PATH_TRAVERSAL` | error | Script path or working directory escapes the data directory |
+| `EXECUTION_TIMEOUT` | error | Execution exceeded its timeout and was killed |
+| `EXECUTION_FAILED` | error | Execution could not start or exited non-zero |
+| `APPROVAL_REQUIRED` | error | Gated write execution needs explicit approval (`confirm: true`) |
+| `EXPERIENCE_NOT_FOUND` | error | Experience id does not exist |
 | `CREDENTIAL_MISSING` | warning | `credentialRef` has no configured value |
 | `MEMORY_BRIDGE_UNAVAILABLE` | warning | Memory plugin not installed |
 | `SESSION_CONTEXT_UNAVAILABLE` | error | A session-scoped tool ran without an owning agent |

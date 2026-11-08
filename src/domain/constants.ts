@@ -72,6 +72,44 @@ export const LIMITS = {
   maxSnapshotRecords: 5000,
 } as const
 
+// ---------------------------------------------------------------------------
+// Operation execution and the experience loop
+// ---------------------------------------------------------------------------
+
+export const EXPERIENCE_DIR = 'experiences'
+export const SCRIPTS_DIR = 'scripts'
+
+export const EXECUTION_LIMITS = {
+  defaultTimeoutSeconds: 600,
+  maxTimeoutSeconds: 3600,
+  /** Captured stdout/stderr cap per stream. */
+  outputBytes: 64 * 1024,
+  maxArgs: 64,
+  argBytes: 1024,
+  commandBytes: 4096,
+} as const
+
+export const EXPERIENCE_LIMITS = {
+  contentBytes: 8000,
+  titleLength: 120,
+  maxTags: 12,
+  maxList: 100,
+  /** How many related experiences a resolution embeds for the model. */
+  relatedOnRoute: 5,
+  contentPreview: 300,
+} as const
+
+/** Default interpreter for a script path when the binding does not name one. */
+export const INTERPRETER_BY_EXTENSION: Readonly<Record<string, string>> = {
+  sh: 'bash',
+  bash: 'bash',
+  ps1: 'pwsh',
+  py: 'python',
+  js: 'node',
+  mjs: 'node',
+  cjs: 'node',
+}
+
 export function isRecordKind(value: string): value is RecordKind {
   return (RECORD_KINDS as readonly string[]).includes(value)
 }

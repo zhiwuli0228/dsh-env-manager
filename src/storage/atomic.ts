@@ -113,4 +113,7 @@ export async function cleanupTempFiles(dataDir: string): Promise<number> {
 
 export async function ensureLayout(dataDir: string): Promise<void> {
   await fs.mkdir(dataDir, { recursive: true })
+  // Scripts referenced by execute bindings live here; the directory is part of
+  // the plugin workspace so bindings never point outside it.
+  await fs.mkdir(path.join(dataDir, 'scripts'), { recursive: true })
 }

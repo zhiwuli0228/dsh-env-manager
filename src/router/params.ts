@@ -39,12 +39,74 @@ export function buildParameterConstants(context: ServiceContext): Map<string, st
   return constants
 }
 
+/**
+ * Interpolate one `${ref}` template. `extra` adds already-resolved values
+ * (operation parameters) so an execution target can reference them.
+ */
+export function interpolateText(
+  raw: string,
+  context: ServiceContext,
+  label: string,
+  extra?: Record<string, string>,
+): string {
+  const constants = buildParameterConstants(context)
+  if (extra) {
+    for (const [name, value] of Object.entries(extra)) constants.set(name, value)
+  }
+  try {
+    const parts = parseTemplate(raw, label)
+    const single = templateIsSingleRef(parts)
+    if (single) {
+      const value = constants.get(single)
+      if (value === undefined) {
+        throw new EnvManagerError(
+          'PARAMETER_RESOLUTION_FAILED',
+          `${label} references unknown value "\${${single}}"`,
+          { ref: single },
+        )
+      }
+      return value
+    }
+    let text = ''
+    for (const part of parts) {
+      if (part.kind === 'text') {
+        text += part.value
+        continue
+      }
+      const value = constants.get(part.name)
+      if (value === undefined) {
+        throw new EnvManagerError(
+          'PARAMETER_RESOLUTION_FAILED',
+          `${label} references unknown value "\${${part.name}}"`,
+          { ref: part.name },
+        )
+      }
+      text += value
+    }
+    return text
+  } catch (error) {
+    if (error instanceof EnvManagerError) throw error
+    throw new EnvManagerError(
+      'PARAMETER_RESOLUTION_FAILED',
+      `${label} could not be resolved: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+export function resolveArgv(
+  argv: string[],
+  context: ServiceContext,
+  label: string,
+  extra?: Record<string, string>,
+): string[] {
+  return argv.map((item, index) => interpolateText(item, context, `${label}[${index}]`, extra))
+}
+
 export function resolveParameters(
   parameters: Record<string, string | number | boolean> | undefined,
   context: ServiceContext,
 ): Record<string, string> {
   if (!parameters) return {}
-  const constants = buildParameterConstants(context)
   const result: Record<string, string> = {}
   for (const [key, raw] of Object.entries(parameters)) {
     if (raw === null || typeof raw === 'object') {
@@ -58,48 +120,7 @@ export function resolveParameters(
       result[key] = String(raw)
       continue
     }
-    try {
-      const parts = parseTemplate(raw, `parameters.${key}`)
-      const single = templateIsSingleRef(parts)
-      if (single) {
-        const value = constants.get(single)
-        if (value === undefined) {
-          throw new EnvManagerError(
-            'PARAMETER_RESOLUTION_FAILED',
-            `Parameter ${key} references unknown value "\${${single}}"`,
-            { parameter: key, ref: single },
-          )
-        }
-        result[key] = value
-        continue
-      }
-      let text = ''
-      for (const part of parts) {
-        if (part.kind === 'text') {
-          text += part.value
-          continue
-        }
-        const value = constants.get(part.name)
-        if (value === undefined) {
-          throw new EnvManagerError(
-            'PARAMETER_RESOLUTION_FAILED',
-            `Parameter ${key} references unknown value "\${${part.name}}"`,
-            { parameter: key, ref: part.name },
-          )
-        }
-        text += value
-      }
-      result[key] = text
-    } catch (error) {
-      if (error instanceof EnvManagerError) throw error
-      throw new EnvManagerError(
-        'PARAMETER_RESOLUTION_FAILED',
-        `Parameter ${key} could not be resolved: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { parameter: key },
-      )
-    }
+    result[key] = interpolateText(raw, context, `parameters.${key}`)
   }
   return result
 }

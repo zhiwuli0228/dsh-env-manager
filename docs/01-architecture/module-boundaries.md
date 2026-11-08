@@ -16,6 +16,7 @@ tools ────────┐
 transport ────┘      │          │            │
                      │          └──▶ domain ◀┘
                      ├──▶ router ──▶ resolver (context only)
+                     ├──▶ executor ──▶ (local child processes; no fs policy logic)
                      ├──▶ session ──▶ storage
                      └──▶ memory-bridge ──▶ (external contract)
 
@@ -129,7 +130,7 @@ Purity is required: all inputs are passed in, no globals, no clocks, no randomne
 
 ## 6. `router`
 
-Owns operation-to-Skill matching.
+Owns operation-to-target matching.
 
 Responsibilities:
 
@@ -137,18 +138,47 @@ Responsibilities:
 - Filter by eligibility.
 - Detect same-level conflicts.
 - Verify Skill references through an injected `SkillDirectory` interface.
+- Resolve the execution target (`script` / `command` / `remote`) with the resolver's
+  template engine, given environment hosts (never credential values).
 - Evaluate approval and production policy.
-- Map parameters with the resolver's template engine.
 - Build `OperationResolution` with diagnostics.
 
 Forbidden:
 
-- Executing Skills.
+- Executing targets.
 - Reading files.
 - Accessing credentials.
 - Choosing a fallback binding.
 
 `SkillDirectory` is an interface, so tests use a fake and the Host adapter uses the real registry when available.
+
+---
+
+## 6.1 `executor`
+
+Owns running resolved targets.
+
+Responsibilities:
+
+- Gate: `APPROVAL_REQUIRED` for gated write executions without confirmation;
+  `POLICY_DENIED` in production unless `allowProduction`.
+- `script`: validate the path stays under `<dataDir>/scripts`, pick the interpreter
+  (explicit or by extension), run with bounded output.
+- `command`: spawn without a shell (`argv[0]` executable), optional working directory
+  under `<dataDir>`, bounded output, kill on timeout.
+- `remote`: build the ssh descriptor only (address/port/user/`credentialRef`); never
+  executes and never reads credential values.
+- `skill`: return a prepared reference (no execution).
+- Redact `password=...`-style output before it is returned or stored.
+
+Forbidden:
+
+- Routing decisions.
+- Registry I/O.
+- Reading credential values.
+- Shell string interpolation of local commands (argv arrays only).
+
+The `ProcessRunner` interface is injectable so tests never spawn real processes.
 
 ---
 
@@ -176,9 +206,14 @@ Owns the use cases. One function per tool and per HTTP operation.
 
 Responsibilities:
 
-- Compose storage, registry, resolver, router and session for a request.
+- Compose storage, registry, resolver, router, executor, experience store and session
+  for a request.
 - Apply the record cap, actor policy and dry-run.
 - Reload the registry after a successful write.
+- Route operations with `resolution.experiences` attached (related lessons/summaries).
+- `operate`: gate, execute (via `executor`) and write the resulting experience
+  (success → summary, failure → lesson) into the review queue.
+- `listExperiences` / `reviewExperience` / `addExperience` for the review queue.
 - Return domain results or throw `EnvManagerError`.
 
 Forbidden:

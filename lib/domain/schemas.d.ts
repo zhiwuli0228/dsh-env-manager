@@ -26,3 +26,12 @@ export declare function withTimestamps<T extends {
 };
 /** Top-level unknown keys, used for read-side `UNKNOWN_FIELD` warnings. */
 export declare function unknownTopLevelKeys(kind: RecordKind, raw: unknown): string[];
+export type ExperienceParseResult = {
+    ok: true;
+    record: import('./types.js').ExperienceRecord;
+} | {
+    ok: false;
+    issues: RecordIssue[];
+};
+export declare function parseExperienceInput(raw: unknown): ExperienceParseResult;
+export declare function parseExperience(raw: unknown): ExperienceParseResult;

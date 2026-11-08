@@ -1,4 +1,5 @@
-import type { Actor, CredentialDirectory, Diagnostic, FindResult, GetResult, ListResult, MetaResult, OperationResolution, RecordKind, RemoveOptions, RemoveResult, ResolveRequest, RouteRequest, SaveOptions, SaveResult, ServiceContext, SessionContext, SkillDirectory, ValidationReport } from '../domain/types.js';
+import { type ProcessRunner } from '../executor/runner.js';
+import type { Actor, CredentialDirectory, Diagnostic, ExperienceFilter, ExperienceRecord, ExperienceSummary, FindResult, GetResult, ListResult, MetaResult, OperateRequest, OperateResult, OperationResolution, RecordKind, RemoveOptions, RemoveResult, ResolveRequest, RouteRequest, SaveOptions, SaveResult, ServiceContext, SessionContext, SkillDirectory, ValidationReport } from '../domain/types.js';
 import type { Logger } from '../logger.js';
 export declare const VERSION: string;
 export interface AppOptions {
@@ -13,6 +14,8 @@ export interface AppOptions {
     defaults?: {
         environmentId?: string;
     };
+    /** Injectable process runner; defaults to the node child-process runner. */
+    runner?: ProcessRunner;
 }
 export interface SaveContext {
     actor?: Actor;
@@ -28,6 +31,7 @@ export declare class App {
     private readonly options;
     private readonly loader;
     private readonly sessions;
+    private readonly experiences;
     constructor(options: AppOptions);
     get dataDir(): string;
     init(): Promise<void>;
@@ -60,6 +64,41 @@ export declare class App {
     }>;
     resolve(request: ResolveRequest): Promise<ResolveOutcome>;
     route(request: RouteRequest): Promise<OperationResolution>;
+    /**
+     * Execute a routed operation. Skill targets are prepared (the agent invokes the
+     * Skill); script/command targets run a bounded local process; remote targets are
+     * prepared as an ssh descriptor. Every completed execution writes an experience
+     * into the review queue (success → summary, failure → lesson).
+     */
+    operate(request: OperateRequest): Promise<OperateResult>;
+    listExperiences(filter?: ExperienceFilter): Promise<{
+        items: ExperienceSummary[];
+        warnings: Diagnostic[];
+    }>;
+    reviewExperience(id: string, action: 'approve' | 'reject', actor: Actor, note?: string): Promise<ExperienceRecord>;
+    /**
+     * Add a hand-written experience (e.g. a lesson from a Skill run the agent
+     * observed, or an out-of-band deployment note). Always enters the review queue
+     * as `proposed`; nothing auto-applies.
+     */
+    addExperience(input: {
+        operation: string;
+        environmentId?: string;
+        serviceId?: string;
+        deploymentId?: string;
+        bindingId?: string;
+        mode: import('../domain/types.js').ExecutionMode;
+        outcome: import('../domain/types.js').ExperienceOutcome;
+        kind: import('../domain/types.js').ExperienceKind;
+        title: string;
+        content: string;
+        tags?: string[];
+        evidenceRefs?: string[];
+    }): Promise<ExperienceRecord>;
+    /** Experiences matching an operation+scope, newest first, failures ranked first. */
+    private relevantExperiences;
+    private buildExperience;
+    private experienceSummaryOf;
     getContext(sessionId: string): Promise<SessionContext>;
     setContext(sessionId: string, environmentId: string | null): Promise<SessionContext>;
     needsProductionApproval(kind: RecordKind, raw: unknown): Promise<boolean>;

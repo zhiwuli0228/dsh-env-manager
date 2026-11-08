@@ -336,6 +336,49 @@ function ruleProfileFields(mode: Mode): Shape {
   }
 }
 
+function executionTargetSchema(mode: Mode) {
+  return z.discriminatedUnion('mode', [
+    o(
+      {
+        mode: z.literal('script'),
+        path: z
+          .string()
+          .min(1)
+          .max(512)
+          .refine((value) => !/^[\\/]|[A-Za-z]:|\.\./.test(value), 'Script path must be relative to <dataDir>/scripts; no absolute paths or ".."'),
+        interpreter: z.enum(['bash', 'sh', 'pwsh', 'python', 'node']).optional(),
+        args: z.array(z.string().max(1024)).max(64).optional(),
+        timeoutSeconds: z.number().int().min(1).max(3600).optional(),
+      },
+      mode,
+    ),
+    o(
+      {
+        mode: z.literal('command'),
+        argv: z.array(z.string().min(1).max(1024)).min(1).max(64),
+        workingDirectory: z
+          .string()
+          .min(1)
+          .max(512)
+          .refine((value) => !/^[\\/]|[A-Za-z]:|\.\./.test(value), 'Working directory must be relative to <dataDir>')
+          .optional(),
+        timeoutSeconds: z.number().int().min(1).max(3600).optional(),
+      },
+      mode,
+    ),
+    o(
+      {
+        mode: z.literal('remote'),
+        hostRef: z.string().min(1).max(128).optional(),
+        username: z.string().min(1).max(256).optional(),
+        command: z.string().min(1).max(4096),
+        timeoutSeconds: z.number().int().min(1).max(3600).optional(),
+      },
+      mode,
+    ),
+  ])
+}
+
 function operationBindingFields(mode: Mode): Shape {
   return {
     operation: z.string().min(1),
@@ -356,7 +399,8 @@ function operationBindingFields(mode: Mode): Shape {
         expectedProvider: z.string().min(1).nullable().optional(),
       },
       mode,
-    ),
+    ).optional(),
+    execute: executionTargetSchema(mode).optional(),
     parameters: z.record(z.string().regex(PARAMETER_KEY_PATTERN), scalarSchema).optional(),
     policy: o(
       {
@@ -478,12 +522,22 @@ function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.Ref
       parameters?: Record<string, string | number | boolean>
       operation: string
       policy: { requiresApproval: boolean; allowProduction: boolean }
+      skill?: unknown
+      execute?: unknown
     }
     if (matchShape(binding.match) === null) {
       add('match', 'match must be one of: deployment, environment-service, service, category-mode, global')
     }
     if (binding.parameters && Object.keys(binding.parameters).length > 50) {
       add('parameters', 'At most 50 parameters are allowed')
+    }
+    const hasSkill = binding.skill !== undefined
+    const hasExecute = binding.execute !== undefined
+    if (!hasSkill && !hasExecute) {
+      add('execute', 'A binding must declare either a skill or an execute target (script, command or remote)')
+    }
+    if (hasSkill && hasExecute) {
+      add('execute', 'Declare either skill or execute, not both')
     }
   }
 }
@@ -578,4 +632,48 @@ export function unknownTopLevelKeys(kind: RecordKind, raw: unknown): string[] {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return []
   const allowed = new Set(Object.keys({ ...metaShape(false), ...fieldsOf(kind, 'read') }))
   return Object.keys(raw).filter((key) => !allowed.has(key))
+}
+
+// ---------------------------------------------------------------------------
+// Experience records (operation outcomes + lessons; stored under experiences/)
+// ---------------------------------------------------------------------------
+
+export type ExperienceParseResult =
+  | { ok: true; record: import('./types.js').ExperienceRecord }
+  | { ok: false; issues: RecordIssue[] }
+
+const experienceFields: Shape = {
+  id: idSchema,
+  schemaVersion: z.literal(SCHEMA_VERSION),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+  operation: z.string().min(1).max(64),
+  bindingId: z.string().regex(ID_PATTERN).optional(),
+  environmentId: z.string().min(1).max(128).optional(),
+  serviceId: z.string().min(1).max(128).optional(),
+  deploymentId: z.string().min(1).max(128).optional(),
+  mode: z.enum(['skill', 'script', 'command', 'remote']),
+  outcome: z.enum(['success', 'failure', 'skipped']),
+  kind: z.enum(['success-summary', 'failure-lesson']),
+  title: z.string().min(1).max(120),
+  content: z.string().min(1).max(8000),
+  tags: z.array(z.string().min(1).max(40)).max(12),
+  status: z.enum(['proposed', 'accepted', 'rejected']),
+  evidenceRefs: z.array(z.string().min(1).max(256)).max(20),
+  executedAt: timestampSchema,
+  reviewedAt: timestampSchema.optional(),
+  reviewedBy: z.enum(['agent', 'ui']).optional(),
+  reviewNote: z.string().max(2000).optional(),
+}
+
+export function parseExperienceInput(raw: unknown): ExperienceParseResult {
+  const result = z.strictObject({ ...metaShape(true), ...experienceFields }).safeParse(raw)
+  if (!result.success) return { ok: false, issues: issuesFrom(result.error) }
+  return { ok: true, record: result.data as unknown as import('./types.js').ExperienceRecord }
+}
+
+export function parseExperience(raw: unknown): ExperienceParseResult {
+  const result = z.strictObject({ ...metaShape(false), ...experienceFields }).safeParse(raw)
+  if (!result.success) return { ok: false, issues: issuesFrom(result.error) }
+  return { ok: true, record: result.data as unknown as import('./types.js').ExperienceRecord }
 }

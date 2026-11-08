@@ -112,7 +112,34 @@ descriptive: they do not prove cluster membership or command availability. Do no
 - When `environmentCategory === 'production'` and `allowProduction !== true`, the router fails with `POLICY_DENIED`.
 - The router does not execute anything; it returns the policy for the executing Skill.
 
-### 4.2 Management writes
+### 4.2 Execution of bound targets (`env_operate`)
+
+Execution follows the same policy gates, enforced by the `executor` before anything runs:
+
+- A write operation whose binding has `requiresApproval: true` refuses to run without
+  `confirm: true` → `APPROVAL_REQUIRED`. The tool turns that into a native
+  `ctx.approval` request and retries once with `confirm: true` (approved once only).
+- Production (`environmentCategory === 'production'`) execution is denied unless the
+  binding sets `allowProduction: true` → `POLICY_DENIED`.
+- Local targets are spawned **without a shell** (`argv` arrays only), with bounded
+  captured output, a timeout (default 600 s, max 3600 s) and `SIGTERM`→`SIGKILL` on
+  timeout. Script paths and working directories must stay under `<dataDir>`;
+  traversal is rejected both at save (`RECORD_INVALID`) and at execution
+  (`SCRIPT_PATH_TRAVERSAL`).
+- Remote targets are **prepared only**: the executor returns the ssh descriptor
+  (`address`, `port`, `username`, `command`, `credentialRef`). The plugin never reads
+  credential values (`CredentialDirectory` exposes `describe` only), so it cannot and
+  does not open the connection itself. The caller (agent/UI) runs the command with its
+  own ssh tooling.
+- Captured stdout/stderr are redacted (`password=`-style values) and bounded before they
+  are returned or stored in an experience.
+
+Threat: a binding's argv or script could invoke anything the local user can run. The
+approval gate, production gate, sandbox-free-but-bounded spawning, path confinement and
+the review queue (nothing executes without a binding; bindings are user-maintained YAML)
+are the mitigations. Rule templates themselves still never execute anything (§5).
+
+### 4.3 Management writes
 
 Tool writes (`env_save` / `env_delete`) request approval through `ctx.approval` when the write affects a production environment:
 
@@ -129,7 +156,7 @@ UI writes (`record.save` / `record.remove`) run with actor `'ui'`:
 - delete requires `confirm: true` and a second, explicit confirmation in the panel;
 - the UI never sends an approval request (it has no agent); it is policy-gated instead.
 
-### 4.3 Local HTTP route
+### 4.4 Local HTTP route
 
 `POST /env-manager/api` is reachable only with:
 
@@ -142,7 +169,7 @@ No CORS headers are sent, so a cross-origin page cannot preflight the custom hea
 The route reads no cookie and no credential. It returns only registry data that a
 `env_get`/`env_list` call could also return, plus derived context.
 
-### 4.4 Threat: approval bypass
+### 4.5 Threat: approval bypass
 
 A caller could edit YAML files directly, outside the tools. V1 cannot prevent this; file access is governed by the DSH sandbox and OS permissions. The design documents this as a deliberate boundary: the plugin is a context manager, not a policy enforcement point for the filesystem.
 
@@ -198,6 +225,11 @@ The redaction function is shared and unit-tested.
 | Broken reference | error from `env_validate`, skipped on read |
 | Invalid record | skipped on read with diagnostic |
 | Approval denied | `POLICY_DENIED`, no write |
+| Gated execution without confirmation | `APPROVAL_REQUIRED`, nothing runs |
+| Script path or working directory escapes `<dataDir>` | `SCRIPT_PATH_TRAVERSAL`, nothing runs |
+| Script file missing | `SCRIPT_NOT_FOUND`, nothing runs |
+| Execution timeout | killed, reported `EXECUTION_TIMEOUT` |
+| Remote target without an ssh host | `HOST_NOT_FOUND` at routing, nothing prepared |
 | UI production write without `allowUiProductionWrites` | `POLICY_DENIED`, no write |
 | Missing transport header or foreign origin | `FORBIDDEN`, no routing |
 | Body over 2 MiB | 413, no parsing |
@@ -207,7 +239,13 @@ The redaction function is shared and unit-tested.
 
 ## 9. Audit
 
-V1 does not maintain an audit log of its own. P1 operation records become the audit trail through the memory bridge.
+V1 keeps two trails:
+
+- Experience records under `<dataDir>/experiences/` record every executed run: operation,
+  scope, mode, outcome, exit code, bounded/redacted output and review status. They are
+  append-only from the plugin's perspective and enter a review queue (`proposed`); only
+  explicit `approve`/`reject` moves them.
+- P1 operation records become the audit trail through the memory bridge.
 
 Requirements for P1:
 
@@ -223,6 +261,11 @@ Requirements for P1:
 1. YAML editing outside the plugin bypasses approval.
 2. Credential reference swaps are undetectable without a vault policy.
 3. A correct Skill binding can still be used for an unsafe action; policy is necessary but not sufficient.
+4. An `execute` binding can run arbitrary local commands with the profile user's
+   privileges; it is a deliberate, approval-gated extension. Keep bindings reviewed, and
+   prefer scripts under `<dataDir>/scripts` over ad-hoc argv.
+5. The experience queue is only as good as its review: proposed records surface on routes
+   even before approval, so a bad lesson can mislead the model until rejected.
 4. Internal hostnames/IPs in registry files may leak if the repository or data directory is shared carelessly. Registry data must not be committed to Git.
 5. Operation history in P1 may capture sensitive command text if redaction is incomplete.
 6. The local HTTP route trusts the page origin and a custom header; a script running in

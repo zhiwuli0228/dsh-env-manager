@@ -17,9 +17,16 @@ Related: [data-model.md](./data-model.md), [design.md](./design.md) §5.
 ├── deployments/{deploymentId}.yaml
 ├── rules/{ruleProfileId}.yaml
 ├── operations/{bindingId}.yaml
+├── scripts/                  # execution scripts referenced by bindings
+├── experiences/{id}.yaml     # review-queue records (success summaries / failure lessons)
 ├── sessions/{sessionId}.json
 └── .backups/
 ```
+
+`scripts/` and `experiences/` are created with the layout. `experiences/` is **not** part
+of the registry: records there are validated by the experience schema and never
+participate in registry referential integrity. `scripts/` holds only files a binding
+explicitly references; bindings and the executor reject absolute paths and `..`.
 
 ### 1.1 Resolving `dataDir`
 

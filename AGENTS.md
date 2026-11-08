@@ -16,14 +16,20 @@ It helps users:
 2. Maintain a service catalog with Git URLs, artifacts and rule references.
 3. Describe deployment bindings across `native`, `docker` and `kubernetes` runtimes.
 4. Resolve layered path/log/config rules with provenance.
-5. Route an operation (deploy, redeploy, restart, collect-logs, ...) to an explicitly bound Skill.
-6. Query and emit operation records through an optional memory bridge.
+5. Route an operation (deploy, redeploy, restart, collect-logs, ...) to an explicitly
+   bound Skill **or** to an explicitly configured execution target (script, local CLI
+   command, or prepared remote command), with approval and production gates.
+6. Learn from execution: every run writes an experience (success → summary, failure →
+   lesson) into a review queue that later routes surface as related experience.
+7. Query and emit operation records through an optional memory bridge.
 
 DSH Environment Manager is **not**:
 
 - A CMDB replacement.
 - A secret vault or credential manager.
-- A remote execution engine by itself.
+- A remote execution engine by itself: `remote` targets prepare an ssh descriptor and
+  never run from the plugin; local script/command targets run only through `env_operate`
+  behind the approval and production gates.
 - An unsupervised self-modifying rule system.
 - A mandatory database-backed platform.
 
@@ -145,6 +151,12 @@ Template resolution must:
 - reject undefined variables;
 - return provenance for every resolved value.
 
+Execution is allowed only through **explicitly configured operation bindings** (`execute:
+script | command | remote`), gated by approval and production policy, and run by the
+`executor` module (`env_operate`). Local targets spawn with `shell: false`, stay under
+`<dataDir>`, and bound their output and timeout. Remote targets are prepared as an ssh
+descriptor and never executed by the plugin.
+
 ### 3.5 No Auto-Apply of Production Changes
 
 Rule or Skill changes derived from runtime observations must be proposed for review.
@@ -228,7 +240,7 @@ Do not create alternate structures without documenting the change.
 ## 6. Module Boundaries
 
 The normative module list and dependency direction are in
-`docs/01-architecture/module-boundaries.md`. Host modules are `config`, `domain`, `storage`, `registry`, `resolver`, `router`, `session`, `app`, `tools`, `transport` and `memory-bridge`; the Client is a single `client.js`.
+`docs/01-architecture/module-boundaries.md`. Host modules are `config`, `domain`, `storage`, `registry`, `resolver`, `router`, `executor`, `session`, `app`, `tools`, `transport` and `memory-bridge`; the Client is a single `client.js`.
 
 The rules below remain binding for the modules they name.
 
@@ -304,7 +316,7 @@ Must not:
 
 ### 6.5 `router`
 
-Pure functions for operation-to-Skill routing.
+Pure functions for operation-to-target routing.
 
 Responsibilities:
 
@@ -312,13 +324,32 @@ Responsibilities:
 - Detect conflicts
 - Verify skill references
 - Map parameters
+- Resolve the execution target (script / command / remote) from hosts
 - Evaluate approval policies
 
 Must not:
 
-- Execute Skills
+- Execute targets
 - Access credential values
 - Write operation records directly
+
+### 6.5.1 `executor`
+
+Runs resolved script/command targets behind the gates.
+
+Responsibilities:
+
+- Enforce approval (`APPROVAL_REQUIRED`) and production (`POLICY_DENIED`) gates
+- Spawn local targets with `shell: false`, bounded output and timeout
+- Confine script paths and working directories under `<dataDir>`
+- Prepare remote targets as ssh descriptors (never execute, never read secrets)
+- Redact `password=`-style output
+
+Must not:
+
+- Make routing decisions
+- Read credential values
+- Touch registry files
 
 ### 6.6 `app`
 
@@ -396,7 +427,9 @@ data/
 ├── services/{serviceId}.yaml
 ├── deployments/{deploymentId}.yaml
 ├── rules/{ruleProfileId}.yaml
-└── operations/{bindingId}.yaml
+├── operations/{bindingId}.yaml
+├── scripts/                  # scripts referenced by execute targets
+└── experiences/{id}.yaml     # execution review queue (not registry records)
 ```
 
 ### 7.2 Required Fields
@@ -470,7 +503,7 @@ Validation must detect:
 
 ---
 
-## 10. Operation Skill Router Rules
+## 10. Operation Router Rules
 
 Match priority:
 
@@ -487,6 +520,12 @@ Rules:
 - Never silently switch to another Skill that would change the environment.
 - `requiresApproval` defaults to `true` for write operations.
 - `allowProduction` defaults to `false`.
+- A binding declares exactly one target: `skill` (discovery only) **xor** `execute`
+  (script | command | remote); both or neither is `RECORD_INVALID`.
+- Executions happen only through `env_operate`; gated write executions refuse without
+  confirmation (`APPROVAL_REQUIRED`), and production is denied unless `allowProduction`.
+- Every completed/failed execution writes an experience (summary/lesson) into the review
+  queue; nothing auto-applies.
 
 ---
 
@@ -555,6 +594,17 @@ Required tests for relevant changes:
 - Conflict detection
 - Missing Skill failure
 - Approval policy evaluation
+- Execution target resolution (script / command / remote; host selection, interpolation)
+
+### `executor`
+
+- Redaction of `password=`-style output
+- Approval and production gates
+- Command success and failure exit codes
+- Timeout and kill
+- Script path traversal and missing-file handling
+- Remote prepared descriptor (no execution)
+- Skill prepared reference (no execution)
 
 ### `session`
 

@@ -25,8 +25,9 @@ Works in DSH Web and Desktop.
 **Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
 implemented and installed in the `desktop` profile.**
 
-- 67 Vitest tests pass; `npm run build` emits the committed `lib/` tree.
-- Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
+- 102 Vitest tests pass; `npm run check` (typecheck + build + tests + client syntax)
+  emits the committed `lib/` tree.
+- Twelve `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
   business, database and expansion are **role views** over the same `hosts[]`; a node
@@ -56,7 +57,12 @@ implemented and installed in the `desktop` profile.**
 - Remaining: database primary/replica/sharding topology (Phase 2), row-level delete for
   nodes/accounts/logins, light-theme visual QA, and the live approval/credential probes
   V4 and V6.
-- No operation execution: routing returns the bound Skill and policy, it does not run it.
+- Operation bindings route to a bound Skill **or** an executable target
+  (`script` under `<dataDir>/scripts`, a local CLI `command`, or a prepared `remote` ssh
+  command). `env_operate` runs local targets behind approval and production gates and
+  writes an experience (success → summary, failure → lesson) into a review queue;
+  routing surfaces the most relevant experiences so the tool gets smarter with use.
+  `remote` targets are prepared as an ssh descriptor, never executed by the plugin.
 - **DSH compatibility:** the bundle targets DSH `0.2.1-rc.5` through the `0.2.2` line
   (including `0.2.2-rc.x`); `0.3.0` is intentionally excluded until verified. The full
   suite (typecheck + build + tests) passes against both `@deepseek-ai/dsh-tools@0.2.1-rc.5`
@@ -76,7 +82,8 @@ How it works:
    is the **proactive mention** that lets a new workspace discover the registry.
 3. The full workflow body is loaded only when the model or user invokes the Skill. It tells
    the agent to use `env_list` / `env_find` first, then `env_set_context`, `env_resolve`,
-   and `env_resolve_operation`.
+   `env_resolve_operation` (which also returns related experiences), and — for explicit
+   execution bindings — `env_operate` / `env_experience`.
 4. The plugin does **not** inject a global system-prompt section. Unrelated coding sessions
    do not receive environment-manager instructions.
 5. The registration is created inside the plugin effect, so disabling or uninstalling the
