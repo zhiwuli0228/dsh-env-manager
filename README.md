@@ -175,6 +175,57 @@ DSH credential service. It never appears in the registry YAML, tool output or lo
 DR marking is metadata only: it never executes anything, and RTO/RPO values are
 objectives, not measured or enforced limits.
 
+### Batch-import walkthrough
+
+A bundle is one YAML (or JSON) document; paste it into **导入** in the panel header, or
+hand it to `env_import` with `mode: skip | overwrite | error` and `confirm: true` when the
+bundle contains production records. A minimal two-site pair looks like this:
+
+```yaml
+version: 1
+environments:
+  - id: prod-a
+    schemaVersion: 1
+    name: 生产 A
+    aliases: [pa]
+    category: production
+    dr: { role: primary, type: AS, peer: dr-a, scope: 同城, rtoMinutes: 30, rpoMinutes: 10 }
+    roles:
+      - { id: app, name: Application }
+  - id: dr-a
+    schemaVersion: 1
+    name: 容灾 A
+    aliases: []
+    category: production
+    dr: { role: standby, type: AS, peer: prod-a, scope: 同城, rtoMinutes: 30, rpoMinutes: 10 }
+    roles:
+      - { id: app, name: Application }
+services: []
+deployments: []
+ruleProfiles: []
+operationBindings: []
+```
+
+Behaviour worth knowing:
+
+- The five arrays are optional; unknown top-level keys, a wrong `version`, a non-array
+  kind field and any password-like field are rejected (`IMPORT_INVALID` /
+  `RECORD_INVALID`) without writing anything.
+- Every environment needs at least one logical role (`roles: [{ id, name }]`); `hosts`,
+  `clusters`, `endpoints` and `aliases` default to empty.
+- Records apply in dependency order (environment → service → deployment → ruleProfile →
+  operationBinding) and environment/service/deployment references resolve against the
+  existing registry **plus** the ids in the same bundle, so a deployment may point at an
+  environment it just created.
+- `skip` (default) keeps existing records, `overwrite` replaces them (keeping the original
+  `createdAt`), `error` reports the conflict; one bad record never aborts the rest — the
+  result lists `imported` / `skipped` / `failed` / `warnings`.
+- Both halves of a DR pair should be in the same bundle (or already registered), otherwise
+  the peer is reported as `DR_PEER_UNKNOWN`. Exporting one half is safe: the peer
+  environment rides along automatically.
+- The document is processed in memory and never stored; only `credentialRef` names are
+  accepted, never secrets.
+
 Design references:
 
 - [`docs/01-architecture/design.md`](docs/01-architecture/design.md) — scope, algorithms,
