@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
         environmentsHint: 'Every environment, host, account and login audit. Start here to add a new environment.',
         recordsHint: 'Services, deployments, rule profiles and operation bindings. Environments live on the Environments tab.',
         contextHint: 'Resolve layered variables and inspect their provenance. The environment is optional: omit it to resolve the service-level context.',
-        operationsHint: 'Resolve the Skill bound to an operation and context. The environment is required: pick it first, then the operation and target service. Environment-scoped operations (deploy-environment) do not need a service.',
+        operationsHint: 'Resolve the Skill or execution target (script/command/remote) bound to an operation and context. The environment is required: pick it first, then the operation and target service. Environment-scoped operations (deploy-environment) do not need a service; related experiences are attached.',
         refresh: 'Refresh',
         validate: 'Validate',
         save: 'Save',
@@ -237,7 +237,7 @@ window.__ModuleLoader__.load({
         environmentsHint: '所有环境、主机、账号与登录审计；新增环境从这里开始。',
         recordsHint: '服务、部署、规则集与操作绑定；环境请在「环境」页维护。',
         contextHint: '解析分层变量，并查看每个值的来源。环境可选：不填时解析服务级上下文。',
-        operationsHint: '解析操作在指定上下文下绑定的 Skill。环境必选：先选环境，再选择操作与目标服务；环境级操作（如 deploy-environment）无需服务。',
+        operationsHint: '解析操作在指定上下文下绑定的 Skill 或执行目标（脚本/命令/远程）。环境必选：先选环境，再选择操作与目标服务；环境级操作（如 deploy-environment）无需服务。解析结果附带相关经验（教训/总结）。',
         refresh: '刷新',
         validate: '校验',
         save: '保存',
@@ -925,7 +925,7 @@ window.__ModuleLoader__.load({
       service: 'id: new-service\nschemaVersion: 1\nname: New Service\naliases: []\ncategory: backend\ngit:\n  url: https://example.invalid/repo.git\n  defaultBranch: main\ndeployModes: [kubernetes]\nruleProfileRefs: []\n',
       deployment: 'id: new-deployment\nschemaVersion: 1\nenvironmentId: new-env\nserviceId: new-service\nruntimeMode: kubernetes\nlocation:\n  kind: kubernetes\n  clusterRef: k8s-01\n  namespace: default\n  workload:\n    kind: Deployment\n    name: new-service\n',
       ruleProfile: 'id: new-rule\nschemaVersion: 1\ndescription: New rule profile\nvariables: {}\npaths: {}\n',
-      operationBinding: 'id: new-binding\nschemaVersion: 1\noperation: redeploy\nmatch:\n  environmentId: new-env\n  serviceId: new-service\nskill:\n  name: example-skill\nparameters: {}\npolicy:\n  requiresApproval: true\n  allowProduction: false\nenabled: true\n',
+      operationBinding: 'id: new-binding\nschemaVersion: 1\noperation: redeploy\nmatch:\n  environmentId: new-env\n  serviceId: new-service\n# Exactly one target: a Skill (discovery only) OR an execute target.\n# skill:\n#   name: example-skill\nexecute:\n  mode: command\n  argv: ["kubectl", "rollout", "restart", "${workload}", "-n", "${namespace}"]\n  timeoutSeconds: 300\n# execute modes: script (under <dataDir>/scripts), command (local CLI), remote (prepared ssh).\nparameters:\n  workload: ${deployment.location.workload.name}\n  namespace: ${deployment.location.namespace}\npolicy:\n  requiresApproval: true\n  allowProduction: false\nenabled: true\n',
     };
 
     function EnvironmentDetail(props) {
