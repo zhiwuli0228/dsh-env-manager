@@ -31,8 +31,7 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
-**Executable bindings + experience loop (2026-11-08, unreleased):** an operation binding is
-no longer Skill-only. It declares exactly one target — `skill` (discovery only) **xor**
+**Executable bindings + experience loop (2026-11-08, unreleased):** an operation binding isno longer Skill-only. It declares exactly one target — `skill` (discovery only) **xor**
 `execute` — where `execute` is one of:
 
 - `script` — a file under `<dataDir>/scripts` (absolute paths and `..` rejected at save and
@@ -57,13 +56,17 @@ new tool `env_experience` lists/adds/approves/rejects (HTTP ops `experienceList`
 `experienceAdd`, `experienceReview`). Routing now embeds up to 5 related experiences
 (failures first, newest second, scope-matched, proposed+accepted, 300-char previews) in
 `OperationResolution.experiences`, so the model sees prior lessons before acting — the
-tool gets smarter as the queue is reviewed, with no auto-apply path. Tests: 102 passing
+tool gets smarter as the queue is reviewed, with no auto-apply path. Tests: 103 passing
 (new `tests/executor/`, `tests/experience/`, `tests/router/router.test.ts`; tool count 12).
-Docs updated: `data-model.md`, `module-boundaries.md` (§6.1 executor), `security-model.md`
-(§4.2, §8, §9, §10), `design.md` (§1.2/§1.3/§3), `storage-contract.md` §1,
-`operation-binding-template.md`, `operation-record-template.md`, `AGENTS.md` §6/§7,
-README. The running `desktop` process still executes its cached pre-upgrade module; a DSH
-restart is required before the new host code is live.
+Live verification on the `desktop` profile surfaced one real bug: tool outputs carrying
+`undefined`-valued keys are rejected by DSH's strict JSON tool-output validation (`value
+is not lossless JSON`) — fixed by recursively stripping `undefined` at the `app` boundary
+(`stripUndefined`), with a regression test; the built `lib/` was verified strict-JSON-safe
+via a node smoke run (operate completed, experience written). The profile now installs
+`dsh-env-manager-plugin@0.1.6` as a pnpm link to this repository (local verification
+build; 12 tools live, route 200, data intact). The running `desktop` process still
+executes its cached pre-upgrade module; a DSH restart is required for the fix to go live
+and to complete the end-to-end execute → experience → review flow.
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so

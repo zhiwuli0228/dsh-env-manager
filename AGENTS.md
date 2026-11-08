@@ -554,6 +554,9 @@ General rules:
 - Return safe error messages to the UI.
 - Keep resolver and router logic pure and testable.
 - Keep tool functions thin.
+- Tool results must be strict-JSON-safe: never return objects with `undefined`-valued
+  keys (DSH tool-output validation rejects non-lossless JSON). Strip `undefined`
+  recursively at the `app` boundary before returning to tools or transport.
 - Throw `EnvManagerError extends HarnessError` for expected tool/HTTP failures; never
   return an `{ ok: false }` value or a bare string.
 - Handle unexpected YAML gracefully.
