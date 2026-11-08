@@ -69,7 +69,7 @@ build; 12 tools live, route 200, data intact). The running `desktop` process sti
 executes its cached pre-upgrade module; a DSH restart is required for the fix to go live
 and to complete the end-to-end execute → experience → review flow.
 
-**DR marking + bundle import/export (2026-11-08, unreleased):** disaster recovery is
+**DR marking + bundle import/export (2026-11-08, released in `0.1.7`):** disaster recovery is
 embedded in each environment record — there is **no separate module**: no group record
 kind, no dedicated directory, no DR tab and no groups bundle key. `Environment` gains
 an optional `dr` block (validated by a Zod shape, `o(drFields(mode), mode).optional()`):
@@ -106,8 +106,8 @@ are fourteen (`env_import` / `env_export` retained); the panel header carries th
 peer, scope, RTO/RPO, note; `drUnset` empty state), and environment list summaries append
 `DR <role> <type> → <peer>`. Tests: 133 passing across 14 files (new `tests/dr/`,
 `tests/bundle/`; `tests/dr/env-dr.test.ts` holds the DR schema/registry/export tests).
-Version stays `0.1.6` and nothing is published: the `desktop` profile continues to run
-this repository through a pnpm link.
+Released as `dsh-env-manager-plugin@0.1.7`; README gained a verified batch-import
+walkthrough (two-site bundle example, conflict modes, DR-peer behaviour).
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
@@ -140,11 +140,13 @@ The repository's own `@deepseek-ai/*` devDependencies now track the same family
 newest DSH line (no throwaway needed).
 Released as `dsh-env-manager-plugin@0.1.5`.
 
-**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.6` is the `latest` npm tag
-and the panel-route fix release (mount the HTTP route through `ctx.inject(['webServer'])`;
-see the fix entry above); the
-[GitHub Release v0.1.6](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.6)
-contains `dsh-env-manager-plugin-0.1.6.tgz`. `v0.1.5` was the DSH-0.2.2-rcx
+**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.7` is the `latest` npm tag
+and the disaster-recovery release: DR marking embedded in each environment record (no
+separate module) plus versioned bundle import/export with `skip`/`overwrite`/`error`
+conflict modes and both-direction DR-peer export closure. `0.1.6` was the panel-route fix
+release (mount the HTTP route through `ctx.inject(['webServer'])`;
+[GitHub Release v0.1.6](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.6)).
+`v0.1.5` was the DSH-0.2.2-rcx
 compatibility release. `v0.1.4` was the credential-store format fix: account/SSH passwords are stored under POSIX-style `DSH_ENV_MANAGER_*` refs,
 `setCredential`/`unsetCredential` and the registry schema reject non-conforming refs at
 save, and the Client generates the new refs — the DSH file store rejects invalid `refs:`
