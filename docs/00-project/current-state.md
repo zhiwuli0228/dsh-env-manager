@@ -44,21 +44,21 @@ full `0.2.2-rc.1` family in a throwaway copy — typecheck, build and all 67 tes
 and by a new `tests/compat.test.ts` that pins the version matrix (67 tests total).
 Released as `dsh-env-manager-plugin@0.1.5`.
 
-**Release status (2026-11-06):** `dsh-env-manager-plugin@0.1.4` is the `latest` npm tag
-and the credential-store format fix release: account/SSH passwords are stored under
-POSIX-style `DSH_ENV_MANAGER_*` refs, `setCredential`/`unsetCredential` and the registry
-schema reject non-conforming refs at save, and the Client generates the new refs — the
-DSH file store rejects invalid `refs:` keys at boot, which had made `.credentials.yaml`
-unloadable and broken client startup. It is published by the Trusted Publisher workflow
-with npm provenance; the [GitHub Release
-v0.1.4](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.4) contains
-`dsh-env-manager-plugin-0.1.4.tgz`. `v0.1.3` was the client-module fix release (client.js
-`__ModuleLoader__.load` id equals the package name, contract test, `id == package name`
-rule in `api-verification.md` F13, `ui-design.md` keys the bundle config page by package
-name). `v0.1.2` shipped the install-hardening fixes (committed `lib/`, clear
-missing-build error, `plugin_manager`-only install docs, `scripts/repair-profile.mjs`,
-runtime version reported from `package.json`). `v0.1.1` shipped the same install fixes;
-`0.1.0` was bootstrapped manually before the Trusted Publisher binding, and its workflow
+**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.5` is the `latest` npm tag
+and the DSH-0.2.2-rcx compatibility release (see the compatibility entry above); the
+[GitHub Release v0.1.5](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.5)
+contains `dsh-env-manager-plugin-0.1.5.tgz`. `v0.1.4` was the credential-store format fix
+release: account/SSH passwords are stored under POSIX-style `DSH_ENV_MANAGER_*` refs,
+`setCredential`/`unsetCredential` and the registry schema reject non-conforming refs at
+save, and the Client generates the new refs — the DSH file store rejects invalid `refs:`
+keys at boot, which had made `.credentials.yaml` unloadable and broken client startup.
+`v0.1.3` was the client-module fix release (client.js `__ModuleLoader__.load` id equals
+the package name, contract test, `id == package name` rule in `api-verification.md` F13,
+`ui-design.md` keys the bundle config page by package name). `v0.1.2` shipped the
+install-hardening fixes (committed `lib/`, clear missing-build error,
+`plugin_manager`-only install docs, `scripts/repair-profile.mjs`, runtime version reported
+from `package.json`). `v0.1.1` shipped the same install fixes; `0.1.0` was bootstrapped
+manually before the Trusted Publisher binding, and its workflow
 ([`41323001406`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/41323001406))
 skipped npm publish because the version already existed.
 

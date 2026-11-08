@@ -154,9 +154,9 @@ an unrelated package). Install it as a profile bundle; do not install it with
 
 ### From npm
 
-`dsh-env-manager-plugin@0.1.4` is the credential-store format fix release (account and
-SSH passwords are stored under POSIX-style `DSH_ENV_MANAGER_*` refs — the DSH credential
-store rejects the old `env-manager/...` keys at boot, which broke client startup);
+`dsh-env-manager-plugin@0.1.5` is the DSH-0.2.2-rcx compatibility release (supports
+`0.2.1-rc.5` through the `0.2.2` line; see the DSH compatibility note in
+[Status](#status)); `0.1.4` fixed the credential-store format (`DSH_ENV_MANAGER_*` refs);
 `0.1.3` was the client-module fix release (`load` id equals the package name, contract
 test, doc hardening); `0.1.2` was the install-hardening patch release; `0.1.0` was the
 first published release. Install the bundle through the Harness plugin manager; do
@@ -164,7 +164,7 @@ first published release. Install the bundle through the Harness plugin manager; 
 
 ```text
 action: install_bundle
-target: dsh-env-manager-plugin@0.1.4
+target: dsh-env-manager-plugin@0.1.5
 ```
 
 `plugin_manager` adds the package to the profile exactly once. Do not also add it to
