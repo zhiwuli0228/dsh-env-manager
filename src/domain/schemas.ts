@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import {
-  DR_GROUP_LIMITS,
+  DR_LIMITS,
   ID_PATTERN,
   PARAMETER_KEY_PATTERN,
   SCHEMA_VERSION,
@@ -9,7 +9,6 @@ import {
 import { CREDENTIAL_REF_PATTERN } from './credential-ref.js'
 import type {
   AnyRecord,
-  DrGroup,
   Environment,
   RecordKind,
   RuntimeMode,
@@ -236,6 +235,7 @@ function environmentFields(mode: Mode): Shape {
       .default([]),
     loginRecords: z.array(loginRecordSchema(mode)).max(200).optional(),
     ruleOverrides: ruleOverrideSchema(mode).optional(),
+    dr: o(drFields(mode), mode).optional(),
   }
 }
 
@@ -420,33 +420,20 @@ function operationBindingFields(mode: Mode): Shape {
   }
 }
 
-function drGroupFields(mode: Mode): Shape {
+function drFields(mode: Mode): Shape {
   return {
-    name: z.string().min(1).max(120),
+    role: z.enum(['primary', 'standby']),
     type: z
       .string()
       .regex(
         /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/,
         'DR type must be a short token such as AS, AA or AP',
       ),
-    scope: z.string().min(1).max(DR_GROUP_LIMITS.maxScopeLength).optional(),
-    rpoMinutes: z.number().int().min(0).max(DR_GROUP_LIMITS.maxMinutes).optional(),
-    rtoMinutes: z.number().int().min(0).max(DR_GROUP_LIMITS.maxMinutes).optional(),
-    note: z.string().max(DR_GROUP_LIMITS.maxNoteLength).optional(),
-    members: z
-      .array(
-        o(
-          {
-            environmentId: z.string().min(1).max(128),
-            role: z.enum(['primary', 'standby']),
-            weight: z.number().int().min(0).max(1000).optional(),
-            note: z.string().max(500).optional(),
-          },
-          mode,
-        ),
-      )
-      .min(1)
-      .max(DR_GROUP_LIMITS.maxMembers),
+    peer: z.string().min(1).max(128).optional(),
+    scope: z.string().min(1).max(DR_LIMITS.maxScopeLength).optional(),
+    rpoMinutes: z.number().int().min(0).max(DR_LIMITS.maxMinutes).optional(),
+    rtoMinutes: z.number().int().min(0).max(DR_LIMITS.maxMinutes).optional(),
+    note: z.string().max(DR_LIMITS.maxNoteLength).optional(),
   }
 }
 
@@ -462,8 +449,6 @@ function fieldsOf(kind: RecordKind, mode: Mode): Shape {
       return ruleProfileFields(mode)
     case 'operationBinding':
       return operationBindingFields(mode)
-    case 'drGroup':
-      return drGroupFields(mode)
   }
 }
 
@@ -580,23 +565,10 @@ function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.Ref
     }
   }
 
-  if (kind === 'drGroup') {
-    const group = value as unknown as DrGroup
-    const memberIds = (group.members ?? []).map((member) => member.environmentId)
-    const seen = new Set<string>()
-    for (const [index, member] of (group.members ?? []).entries()) {
-      if (seen.has(member.environmentId)) {
-        add(`members[${index}].environmentId`, `Duplicate environment "${member.environmentId}"`)
-      }
-      seen.add(member.environmentId)
-    }
-    const primaryCount = (group.members ?? []).filter((member) => member.role === 'primary').length
-    if (primaryCount === 0) {
-      add('members', 'At least one member must be role primary (production)')
-    }
-    const type = (group.type ?? '').toUpperCase()
-    if ((type === 'AS' || type === 'AP') && primaryCount !== 1) {
-      add('members', `DR type ${type} requires exactly one primary member (production)`)
+  if (kind === 'environment') {
+    const env = value as unknown as { id?: string; dr?: { peer?: string } }
+    if (env.dr?.peer !== undefined && env.dr.peer === env.id) {
+      add('dr.peer', 'A DR peer cannot be the environment itself')
     }
   }
 }
@@ -650,10 +622,6 @@ export function normalizeRecordInput(kind: RecordKind, raw: unknown): unknown {
         requiresApproval: existing.requiresApproval ?? WRITE_OPERATIONS.has(operation),
         allowProduction: existing.allowProduction ?? false,
       }
-      break
-    }
-    case 'drGroup': {
-      value.members ??= []
       break
     }
   }

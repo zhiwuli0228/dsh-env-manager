@@ -13,7 +13,6 @@ export const RECORD_KINDS: readonly RecordKind[] = [
   'deployment',
   'ruleProfile',
   'operationBinding',
-  'drGroup',
 ]
 
 export const KIND_DIRECTORIES: Record<RecordKind, string> = {
@@ -22,7 +21,6 @@ export const KIND_DIRECTORIES: Record<RecordKind, string> = {
   deployment: 'deployments',
   ruleProfile: 'rules',
   operationBinding: 'operations',
-  drGroup: 'drGroups',
 }
 
 export const STANDARD_OPERATIONS = [
@@ -75,7 +73,7 @@ export const LIMITS = {
 } as const
 
 // ---------------------------------------------------------------------------
-// Bulk import / export and disaster-recovery groups
+// Bulk import / export and disaster-recovery marking
 // ---------------------------------------------------------------------------
 
 export const BUNDLE_LIMITS = {
@@ -87,8 +85,7 @@ export const BUNDLE_LIMITS = {
   maxEnvironments: 100,
 } as const
 
-export const DR_GROUP_LIMITS = {
-  maxMembers: 8,
+export const DR_LIMITS = {
   maxTypeLength: 16,
   maxScopeLength: 40,
   maxNoteLength: 2000,
@@ -97,7 +94,7 @@ export const DR_GROUP_LIMITS = {
 } as const
 
 /** Human labels for the standard DR patterns; unknown codes render as-is. */
-export const DR_GROUP_TYPE_LABELS: Readonly<Record<string, string>> = {
+export const DR_TYPE_LABELS: Readonly<Record<string, string>> = {
   AS: '主备 Active-Standby',
   AA: '双活 Active-Active',
   AP: '主从 Active-Passive',

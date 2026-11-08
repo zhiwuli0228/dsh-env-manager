@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "DSH Environment Manager",
-    "description": "Manages enterprise environments, services, deployments, disaster-recovery groups and operation-skill bindings for DSH sessions."
+    "description": "Manages enterprise environments (with disaster-recovery marking), services, deployments and operation-skill bindings for DSH sessions."
   }
 }

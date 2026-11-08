@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, executor, session store, application service, fourteen tools
-and the same-origin HTTP API are in place, with 132 Vitest tests passing across 14 test
+and the same-origin HTTP API are in place, with 133 Vitest tests passing across 14 test
 files. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
@@ -69,30 +69,45 @@ build; 12 tools live, route 200, data intact). The running `desktop` process sti
 executes its cached pre-upgrade module; a DSH restart is required for the fix to go live
 and to complete the end-to-end execute → experience → review flow.
 
-**DR groups + bundle import/export (2026-11-08, unreleased):** a new record kind
-`drGroup` (`<dataDir>/drGroups/{id}.yaml`) joins two or more environments into a
-disaster-recovery topology. It stores `name`, `type` (`AS` Active-Standby 主备, `AA`
-Active-Active 双活, `AP` Active-Passive 主从, or a custom short token), optional `scope`,
-`rtoMinutes`/`rpoMinutes` (minutes, 0..10080) and 1..8 `members` of
-`{ environmentId, role: primary|standby, weight?, note? }`. Member environments must
-exist; `env_validate` warns `DR_GROUP_MEMBER_UNKNOWN`, and deleting an environment that
-is a member is blocked with `RECORD_IN_USE`. The group is topology metadata only: there
-is no failover/switch/promote operation, and a witness/仲裁 member role is deferred.
+**DR marking + bundle import/export (2026-11-08, unreleased):** disaster recovery is
+embedded in each environment record — there is **no separate module**: no group record
+kind, no dedicated directory, no DR tab and no groups bundle key. `Environment` gains
+an optional `dr` block (validated by a Zod shape, `o(drFields(mode), mode).optional()`):
+`role` `primary`(生产)/`standby`(容灾) required, `type` a short token ≤16
+(`^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`; presets `AS` 主备 Active-Standby, `AA` 双活
+Active-Active, `AP` 主从 Active-Passive, custom codes allowed), and optional `peer` (≤128,
+the other half of the pair), `scope` (≤40, e.g. 同城/异地), `rtoMinutes`/`rpoMinutes`
+(integers 0..10080 = 7 days) and `note` (≤2000); `peer` cannot equal the environment's
+own id. A pair is two `dr` blocks pointing at each other. Integrity: an environment whose
+`dr.peer` is missing produces a `DR_PEER_UNKNOWN` warning from `env_validate` (warning,
+file `environments/{id}.yaml`, path `dr.peer`); deleting an environment that is the DR
+peer of another environment is blocked with `RECORD_IN_USE` (referrer
+`{ kind: 'environment', id, field: 'dr.peer' }`). The marking is topology metadata only:
+no failover/switch/promote operation, no witness/仲裁 role, and RTO/RPO are descriptive
+objectives, never enforced.
 
-Batch onboarding and backup/migration use a versioned **bundle** document (`version: 1`
-plus optional plural-kind arrays `environments`, `services`, `deployments`,
-`ruleProfiles`, `operationBindings`, `drGroups`). `env_import` applies records in
-dependency order, resolves references against the registry union the ids in the same
-bundle, and supports `skip` / `overwrite` / `error` conflict modes; a bundle touching
-production records requires confirmation, and the strict record schemas reject any
-password field. `env_export` writes the whole registry or one environment subset with
-everything that references it (deployments, services, bindings, rule profiles, DR groups).
-Bundles are transient documents, never stored under `dataDir`. The tools are now fourteen
-(`env_import` / `env_export` added); the panel gained a DR groups tab (cards with a type
-badge, scope, RTO/RPO pills and member rows with an open-environment action) plus
-import/export modals, and Records gained a 容灾组 sub-tab. Tests: 132 passing across 14
-files (new `tests/drgroup/`, `tests/bundle/`). Version stays `0.1.6` and nothing is
-published: the `desktop` profile continues to run this repository through a pnpm link.
+Batch onboarding and backup/migration use a versioned **bundle** document (`version: 1`,
+`exportedAt` plus optional plural-kind arrays `environments`, `services`, `deployments`,
+`ruleProfiles`, `operationBindings` — no groups key; DR marking travels inside each
+environment record). `env_import` applies records in dependency order (environment →
+service → deployment → ruleProfile → operationBinding), resolves references against the
+registry union the ids in the same bundle, and supports `skip` / `overwrite` / `error`
+conflict modes with per-record failures reported (never aborting the rest); reference
+problems use the same codes as single-record validation (`ENV_NOT_FOUND`,
+`SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`, `RULE_PROFILE_NOT_FOUND`,
+`DR_PEER_UNKNOWN`). A bundle touching production records requires confirmation, and the
+strict record schemas reject any password field. `env_export` writes the whole registry
+or one environment subset; a selected environment's DR peers ride along **in both
+directions** (fixpoint) so the bundle stays self-contained, but deployments, services,
+rule profiles and operation bindings are still derived only from the explicitly selected
+environment ids. Bundles are transient documents, never stored under `dataDir`. The tools
+are fourteen (`env_import` / `env_export` retained); the panel header carries the
+导入/导出 bundle actions, the environment detail has a 容灾 (DR) card (role badge, type,
+peer, scope, RTO/RPO, note; `drUnset` empty state), and environment list summaries append
+`DR <role> <type> → <peer>`. Tests: 133 passing across 14 files (new `tests/dr/`,
+`tests/bundle/`; `tests/dr/env-dr.test.ts` holds the DR schema/registry/export tests).
+Version stays `0.1.6` and nothing is published: the `desktop` profile continues to run
+this repository through a pnpm link.
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
@@ -241,8 +256,10 @@ already-open GUI to materialize the fixed client module.
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
-a **DR groups (容灾组)** tab sits right after Overview, and `Records` is limited to
-services, deployments, rule profiles, operation bindings and DR groups.
+and `Records` is limited to services, deployments, rule profiles and operation bindings.
+The panel header also carries 导出/导入 bundle actions; DR marking is shown on the
+environment detail (容灾 card) and in the environment list summaries (`DR <role> <type> →
+<peer>`), not as its own tab.
 
 Phase 1 changes the environment workflow:
 
@@ -359,10 +376,10 @@ Code:
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] DR group record kind (`drGroups/`), schema cross-checks, integrity warning and delete guard
+- [x] Optional `dr` marking on each environment (role/type/peer/scope/RTO/RPO), `DR_PEER_UNKNOWN` warning and `RECORD_IN_USE` delete guard
 - [x] Versioned bundle import/export (`env_import` / `env_export`, HTTP `import` / `export` ops)
-- [x] Panel DR groups tab (type badge, scope, RTO/RPO pills, member rows) and import/export modals
-- [x] Tests (132 passing, 14 files)
+- [x] Panel header import/export modals, environment detail 容灾 (DR) card and DR list summaries
+- [x] Tests (133 passing, 14 files)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -384,8 +401,11 @@ Code:
 - No arbitrary code in rule templates.
 - No remote execution in V1.
 - No production auto-apply.
-- A DR group is topology metadata only: no failover/switch/promote operation exists, and
+- DR marking is topology metadata only: no failover/switch/promote operation exists, and
   RTO/RPO values are descriptive objectives, not enforced limits.
+- An environment's `dr.peer` must reference an existing environment (`DR_PEER_UNKNOWN`
+  warning otherwise); deleting an environment that is another's `dr.peer` is blocked with
+  `RECORD_IN_USE` while the link exists.
 - Bundle documents are transient: nothing is written outside `dataDir`, and a bundle never
   accepts passwords (the strict record schemas reject them).
 - Registry data is git-ignored.
@@ -441,11 +461,11 @@ dsh-env-manager/
 - The panel cannot write production records unless
   `writePolicy.allowUiProductionWrites` is enabled.
 - No JumpServer/PAM synchronization; account and login observations remain manual/YAML.
-- DR group members are limited to `primary`/`standby`; a witness/仲裁 member role and
-  scheduled DR-drill tracking are deferred, and there is no failover orchestration (a
-  group never executes anything).
-- DR groups are edited through the Records YAML editor or created from the DR tab; there
-  is no in-panel member-row editor beyond the create/YAML paths.
+- The `dr` role is limited to `primary`/`standby`; a witness/仲裁 role and scheduled
+  DR-drill tracking are deferred, and there is no failover orchestration (the marking
+  never executes anything).
+- DR marking is edited through the environment YAML (the record editor / YAML tab); the
+  detail's 容灾 card is display-only, and there is no dedicated `dr` form yet.
 
 ## Next Recommended Work
 
@@ -459,6 +479,6 @@ dsh-env-manager/
 5. Optional JumpServer/PAM import adapter for accounts and login observations.
 6. Add a small example registry under `examples/` for first-run demonstration.
 7. P1 memory bridge and operation records.
-8. DR group follow-ups: a witness/仲裁 member role, scheduled drill tracking, and (later)
-   failover/switch/promote operations behind the existing approval gates — the group model
-   itself stays read-only metadata.
+8. DR follow-ups: a witness/仲裁 role, scheduled drill tracking, and (later)
+   failover/switch/promote operations behind the existing approval gates — the `dr`
+   marking itself stays read-only metadata.

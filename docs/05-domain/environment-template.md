@@ -166,8 +166,52 @@ updatedAt: 2026-11-01T03:00:00.000Z
   classification to the node form or YAML.
 - Database primary/replica/sharding topology is not modeled in Phase 1. Use the
   `database` role plus a node note; a later schema may add topology metadata.
-- An environment can be a member of one or more DR groups (see
-  [`dr-group-template.md`](./dr-group-template.md)). DR membership lives in the group
-  record (`<dataDir>/drGroups/`) — this environment file carries nothing about it, and a
-  group is topology metadata that never writes to or executes anything on its member
-  environments.
+- An environment may carry an optional disaster-recovery marking (`dr`, see
+  [Disaster-recovery marking](#disaster-recovery-marking-dr) below). The marking lives
+  **inside this file** — there is no separate record kind for it — so it travels with
+  the environment through bundle import/export, and it never writes to or executes
+  anything on either side of the pair.
+
+---
+
+## Disaster-recovery marking (`dr`)
+
+An environment may carry an optional `dr` block that marks it as one half of a
+disaster-recovery pair (typically a production site and its standby). The marking lives
+**inside this environment record**: there is no separate record kind and no
+dedicated directory or panel tab — a pair is two `dr` blocks whose `peer` fields point
+at each other. The marking is topology metadata only: it never triggers writes,
+and there is no failover / switch / promote operation. RTO/RPO values are descriptive
+objectives, not enforced limits.
+
+```yaml
+dr:
+  role: primary          # primary = 生产/主用, standby = 容灾/备用 (required)
+  type: AS               # AS 主备 | AA 双活 | AP 主从 | custom token (required, ≤16)
+  peer: dr-a             # the other half of the pair (optional, ≤128)
+  scope: 同城             # optional, ≤40 chars
+  rtoMinutes: 30         # optional, 0..10080 (7 days), minute granularity
+  rpoMinutes: 10         # optional, 0..10080
+  note: 生产主备，同城灾备；备用环境平时不承载业务流量。  # optional, ≤2000
+```
+
+The standby half (`dr-a`) declares the same block with `role: standby` and
+`peer: <primary id>`.
+
+Invariants:
+
+- `role` and `type` are required inside the block; `type` must match
+  `^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$` (the UI labels `AS` 主备 Active-Standby,
+  `AA` 双活 Active-Active, `AP` 主从 Active-Passive; custom codes render as-is).
+- `peer` (when set) must not equal the environment's own id, and should name the other
+  environment of the pair.
+- A `peer` that names a missing environment is reported as a `DR_PEER_UNKNOWN` warning
+  by `env_validate` (file `environments/{id}.yaml`, path `dr.peer`); deleting an
+  environment that is the `dr.peer` of another environment is blocked with
+  `RECORD_IN_USE` while the link exists.
+- `rtoMinutes` / `rpoMinutes` are descriptive objectives (0..10080 = 7 days). Nothing
+  measures or enforces them; `0` means "no data loss" / "immediate" as a declared target.
+- The panel shows the marking on the environment detail (容灾 card: role badge, type,
+  peer, scope, RTO/RPO, note) and appends `DR <role> <type> → <peer>` to the environment
+  list summary. The block is edited through this YAML (the record editor / YAML tab); the
+  detail card is display-only.

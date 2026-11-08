@@ -18,7 +18,6 @@ function statusFor(code: string): number {
     case 'BINDING_NOT_FOUND':
     case 'HOST_NOT_FOUND':
     case 'CLUSTER_NOT_FOUND':
-    case 'DR_GROUP_NOT_FOUND':
       return 404
     case 'RECORD_IN_USE':
     case 'BINDING_CONFLICT':
@@ -35,7 +34,7 @@ function statusFor(code: string): number {
     case 'INVALID_ARGUMENT':
     case 'RECORD_INVALID':
     case 'IMPORT_INVALID':
-    case 'DR_GROUP_MEMBER_UNKNOWN':
+    case 'DR_PEER_UNKNOWN':
     case 'RULE_TEMPLATE_INVALID':
     case 'RULE_UNDEFINED_VARIABLE':
     case 'RULE_CYCLE':
@@ -291,7 +290,6 @@ export function registerHttpTransport(ctx: any, app: App, logger: Logger): () =>
             deployments: document.deployments?.length ?? 0,
             ruleProfiles: document.ruleProfiles?.length ?? 0,
             operationBindings: document.operationBindings?.length ?? 0,
-            drGroups: document.drGroups?.length ?? 0,
           },
         }
       }

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "DSH 环境管理器",
-    "description": "为 DSH 会话管理企业环境、服务、部署实例、容灾组以及操作与 Skill 的绑定关系。"
+    "description": "为 DSH 会话管理企业环境（含容灾标记）、服务、部署实例以及操作与 Skill 的绑定关系。"
   }
 }

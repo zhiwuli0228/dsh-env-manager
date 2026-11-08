@@ -47,9 +47,9 @@ Owns the shapes.
 Allowed:
 
 - TypeScript interfaces and type guards for all records, results and diagnostics
-  (including `DrGroup`, `BundleDocument` and the import/export result shapes).
-- Zod schemas that mirror the interfaces, with cross-checks such as the DR group
-  member-role rules.
+  (including `EnvironmentDr`, `BundleDocument` and the import/export result shapes).
+- Zod schemas that mirror the interfaces, with cross-checks such as `dr.peer` not
+  equalling the environment's own id.
 - Enums and constants (operation ids, categories, runtime modes).
 - Pure helpers that operate on the types.
 
@@ -69,7 +69,8 @@ Owns bytes on disk.
 Responsibilities:
 
 - Resolve `dataDir` and create directories.
-- Read, parse, validate and write one record file (all kinds, including `drGroups/`).
+- Read, parse, validate and write one record file (all five kinds, including the optional
+  `dr` disaster-recovery marking inside `environments/{id}.yaml`).
 - Atomic write protocol.
 - Rolling backups.
 - Session state files.
@@ -93,7 +94,7 @@ Responsibilities:
 - Load all record directories into maps.
 - Reload affected entries after writes.
 - Enforce id uniqueness and filename/id agreement.
-- Enforce referential integrity (data-model §14), including DR group `members[].environmentId`
+- Enforce referential integrity (data-model §14), including `Environment.dr.peer`
   references, and expose `findReferences` so deleting an in-use environment is blocked.
 - Provide lookups: by id, by alias, list by category, deployments by service, deployments by environment.
 - Produce load diagnostics.
@@ -223,7 +224,8 @@ Responsibilities:
   bundles with `APPROVAL_REQUIRED` / `FORBIDDEN`.
 - `exportBundle`: collect a closed set of records for the whole registry or a selected
   set of environments (deployments, referenced services, matching bindings, referenced
-  rule profiles and DR groups), sorted by id.
+  rule profiles); a selected environment's DR peer rides along in both directions so the
+  bundle stays self-contained, sorted by id.
 - Return domain results or throw `EnvManagerError`.
 
 Forbidden:
@@ -285,8 +287,8 @@ Responsibilities:
 - Enforce method, content type, request header, origin and body limits.
 - Map `{ op, payload }` to `app` calls, including the `import` (document or `yaml` text)
   and `export` operations.
-- Map `EnvManagerError` codes to status codes (`DR_GROUP_NOT_FOUND` → 404,
-  `IMPORT_TOO_LARGE` → 413, `IMPORT_INVALID` / `DR_GROUP_MEMBER_UNKNOWN` → 400).
+- Map `EnvManagerError` codes to status codes (`IMPORT_TOO_LARGE` → 413,
+  `IMPORT_INVALID` / `DR_PEER_UNKNOWN` → 400).
 - Log writes with actor, op, kind, id and outcome.
 
 Forbidden:

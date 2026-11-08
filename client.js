@@ -225,25 +225,20 @@ window.__ModuleLoader__.load({
         defaultRolesHint: 'Management, business, database and expansion are created by default. Add nodes to each plane after creating the environment.',
         envIdExists: 'That environment id already exists.',
         environmentCreated: 'Environment created',
-        drGroups: 'DR groups',
-        drGroupTab: 'DR groups',
-        drGroupsHint: 'Disaster-recovery topologies: one card per group, joining a production environment with its standby. AS = Active-Standby (主备), AA = Active-Active (双活), AP = Active-Passive (主从); custom codes are shown as-is.',
+        drSection: 'Disaster recovery',
         drPrimary: 'Production',
         drStandby: 'Disaster recovery',
         drType: 'Type',
         drScope: 'Site scope',
+        drPeer: 'Peer',
         drRto: 'RTO',
         drRpo: 'RPO',
         drMinutes: 'min',
-        drMembers: 'Members',
-        drNoGroups: 'No DR groups yet',
-        drNoGroupsHint: 'Create a DR group under Records → DR groups, or import a bundle that includes drGroups.',
-        drNewGroup: 'New DR group',
-        drOpenEnvironment: 'Open environment',
+        drUnset: 'Not part of a DR pair',
         drNoType: 'Unclassified',
         importExport: 'Import / export',
         drImportTitle: 'Batch import',
-        drImportHint: 'Paste a YAML/JSON bundle (version 1 with environments, services, deployments, ruleProfiles, operationBindings, drGroups). Records carry credentialRef names only — passwords are never accepted. Conflicting ids follow the mode below; production records require confirmation.',
+        drImportHint: 'Paste a YAML/JSON bundle (version 1 with environments, services, deployments, ruleProfiles, operationBindings). DR marking travels inside each environment record. Records carry credentialRef names only — passwords are never accepted. Conflicting ids follow the mode below; production records require confirmation.',
         drImportMode: 'Conflict mode',
         drImportModeSkip: 'Skip existing',
         drImportModeOverwrite: 'Overwrite existing',
@@ -256,7 +251,7 @@ window.__ModuleLoader__.load({
         drFailed: 'Failed',
         drBundleInvalid: 'Bundle must be a YAML/JSON object.',
         drExportTitle: 'Export bundle',
-        drExportHint: 'Export the whole registry, or type environment ids/names (comma separated) to export those environments plus their deployments, services, bindings and DR groups.',
+        drExportHint: 'Export the whole registry, or type environment ids/names (comma separated) to export those environments plus their deployments, services and bindings. A DR peer environment is included automatically so the bundle stays self-contained.',
         drExportEnvironments: 'Environment ids (blank = full registry)',
         drExportDownload: 'Download YAML',
         drExportDone: 'Bundle exported',
@@ -480,25 +475,20 @@ window.__ModuleLoader__.load({
         defaultRolesHint: '默认创建管理面、业务面、数据库和扩容四类；创建后在各自平面添加节点。',
         envIdExists: '该环境 ID 已存在。',
         environmentCreated: '环境已创建',
-        drGroups: '容灾组',
-        drGroupTab: '容灾组',
-        drGroupsHint: '容灾拓扑：每个容灾组一张卡片，把生产环境与容灾环境并排展示。AS = 主备（Active-Standby），AA = 双活（Active-Active），AP = 主从（Active-Passive）；自定义类型原样显示。',
+        drSection: '容灾',
         drPrimary: '生产',
         drStandby: '容灾',
-        drType: '类型',
+        drType: '容灾类型',
         drScope: '站点范围',
+        drPeer: '对端环境',
         drRto: 'RTO',
         drRpo: 'RPO',
         drMinutes: '分钟',
-        drMembers: '成员',
-        drNoGroups: '还没有容灾组',
-        drNoGroupsHint: '在「记录 → 容灾组」里新建，或导入一个包含 drGroups 的环境包。',
-        drNewGroup: '新建容灾组',
-        drOpenEnvironment: '打开环境',
+        drUnset: '未参与容灾配对',
         drNoType: '未分类',
         importExport: '导入 / 导出',
         drImportTitle: '批量导入',
-        drImportHint: '粘贴一个 YAML/JSON 环境包（version 1，可含 environments / services / deployments / ruleProfiles / operationBindings / drGroups）。记录只允许 credentialRef 名称，永不接受密码。已存在的 id 按下方的冲突策略处理；涉及生产记录需确认。',
+        drImportHint: '粘贴一个 YAML/JSON 环境包（version 1，可含 environments / services / deployments / ruleProfiles / operationBindings）。容灾标记内嵌在每个环境记录里（dr）。记录只允许 credentialRef 名称，永不接受密码。已存在的 id 按下方的冲突策略处理；涉及生产记录需确认。',
         drImportMode: '冲突策略',
         drImportModeSkip: '跳过已有',
         drImportModeOverwrite: '覆盖已有',
@@ -511,7 +501,7 @@ window.__ModuleLoader__.load({
         drFailed: '失败',
         drBundleInvalid: '环境包必须是 YAML/JSON 对象。',
         drExportTitle: '导出环境包',
-        drExportHint: '导出整个注册表，或填写一个或多个环境 id/名称（逗号分隔），导出这些环境及其部署、服务、绑定与容灾组。',
+        drExportHint: '导出整个注册表，或填写一个或多个环境 id/名称（逗号分隔），导出这些环境及其部署、服务与绑定；容灾对端环境会自动带上，保证环境包自包含。',
         drExportEnvironments: '环境 id（留空 = 全量）',
         drExportDownload: '下载 YAML',
         drExportDone: '环境包已导出',
@@ -520,7 +510,7 @@ window.__ModuleLoader__.load({
     const lang = String(navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
     const t = (key) => MESSAGES[lang][key] || MESSAGES.en[key] || key;
 
-    const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'];
+    const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'];
     const RECORD_KINDS = KINDS.filter((kind) => kind !== 'environment');
     const DEFAULT_ROLES = [
       { id: 'management', name: 'Management Plane' },
@@ -574,7 +564,6 @@ window.__ModuleLoader__.load({
       deployment: 'deployments',
       ruleProfile: 'ruleProfiles',
       operationBinding: 'operationBindings',
-      drGroup: 'drGroups',
     };
     const DR_TYPE_LABELS = { AS: 'AS 主备', AA: 'AA 双活', AP: 'AP 主从' };
     const drTypeLabel = (value) => DR_TYPE_LABELS[String(value || '').toUpperCase()] || String(value || '') || t('drNoType');
@@ -1005,12 +994,11 @@ window.__ModuleLoader__.load({
     }
 
     const TEMPLATES = {
-      environment: 'id: new-env\nschemaVersion: 1\nname: New Environment\naliases: []\ncategory: test\nroles:\n  - id: management\n    name: Management Plane\n  - id: business\n    name: Business Plane\n  - id: database\n    name: Database\n  - id: extension\n    name: Expansion / other\nhosts: []\nclusters: []\nendpoints: []\n',
+      environment: 'id: new-env\nschemaVersion: 1\nname: New Environment\naliases: []\ncategory: test\n# Disaster recovery: mark this environment inside its pair (AS 主备 / AA 双活 / AP 主从 or a custom code).\n# dr:\n#   role: standby\n#   type: AS\n#   peer: prod-env\n#   scope: 同城\n#   rtoMinutes: 30\n#   rpoMinutes: 10\nroles:\n  - id: management\n    name: Management Plane\n  - id: business\n    name: Business Plane\n  - id: database\n    name: Database\n  - id: extension\n    name: Expansion / other\nhosts: []\nclusters: []\nendpoints: []\n',
       service: 'id: new-service\nschemaVersion: 1\nname: New Service\naliases: []\ncategory: backend\ngit:\n  url: https://example.invalid/repo.git\n  defaultBranch: main\ndeployModes: [kubernetes]\nruleProfileRefs: []\n',
       deployment: 'id: new-deployment\nschemaVersion: 1\nenvironmentId: new-env\nserviceId: new-service\nruntimeMode: kubernetes\nlocation:\n  kind: kubernetes\n  clusterRef: k8s-01\n  namespace: default\n  workload:\n    kind: Deployment\n    name: new-service\n',
       ruleProfile: 'id: new-rule\nschemaVersion: 1\ndescription: New rule profile\nvariables: {}\npaths: {}\n',
       operationBinding: 'id: new-binding\nschemaVersion: 1\noperation: redeploy\nmatch:\n  environmentId: new-env\n  serviceId: new-service\n# Exactly one target: a Skill (discovery only) OR an execute target.\n# skill:\n#   name: example-skill\nexecute:\n  mode: command\n  argv: ["kubectl", "rollout", "restart", "${workload}", "-n", "${namespace}"]\n  timeoutSeconds: 300\n# execute modes: script (under <dataDir>/scripts), command (local CLI), remote (prepared ssh).\nparameters:\n  workload: ${deployment.location.workload.name}\n  namespace: ${deployment.location.namespace}\npolicy:\n  requiresApproval: true\n  allowProduction: false\nenabled: true\n',
-      drGroup: 'id: new-dr-group\nschemaVersion: 1\nname: New DR Group\n# AS 主备 / AA 双活 / AP 主从, or a custom code\ntype: AA\nscope: 同城\n# rtoMinutes: 30\n# rpoMinutes: 10\nmembers:\n  - environmentId: prod-env\n    role: primary\n    weight: 100\n    note: 生产\n  - environmentId: dr-env\n    role: standby\n    weight: 0\n    note: 容灾\n',
     };
 
     function EnvironmentDetail(props) {
@@ -1023,6 +1011,7 @@ window.__ModuleLoader__.load({
       const [batchText, setBatchText] = useState('');
       const [expandedHost, setExpandedHost] = useState(null);
       const record = props.record || {};
+      const dr = record.dr || null;
       const hosts = record.hosts || [];
       const accounts = hosts.flatMap((host) => (host.accounts || []).map((account) => ({ host, account })));
       const logins = [...(record.loginRecords || [])].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
@@ -1640,6 +1629,26 @@ window.__ModuleLoader__.load({
               h('div', { className: 'dem-info-label' }, t('latestLogin')),
               h('div', { className: 'dem-info-value' },
                 latest ? formatTime(latest.at) : (lastAccountLogin ? formatTime(lastAccountLogin) : t('never'))))),
+          h('div', { className: 'dem-card' },
+            h('div', { className: 'dem-section-head' },
+              h('h3', { className: 'dem-section-title' }, t('drSection')),
+              dr
+                ? h('span', { className: 'dem-badge', 'data-role': dr.role }, drRoleLabel(dr.role))
+                : null),
+            dr
+              ? h('div', { className: 'dem-info-grid' },
+                info(t('drType'), drTypeLabel(dr.type)),
+                dr.peer ? info(t('drPeer'), dr.peer, { mono: true }) : null,
+                dr.scope ? info(t('drScope'), dr.scope) : null,
+                typeof dr.rtoMinutes === 'number'
+                  ? info(t('drRto'), String(dr.rtoMinutes) + ' ' + t('drMinutes'))
+                  : null,
+                typeof dr.rpoMinutes === 'number'
+                  ? info(t('drRpo'), String(dr.rpoMinutes) + ' ' + t('drMinutes'))
+                  : null,
+                dr.note ? info(t('note'), dr.note, { wide: true }) : null)
+              : h('div', { className: 'dem-empty' },
+                h('strong', null, t('drUnset')))),
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
               h('h3', { className: 'dem-section-title' }, t('roles'))),
@@ -2609,73 +2618,10 @@ window.__ModuleLoader__.load({
       ]);
     }
 
-    function DrView(props) {
-      const [groups, setGroups] = useState([]);
-      const [envs, setEnvs] = useState([]);
-      const [error, setError] = useState(null);
-      const load = async () => {
-        try {
-          setError(null);
-          const [groupData, envData] = await Promise.all([
-            call('list', { kind: 'drGroup' }),
-            call('list', { kind: 'environment' }),
-          ]);
-          setGroups(groupData.items || []);
-          setEnvs(envData.items || []);
-        } catch (next) {
-          setError(next);
-        }
-      };
-      useEffect(() => {
-        load();
-      }, []);
-      const envById = new Map(envs.map((env) => [env.id, env]));
-      return h('div', { className: 'dem-view' },
-        h('div', { className: 'dem-toolbar' },
-          h('div', { className: 'dem-toolbar-copy' },
-            h('h2', { className: 'dem-section-title' }, t('drGroupTab')),
-            h('p', { className: 'dem-hint' }, t('drGroupsHint'))),
-          h('div', { className: 'dem-actions' },
-            h(Button, { onClick: props.onNewGroup }, t('drNewGroup')),
-            h(Button, { onClick: load }, t('refresh')))),
-        error ? h(ErrorBox, { error }) : null,
-        groups.length === 0
-          ? h('div', { className: 'dem-card' },
-            h('div', { className: 'dem-empty' },
-              h('strong', null, t('drNoGroups')),
-              h('span', null, t('drNoGroupsHint'))))
-          : h('div', { className: 'dem-dr-grid' }, groups.map((group) =>
-            h('div', { key: group.id, className: 'dem-card' },
-              h('div', { className: 'dem-section-head' },
-                h('div', null,
-                  h('h3', { className: 'dem-section-title' }, group.name || group.id),
-                  h('div', { className: 'dem-detail-sub' },
-                    h('span', { className: 'dem-badge' }, drTypeLabel(group.type)),
-                    group.scope ? h('span', { className: 'dem-badge' }, group.scope) : null,
-                    typeof group.rtoMinutes === 'number'
-                      ? h('span', { className: 'dem-badge' }, t('drRto') + ' ' + group.rtoMinutes + t('drMinutes'))
-                      : null,
-                    typeof group.rpoMinutes === 'number'
-                      ? h('span', { className: 'dem-badge' }, t('drRpo') + ' ' + group.rpoMinutes + t('drMinutes'))
-                      : null)),
-                h('span', { className: 'dem-pill' }, group.id)),
-              (group.members || []).map((member) => {
-                const env = envById.get(member.environmentId);
-                return h('div', { key: member.environmentId, className: 'dem-dr-member' },
-                  h('div', { className: 'dem-dr-member-left' },
-                    h('span', { className: 'dem-badge', 'data-role': member.role }, drRoleLabel(member.role)),
-                    h('span', { className: 'dem-item-name' }, (env && env.name) || member.environmentId),
-                    h('span', { className: 'dem-item-meta' },
-                      member.environmentId + (typeof member.weight === 'number' ? ' · ' + t('drMembers') + ' w=' + member.weight : ''))),
-                  h(Button, { onClick: () => props.onOpenEnvironment(member.environmentId) }, t('drOpenEnvironment')));
-              })))));
-    }
-
     function Panel() {
       const [tab, setTab] = useState('environments');
       const [createRequest, setCreateRequest] = useState(0);
       const [recordsKind, setRecordsKind] = useState(null);
-      const [openEnvironmentId, setOpenEnvironmentId] = useState(null);
       const [importOpen, setImportOpen] = useState(false);
       const [importText, setImportText] = useState('');
       const [importMode, setImportMode] = useState('skip');
@@ -2690,7 +2636,6 @@ window.__ModuleLoader__.load({
       const tabs = useMemo(() => [
         ['environments', t('environments')],
         ['overview', t('overview')],
-        ['dr', t('drGroupTab')],
         ['records', t('records')],
         ['context', t('context')],
         ['operations', t('operations')],
@@ -2773,19 +2718,6 @@ window.__ModuleLoader__.load({
             kind: 'environment',
             createRequest,
             onCreateConsumed: () => setCreateRequest(0),
-            initialEnvironmentId: openEnvironmentId,
-            onConsumeEnvironmentId: () => setOpenEnvironmentId(null),
-          }) : null,
-          tab === 'dr' ? h(DrView, {
-            key: 'dr-' + reloadKey,
-            onNewGroup: () => {
-              setRecordsKind('drGroup');
-              setTab('records');
-            },
-            onOpenEnvironment: (id) => {
-              setOpenEnvironmentId(id);
-              setTab('environments');
-            },
           }) : null,
           tab === 'records' ? h(Records, {
             key: 'records-' + reloadKey,
@@ -2809,7 +2741,7 @@ window.__ModuleLoader__.load({
                 value: importText,
                 onChange: (event) => setImportText(event.target.value),
                 spellCheck: false,
-                placeholder: 'version: 1\nenvironments: []\nservices: []\ndeployments: []\nruleProfiles: []\noperationBindings: []\ndrGroups: []\n',
+                placeholder: 'version: 1\nenvironments: []\nservices: []\ndeployments: []\nruleProfiles: []\noperationBindings: []\n',
               }),
               importError ? h(ErrorBox, { error: importError }) : null,
               importResult ? h('div', { className: 'dem-result' },

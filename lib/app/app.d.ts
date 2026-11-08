@@ -48,17 +48,19 @@ export declare class App {
     validate(): Promise<ValidationReport>;
     /**
      * Import a self-contained environment bundle: several environments plus the
-     * services, deployments, rule profiles, operation bindings and DR groups that
-     * reference them, in one call. Records are schema-validated first; references
-     * are checked against the registry plus the ids arriving in the same bundle.
-     * Bundle records carry `credentialRef` names only — never a password or key.
+     * services, deployments, rule profiles and operation bindings that reference
+     * them, in one call. Records are schema-validated first; references are checked
+     * against the registry plus the ids arriving in the same bundle. DR marking
+     * travels inside each environment (`dr`). Bundle records carry `credentialRef`
+     * names only — never a password or key.
      */
     importBundle(request: ImportRequest, actor?: Actor): Promise<ImportResult>;
     /**
      * Export a self-contained environment bundle. Without ids the whole registry is
      * exported; with ids, each named environment plus its deployments, referenced
-     * services, related bindings and DR groups is exported. Records contain only
-     * `credentialRef` names — never a credential value.
+     * services and related bindings is exported. DR marking travels inside each
+     * environment (`dr`). Records contain only `credentialRef` names — never a
+     * credential value.
      */
     exportBundle(environmentIds?: string[]): Promise<BundleDocument>;
     /**

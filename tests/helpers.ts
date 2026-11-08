@@ -204,22 +204,17 @@ export const environmentB = {
   clusters: [],
   endpoints: [],
   loginRecords: [],
-  createdAt: '2026-11-01T03:00:00.000Z',
-  updatedAt: '2026-11-01T03:00:00.000Z',
-}
-
-export const drGroup = {
-  id: 'drg-test',
-  schemaVersion: 1,
-  name: 'Test DR Group',
-  type: 'AS',
-  scope: '同城',
-  rtoMinutes: 15,
-  rpoMinutes: 5,
-  members: [
-    { environmentId: 'test-a', role: 'primary', weight: 100, note: '生产' },
-    { environmentId: 'test-b', role: 'standby', weight: 0, note: '容灾' },
-  ],
+  // DR marking lives inside the environment record itself: test-b is the
+  // standby/容灾 half of the test-a pair.
+  dr: {
+    role: 'standby',
+    type: 'AS',
+    peer: 'test-a',
+    scope: '同城',
+    rtoMinutes: 15,
+    rpoMinutes: 5,
+    note: '容灾站',
+  },
   createdAt: '2026-11-01T03:00:00.000Z',
   updatedAt: '2026-11-01T03:00:00.000Z',
 }
@@ -230,7 +225,6 @@ const DIRECTORIES: Record<RecordKind, string> = {
   deployment: 'deployments',
   ruleProfile: 'rules',
   operationBinding: 'operations',
-  drGroup: 'drGroups',
 }
 
 export async function writeRecord(
@@ -256,6 +250,6 @@ export async function writeFixture(dataDir: string): Promise<void> {
 }
 
 export async function writeDrFixture(dataDir: string): Promise<void> {
+  // The standby half of the DR pair; test-a comes from writeFixture().
   await writeRecord(dataDir, 'environment', environmentB)
-  await writeRecord(dataDir, 'drGroup', drGroup)
 }

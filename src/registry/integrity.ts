@@ -204,18 +204,18 @@ export function checkIntegrity(snapshot: RegistrySnapshot): Diagnostic[] {
     }
   }
 
-  for (const group of snapshot.drGroups.values()) {
-    const file = `drGroups/${group.id}.yaml`
-    for (const [index, member] of group.members.entries()) {
-      if (!environmentIds.has(member.environmentId)) {
-        out.push(
-          diag(
-            'DR_GROUP_MEMBER_UNKNOWN',
-            `DR group ${group.id} references missing environment ${member.environmentId}`,
-            { file, path: `members[${index}].environmentId` },
-          ),
-        )
-      }
+  for (const environment of snapshot.environments.values()) {
+    const dr = environment.dr
+    if (!dr?.peer) continue
+    const file = `environments/${environment.id}.yaml`
+    if (!environmentIds.has(dr.peer)) {
+      out.push(
+        diag(
+          'DR_PEER_UNKNOWN',
+          `Environment ${environment.id} references missing DR peer ${dr.peer}`,
+          { file, path: 'dr.peer' },
+        ),
+      )
     }
   }
 
@@ -247,11 +247,9 @@ export function findReferences(
           refs.push({ kind: 'operationBinding', id: binding.id, field: 'match.environmentId' })
         }
       }
-      for (const group of snapshot.drGroups.values()) {
-        for (const member of group.members) {
-          if (member.environmentId === id) {
-            refs.push({ kind: 'drGroup', id: group.id, field: 'members.environmentId' })
-          }
+      for (const other of snapshot.environments.values()) {
+        if (other.dr?.peer === id) {
+          refs.push({ kind: 'environment', id: other.id, field: 'dr.peer' })
         }
       }
       break
@@ -282,8 +280,6 @@ export function findReferences(
       }
       break
     case 'operationBinding':
-      break
-    case 'drGroup':
       break
   }
   return refs

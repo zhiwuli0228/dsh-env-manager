@@ -36,9 +36,9 @@ Give every DSH session a shared, queryable environment context, and make the pat
 7. Read-only Agent tools usable from any session in the profile.
 8. Session-scoped default environment.
 9. A minimal Web/Desktop configuration UI; file editing remains a supported baseline.
-10. DR groups that join environments into a disaster-recovery topology (`AS` / `AA` / `AP`
-    or a custom token) with RTO/RPO objectives, and a versioned bundle import/export for
-    onboarding, backup and migration.
+10. Disaster-recovery marking embedded in each environment record (`role`, an
+    `AS` / `AA` / `AP` or custom type token, `peer`, `scope` and RTO/RPO objectives),
+    and a versioned bundle import/export for onboarding, backup and migration.
 
 ### 1.3 V1 does not deliver
 
@@ -49,8 +49,8 @@ Give every DSH session a shared, queryable environment context, and make the pat
 - Automatic rule or Skill modification without review.
 - A persistent memory store of its own; experiences are plugin-owned YAML files in a review queue.
 - Guarantees that a derived path exists. Only an online check may mark a value verified.
-- DR failover / switch / promote operations, a witness/仲裁 member role, and scheduled DR
-  drills: a DR group is topology metadata only and never executes anything.
+- DR failover / switch / promote operations, a witness/仲裁 role, and scheduled DR
+  drills: DR marking is topology metadata only and never executes anything.
 
 ---
 
@@ -92,7 +92,7 @@ DSH Host process
           │
           ▼
 Plugin data directory
-  ├── environments/  services/  deployments/  rules/  operations/  drGroups/
+  ├── environments/  services/  deployments/  rules/  operations/
   ├── scripts/       execution scripts referenced by bindings
   ├── experiences/   review-queue records (success summaries / failure lessons)
   └── sessions/
@@ -160,10 +160,11 @@ Key points that shape the design:
 - **Deployment bindings are many**: a service may run several times in one environment, so deployment ids are first-class.
 - **Rule profiles are shared**; environment and deployment carry field-level overrides.
 - **Operation bindings are predicates**, not a fixed matrix of every combination.
-- **DR groups join environments** rather than duplicating them: a `drGroup` record holds
-  1..8 environment members with a `primary`/`standby` role and an optional weight, plus
-  the pattern type and RTO/RPO objectives. Membership lives in the group, environments do
-  not point back, and the group is topology metadata — no failover operation.
+- **Disaster recovery is a marking on the environment**, not a separate record: each
+  environment may carry an optional `dr` block (`role: primary | standby`, a `type` of
+  `AS` / `AA` / `AP` or a custom short token, and optional `peer`, `scope`,
+  `rtoMinutes`/`rpoMinutes` and `note`). A pair is two environments whose `peer` fields
+  point at each other; the marking is topology metadata — no failover operation.
 
 ---
 
@@ -178,7 +179,6 @@ Full rules in [storage-contract.md](./storage-contract.md). Summary:
 ├── deployments/{id}.yaml
 ├── rules/{id}.yaml
 ├── operations/{id}.yaml
-├── drGroups/{id}.yaml
 ├── sessions/{sessionId}.json
 └── .backups/{kind}/{id}/{timestamp}.yaml
 ```
@@ -488,10 +488,13 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 |---|---|
 | Environments (default) | list; detail split into overview, all nodes, management/business/database/expansion plane views, login records, Kubernetes/clusters, endpoints and YAML; shell-only New environment |
 | Overview | counts, dataDir, warnings, validate |
-| DR Groups (容灾组) | one card per group with a type badge, scope, RTO/RPO pills and member rows (open-environment action); header 导入/导出 buttons open the import/export modals |
-| Records | Services, Deployments, Rule profiles, Operation bindings and DR groups (容灾组) as YAML editors |
+| Records | Services, Deployments, Rule profiles and Operation bindings as YAML editors |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
 | Operation preview | operation → selected binding, skill availability, policy, parameters |
+
+The panel header carries `New environment` plus the 导入 / 导出 (Import/Export) bundle
+actions; the environment detail shows a 容灾 (DR) card in the right rail, and list
+summaries append `DR <role> <type> → <peer>` for marked environments.
 
 Rules for the UI:
 
@@ -509,6 +512,9 @@ Rules for the UI:
   cluster metadata. See ADR-0011.
 - Service, deployment, rule and binding records are edited as YAML, validated
   server-side before writing.
+- DR marking is part of the environment YAML and is shown read-only on the environment
+  detail's 容灾 card; the list summary appends `DR <role> <type> → <peer>`. There is no
+  separate DR tab or record kind.
 - Text is routed through the client locale service; `en` and `zh` provided.
 - The UI must show provenance for derived values, not just the final string.
 - Production-category destructive actions are visually distinct and require
@@ -595,7 +601,7 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-16 | A host records machine kind and command access; K8s kinds require an existing cluster; a Pod host is one machine, not one entry per Pod | yes | schema test + UI checklist + live verification |
 | AC-17 | Cluster metadata includes optional topology and a node count derived from `clusterRef`; cluster create/edit round-trips in the panel | yes | app test + UI checklist |
 | AC-18 | A host account can store a web login URL and username; a password is written to the credential service and only `credentialRef` remains; the account can be edited and searched by URL | yes | app test + UI checklist + live verification |
-| AC-19 | A DR group saves with `AS`/`AA`/`AP`/custom type, member roles and RTO/RPO; missing member environments are flagged, and deleting a member environment is blocked while the group exists | yes | schema/integrity tests + UI checklist |
+| AC-19 | An environment can carry a `dr` marking (role, `AS`/`AA`/`AP`/custom type, peer, scope, RTO/RPO); a missing `dr.peer` is flagged by `env_validate`, and deleting an environment that is another's `dr.peer` is blocked while the link exists | yes | schema/integrity tests + UI checklist |
 | AC-20 | A bundle exports the selected environments plus everything that references them and imports it back with `skip`/`overwrite`/`error`; production bundles require confirmation and per-record failures do not abort the rest | yes | bundle tests + live verification |
 
 ---
@@ -683,7 +689,7 @@ Remaining, none blocking V1:
 - Cross-process write locking for a shared `dataDir`.
 - A session-event projection instead of the session file.
 - Client bundling if the UI outgrows a single plain-JS module.
-- DR group follow-ups: a witness/仲裁 member role, scheduled drill tracking, and (later)
+- DR follow-ups: a witness/仲裁 role, scheduled drill tracking, and (later)
   failover/switch/promote operations behind the existing approval gates.
 
 ---

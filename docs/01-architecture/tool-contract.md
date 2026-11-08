@@ -106,7 +106,7 @@ interface WarningList { warnings: Diagnostic[] }
 are defined in [`data-model.md`](data-model.md) §9; the tool surface just passes them
 through.
 
-`RecordKind = 'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding' | 'drGroup'`.
+`RecordKind = 'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding'`.
 
 ## 2. Read tools
 
@@ -119,7 +119,7 @@ parameters: {
   kind: {
     type: 'string',
     required: false,
-    enum: ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'],
+    enum: ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'],
     description: 'Restrict to one record kind.',
   },
   query: {
@@ -152,7 +152,7 @@ Use when the caller already has an id and needs the full record.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* six kinds */] },
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
   id: { type: 'string', required: true, description: 'Record id, e.g. test-a.' },
 }
 ```
@@ -168,7 +168,7 @@ Returns:
 - Unknown fields in the file are preserved in both.
 
 Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
-`RULE_PROFILE_NOT_FOUND`, `BINDING_NOT_FOUND`, `DR_GROUP_NOT_FOUND` depending on `kind`;
+`RULE_PROFILE_NOT_FOUND`, `BINDING_NOT_FOUND` depending on `kind`;
 `INVALID_ARGUMENT` for a malformed id (fails before any I/O).
 
 Render: `"environment test-a (Test A), updated 2026-11-01."`
@@ -330,7 +330,7 @@ whole record; do not send a partial patch.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* six kinds */] },
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
   record: {
     type: 'json',
     required: true,
@@ -370,7 +370,7 @@ Use only when the user explicitly asks to remove a record.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* six kinds */] },
+  kind: { type: 'string', required: true, enum: [/* five kinds */] },
   id: { type: 'string', required: true },
   confirm: {
     type: 'boolean',
@@ -411,7 +411,7 @@ Returns:
   "ok": false,
   "counts": {
     "environment": 2, "service": 1, "deployment": 1,
-    "ruleProfile": 1, "operationBinding": 2, "drGroup": 1
+    "ruleProfile": 1, "operationBinding": 2
   },
   "diagnostics": [
     { "severity": "error", "code": "RULE_PROFILE_NOT_FOUND",
@@ -525,12 +525,13 @@ Render: `"2 experience(s)."` or `"Experience exp-20261108-034947 accepted (succe
 ### 3.6 `env_import`
 
 Use to apply a self-contained environment bundle (several environments plus their
-services, deployments, rule profiles, operation bindings and DR groups) in one call.
+services, deployments, rule profiles and operation bindings) in one call. DR marking is
+not a separate bundle array: it travels inside each environment record's `dr` block.
 
 ```ts
 parameters: {
   document: { type: 'json', required: true,
-              description: 'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...], drGroups: [...] }.' },
+              description: 'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...] }.' },
   mode: { type: 'string', enum: ['skip', 'overwrite', 'error'], description: 'Conflict mode for ids that already exist; defaults to skip.' },
   confirm: { type: 'boolean', description: 'true only after the user approved importing production records.' },
 }
@@ -542,7 +543,7 @@ Returns:
 {
   "imported": [ { "kind": "environment", "id": "test-a" } ],
   "skipped": [ { "kind": "service", "id": "aicoservice" } ],
-  "failed": [ { "kind": "drGroup", "id": "dr-prod-as", "code": "DR_GROUP_MEMBER_UNKNOWN", "message": "…" } ],
+  "failed": [ { "kind": "environment", "id": "prod-a", "code": "DR_PEER_UNKNOWN", "message": "References missing DR peer \"dr-a\"" } ],
   "warnings": []
 }
 ```
@@ -552,8 +553,12 @@ Behavior:
 - Every record is parsed with the same schema as `env_save`; a per-record failure does
   not abort the rest (some records may still be imported when others fail).
 - Records apply in dependency order (environment → service → deployment → ruleProfile →
-  operationBinding → drGroup); references resolve against the existing registry plus the
-  ids in the same bundle.
+  operationBinding); references resolve against the existing registry plus the ids in the
+  same bundle.
+- Reference problems use the same codes as single-record validation
+  (`ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
+  `RULE_PROFILE_NOT_FOUND`, `DR_PEER_UNKNOWN`); an environment whose `dr.peer` is not in
+  the registry or the same bundle fails with `DR_PEER_UNKNOWN`.
 - Conflict modes: `skip` (default) keeps the existing record and reports it as skipped;
   `overwrite` replaces it, preserving the existing `createdAt`; `error` fails that record
   with `RECORD_EXISTS`.
@@ -567,13 +572,21 @@ Behavior:
 Errors: `IMPORT_INVALID`, `IMPORT_TOO_LARGE`, `APPROVAL_REQUIRED`, `POLICY_DENIED`,
 `FORBIDDEN` (ui actor without `writePolicy.allowUiProductionWrites`).
 
-Example bundle snippet:
+Example bundle snippet (DR marking lives in `environments[].dr`):
 
 ```json
 {
   "version": 1,
-  "environments": [ { "id": "prod-env", "schemaVersion": 1, "name": "Production", "category": "production", "roles": [ { "id": "management", "name": "Management" } ], "hosts": [], "clusters": [], "endpoints": [], "loginRecords": [], "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" } ],
-  "drGroups": [ { "id": "dr-prod-as", "schemaVersion": 1, "name": "生产主备", "type": "AS", "members": [ { "environmentId": "prod-env", "role": "primary", "weight": 100 } ], "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" } ]
+  "environments": [
+    { "id": "prod-env", "schemaVersion": 1, "name": "Production", "category": "production",
+      "dr": { "role": "primary", "type": "AS", "peer": "dr-env", "scope": "同城", "rtoMinutes": 30, "rpoMinutes": 10 },
+      "roles": [ { "id": "management", "name": "Management" } ], "hosts": [], "clusters": [], "endpoints": [], "loginRecords": [],
+      "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" },
+    { "id": "dr-env", "schemaVersion": 1, "name": "DR site", "category": "test",
+      "dr": { "role": "standby", "type": "AS", "peer": "prod-env" },
+      "roles": [ { "id": "management", "name": "Management" } ], "hosts": [], "clusters": [], "endpoints": [], "loginRecords": [],
+      "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" }
+  ]
 }
 ```
 
@@ -594,23 +607,29 @@ Returns `{ document, counts }`: `document` is the bundle (`version: 1`, `exporte
 plural-kind arrays), `counts` breaks down the numbers per kind. Omitted ids export the
 whole registry; explicit ids export those environments plus everything that references
 them (their deployments, the services those deployments reference, operation bindings
-whose match hits a selected environment/service/deployment, referenced rule profiles,
-and DR groups containing a selected environment). Records carry `credentialRef` names
-only — an export never contains a credential value.
+whose match hits a selected environment/service/deployment, and referenced rule
+profiles). DR peers ride along **in both directions** — a selected environment's
+`dr.peer` is added, and an environment whose `dr.peer` is selected is added too (fixpoint)
+— so the bundle stays self-contained; the peer brings only its environment record, not
+its deployments/services/bindings. Records carry `credentialRef` names only — an export
+never contains a credential value.
 
 Errors: `ENV_NOT_FOUND` for an unknown id.
 
-Example subset export:
+Example subset export (`environmentIds: ["test-a"]`; `test-a`'s DR peer `test-b` rides
+along, so both environment records appear):
 
 ```json
 {
   "document": {
     "version": 1,
     "exportedAt": "2026-11-08T00:00:00.000Z",
-    "environments": [ { "id": "test-a", "schemaVersion": 1, "name": "Test Environment A", "category": "test" } ],
-    "drGroups": [ { "id": "dr-test-as", "schemaVersion": 1, "name": "测试主备", "type": "AS", "members": [ { "environmentId": "test-a", "role": "primary" }, { "environmentId": "test-b", "role": "standby" } ] } ]
+    "environments": [
+      { "id": "test-a", "schemaVersion": 1, "name": "Test Environment A", "category": "test", "dr": { "role": "primary", "type": "AS", "peer": "test-b" } },
+      { "id": "test-b", "schemaVersion": 1, "name": "Test Environment B", "category": "test", "dr": { "role": "standby", "type": "AS", "peer": "test-a" } }
+    ]
   },
-  "counts": { "environments": 1, "services": 0, "deployments": 0, "ruleProfiles": 0, "operationBindings": 0, "drGroups": 1 }
+  "counts": { "environments": 2, "services": 0, "deployments": 0, "ruleProfiles": 0, "operationBindings": 0 }
 }
 ```
 

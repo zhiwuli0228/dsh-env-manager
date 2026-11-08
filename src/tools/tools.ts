@@ -540,7 +540,6 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
             deployment: report.counts.deployments ?? 0,
             ruleProfile: report.counts.ruleProfiles ?? 0,
             operationBinding: report.counts.operationBindings ?? 0,
-            drGroup: report.counts.drGroups ?? 0,
           },
           diagnostics: report.diagnostics,
         }
@@ -729,13 +728,13 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
   const envImport = defineTool({
     name: 'env_import',
     description:
-      'Import a self-contained environment bundle (several environments plus their services, deployments, rule profiles, operation bindings and DR groups) in one call. Conflict mode: skip keeps existing records, overwrite replaces them, error fails the conflicting ones. Records carry credentialRef names only — passwords are never accepted. Bundles touching production records require approval: pass confirm: true only after the user agrees.',
+      'Import a self-contained environment bundle (several environments plus their services, deployments, rule profiles and operation bindings) in one call. Conflict mode: skip keeps existing records, overwrite replaces them, error fails the conflicting ones. Records carry credentialRef names only — passwords are never accepted. Bundles touching production records require approval: pass confirm: true only after the user agrees.',
     parameters: {
       document: {
         type: 'json',
         required: true,
         description:
-          'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...], drGroups: [...] }.',
+          'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...] }. DR marking travels inside each environment record.',
       },
       mode: {
         type: 'string',
@@ -791,7 +790,7 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
   const envExport = defineTool({
     name: 'env_export',
     description:
-      'Export a self-contained environment bundle for backup or migration: environments, deployments, referenced services, related operation bindings, rule profiles and DR groups. Omit environmentIds to export the whole registry; pass ids/names to export one or several environments plus what references them. Records carry credentialRef names only — never a credential value.',
+      'Export a self-contained environment bundle for backup or migration: environments, deployments, referenced services, related operation bindings and rule profiles. DR marking travels inside each environment record. Omit environmentIds to export the whole registry; pass ids/names to export one or several environments plus what references them. Records carry credentialRef names only — never a credential value.',
     parameters: {
       environmentIds: {
         type: 'array',
@@ -825,7 +824,6 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
             deployments: document.deployments?.length ?? 0,
             ruleProfiles: document.ruleProfiles?.length ?? 0,
             operationBindings: document.operationBindings?.length ?? 0,
-            drGroups: document.drGroups?.length ?? 0,
           },
         }
       } catch (error) {

@@ -4,9 +4,9 @@ export type RecordKind =
   | 'deployment'
   | 'ruleProfile'
   | 'operationBinding'
-  | 'drGroup'
 
-export type DrGroupRole = 'primary' | 'standby'
+/** DR role of an environment inside its disaster-recovery topology. */
+export type DrRole = 'primary' | 'standby'
 
 export type RuntimeMode = 'native' | 'docker' | 'kubernetes'
 
@@ -162,11 +162,35 @@ export interface RuleOverride {
   classLocations?: Partial<Record<RuntimeMode, ClassLocation>>
 }
 
+/**
+ * Disaster-recovery marking carried by the environment record itself. An
+ * environment is either the production/primary site or the standby/DR site of
+ * a pair; `type` describes the topology (AS 主备, AA 双活, AP 主从, or a custom
+ * code) and `peer` names the partner environment. The marking is metadata: it
+ * never triggers writes, and no failover/switch operation exists.
+ */
+export interface EnvironmentDr {
+  /** primary = 生产/主用, standby = 容灾/备用. */
+  role: DrRole
+  /** Topology code: AS | AA | AP or a custom short token (≤16 chars). */
+  type: string
+  /** The partner environment id, when this environment is one half of a pair. */
+  peer?: string
+  /** 同城 / 异地 / custom free text, optional. */
+  scope?: string
+  /** Recovery point objective in minutes, optional. */
+  rpoMinutes?: number
+  /** Recovery time objective in minutes, optional. */
+  rtoMinutes?: number
+  note?: string
+}
+
 export interface Environment extends RecordMeta {
   name: string
   aliases: string[]
   category: EnvironmentCategory
   description?: string
+  dr?: EnvironmentDr
   roles: LogicalRole[]
   hosts: Host[]
   clusters: Cluster[]
@@ -323,43 +347,12 @@ export interface OperationBinding extends RecordMeta {
   enabled: boolean
 }
 
-/**
- * Disaster-recovery topology: one group ties two or more environments together
- * (typically a production site and its standby). `type` follows the common DR
- * patterns — AS (Active-Standby 主备), AA (Active-Active 双活), AP
- * (Active-Passive 主从) — and accepts custom codes. Members are metadata that
- * join environments for the panel; they never trigger writes by themselves.
- */
-export interface DrGroupMember {
-  environmentId: string
-  /** primary = 生产/主用, standby = 容灾/备用. */
-  role: DrGroupRole
-  /** 0..1000 traffic/priority weight; primary usually 100, standby 0. */
-  weight?: number
-  note?: string
-}
-
-export interface DrGroup extends RecordMeta {
-  name: string
-  /** DR pattern: AS | AA | AP or a custom code (uppercase token, ≤16 chars). */
-  type: string
-  /** 同城 / 异地 / custom free text, optional. */
-  scope?: string
-  /** Recovery point objective in minutes, optional. */
-  rpoMinutes?: number
-  /** Recovery time objective in minutes, optional. */
-  rtoMinutes?: number
-  note?: string
-  members: DrGroupMember[]
-}
-
 export type AnyRecord =
   | Environment
   | Service
   | Deployment
   | RuleProfile
   | OperationBinding
-  | DrGroup
 
 export type RecordByKind = {
   environment: Environment
@@ -367,7 +360,6 @@ export type RecordByKind = {
   deployment: Deployment
   ruleProfile: RuleProfile
   operationBinding: OperationBinding
-  drGroup: DrGroup
 }
 
 // ---------------------------------------------------------------------------
@@ -696,7 +688,6 @@ export interface RegistrySnapshot {
   deployments: Map<string, Deployment>
   ruleProfiles: Map<string, RuleProfile>
   operationBindings: Map<string, OperationBinding>
-  drGroups: Map<string, DrGroup>
   byAlias: Map<string, string>
   diagnostics: Diagnostic[]
   loadedAt: string
@@ -707,7 +698,8 @@ export interface RegistrySnapshot {
 // ---------------------------------------------------------------------------
 
 /** A self-contained environment bundle: environments plus the records that
- * reference them. Only `credentialRef` names are ever present — never values. */
+ * reference them. DR marking travels inside each environment (`dr`). Only
+ * `credentialRef` names are ever present — never values. */
 export interface BundleDocument {
   version: 1
   exportedAt?: string
@@ -716,7 +708,6 @@ export interface BundleDocument {
   deployments?: Deployment[]
   ruleProfiles?: RuleProfile[]
   operationBindings?: OperationBinding[]
-  drGroups?: DrGroup[]
 }
 
 export type ImportConflictMode = 'skip' | 'overwrite' | 'error'

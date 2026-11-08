@@ -5,7 +5,6 @@ import {
   binding,
   cleanup,
   deployment,
-  drGroup,
   environment,
   environmentB,
   ruleProfile,
@@ -74,7 +73,6 @@ function bundleFor() {
         match: { environmentId: 'test-b', serviceId: 'aicoservice' },
       },
     ],
-    drGroups: [structuredClone(drGroup)],
   }
 }
 
@@ -84,7 +82,7 @@ describe('bundle import', () => {
     const app = makeApp(dir)
     const result = await app.importBundle({ document: bundleFor(), confirm: true })
     expect(result.failed).toEqual([])
-    expect(result.imported).toHaveLength(9)
+    expect(result.imported).toHaveLength(8)
     expect(result.skipped).toEqual([])
 
     const report = await app.validate()
@@ -95,7 +93,6 @@ describe('bundle import', () => {
       deployments: 2,
       ruleProfiles: 1,
       operationBindings: 2,
-      drGroups: 1,
     })
   })
 
@@ -153,19 +150,17 @@ describe('bundle import', () => {
     expect(result.imported.map((item) => item.id)).not.toContain('deploy-orphan')
   })
 
-  it('fails a drGroup whose member environment is missing', async () => {
+  it('fails an environment whose DR peer is missing', async () => {
     const dir = await makeDir()
     const app = makeApp(dir)
     const doc = bundleFor()
-    doc.drGroups![0] = {
-      ...structuredClone(drGroup),
-      members: [
-        { environmentId: 'test-a', role: 'primary' },
-        { environmentId: 'ghost-env', role: 'standby' },
-      ],
+    doc.environments![1] = {
+      ...structuredClone(environmentB),
+      dr: { role: 'standby', type: 'AS', peer: 'ghost-env' },
     }
     const result = await app.importBundle({ document: doc, confirm: true })
-    expect(result.failed.some((item) => item.code === 'DR_GROUP_MEMBER_UNKNOWN')).toBe(true)
+    expect(result.failed.some((item) => item.code === 'DR_PEER_UNKNOWN')).toBe(true)
+    expect(result.imported.map((item) => item.id)).not.toContain('test-b')
   })
 
   it('never accepts passwords: a secret field fails validation', async () => {
@@ -243,22 +238,23 @@ describe('bundle export', () => {
     await writeRecord(dir, 'environment', environmentB)
     const app = makeApp(dir)
     const bundle = await app.exportBundle(['test-b'])
-    expect(bundle.environments?.map((record) => record.id)).toEqual(['test-b'])
+    // The DR peer (test-a) rides along so the bundle stays self-contained, but
+    // its deployments/services/bindings are not pulled — only explicit ids are.
+    expect(bundle.environments?.map((record) => record.id)).toEqual(['test-a', 'test-b'])
     expect(bundle.deployments).toEqual([])
     expect(bundle.services).toEqual([])
     // A service binding for test-a must not leak into the test-b bundle.
     expect(bundle.operationBindings).toEqual([])
-    expect(bundle.drGroups).toEqual([])
   })
 
-  it('exports the DR group with its environments', async () => {
+  it('exports a DR pair with both environments and the marking intact', async () => {
     const dir = await makeDir()
     await writeFixture(dir)
     await writeRecord(dir, 'environment', environmentB)
-    await writeRecord(dir, 'drGroup', drGroup)
     const app = makeApp(dir)
-    const bundle = await app.exportBundle(['test-a', 'test-b'])
-    expect(bundle.environments).toHaveLength(2)
-    expect(bundle.drGroups?.map((record) => record.id)).toEqual(['drg-test'])
+    const bundle = await app.exportBundle(['test-a'])
+    expect(bundle.environments?.map((record) => record.id)).toEqual(['test-a', 'test-b'])
+    const standby = bundle.environments?.find((record) => record.id === 'test-b')
+    expect(standby?.dr).toMatchObject({ role: 'standby', type: 'AS', peer: 'test-a' })
   })
 })

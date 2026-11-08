@@ -177,8 +177,9 @@ A caller could edit YAML files directly, outside the tools. V1 cannot prevent th
 
 Bundles are the only bulk write path and are guarded like every other write:
 
-- **Shape is strict.** A bundle is a versioned object (`version: 1` plus the six
-  plural-kind arrays); unknown top-level keys and non-array kind fields are rejected
+- **Shape is strict.** A bundle is a versioned object (`version: 1` plus the five
+  plural-kind arrays — `environments`, `services`, `deployments`, `ruleProfiles`,
+  `operationBindings`); unknown top-level keys and non-array kind fields are rejected
   (`IMPORT_INVALID`). Record schemas are strict, so a `password` / `sshPassword`-style
   field fails with `RECORD_INVALID` — a bundle can never smuggle a secret into the
   registry.
@@ -191,9 +192,9 @@ Bundles are the only bulk write path and are guarded like every other write:
   `writePolicy.allowUiProductionWrites` is true — the same rule as the panel's other
   writes, applied before anything is written.
 - **References are checked.** Each record's references must resolve against the existing
-  registry plus ids in the same bundle; a missing environment/service/deployment/DR-group
-  member fails that record (`ENV_NOT_FOUND` / `SERVICE_NOT_FOUND` /
-  `DEPLOYMENT_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`) without aborting the rest.
+  registry plus ids in the same bundle; a missing environment/service/deployment/DR peer
+  fails that record (`ENV_NOT_FOUND` / `SERVICE_NOT_FOUND` / `DEPLOYMENT_NOT_FOUND` /
+  `DR_PEER_UNKNOWN`) without aborting the rest.
 - **No file escape.** Documents are parsed in memory; every applied record is written
   through the normal `storage` path under `dataDir`. A bundle cannot create files
   outside `dataDir`, and export returns only records that already exist.
@@ -269,7 +270,7 @@ The redaction function is shared and unit-tested.
 | Bundle over 500 records / 100 environments / 2 MiB | `IMPORT_TOO_LARGE`, nothing imported |
 | Bundle with unknown fields or a bad version | `IMPORT_INVALID`, nothing imported |
 | Bundle touching production without confirmation | `APPROVAL_REQUIRED`, nothing imported |
-| Bundle record with a broken reference | that record fails (`ENV_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`, …); the rest may still import |
+| Bundle record with a broken reference | that record fails (`ENV_NOT_FOUND` / `DR_PEER_UNKNOWN`, …); the rest may still import |
 | Import conflict mode `error` on an existing id | `RECORD_EXISTS`, that record fails |
 
 ---
@@ -313,6 +314,6 @@ Requirements for P1:
 8. A bundle exported from one profile may contain production topology and is a tempting
    migration artifact; importing it on another profile applies the same production gate,
    but the export itself is unencrypted YAML and must be handled like registry data.
-9. DR group records are topology metadata; a group with an `AS`/`AP` type asserts a
+9. DR marking on an environment is topology metadata; an `AS`/`AP` type asserts a
    standby relationship that nothing verifies at runtime. RTO/RPO values are descriptive
    and never enforced.

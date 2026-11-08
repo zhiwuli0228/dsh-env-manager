@@ -35,13 +35,13 @@ Also read:
 3. `docs/01-architecture/data-model.md` §3
 4. `docs/01-architecture/ui-design.md` §6.3
 
-### DR Groups / Bundle Import-Export Questions
+### DR Marking / Bundle Import-Export Questions
 
 Also read:
 
-1. `docs/01-architecture/decisions/ADR-0012-dr-groups-and-bundle-import-export.md`
+1. `docs/01-architecture/decisions/ADR-0012-dr-marking-and-bundle-import-export.md`
 2. `docs/01-architecture/data-model.md` §8 and §9
-3. `docs/05-domain/dr-group-template.md`
+3. `docs/05-domain/environment-template.md` (Disaster-recovery marking section)
 
 ### Runtime API Questions
 
@@ -126,7 +126,7 @@ docs/
 ├── 02-harness/       # AI-assisted development harness standards
 ├── 03-openspec/      # proposal/design/spec/tasks rules
 ├── 04-development/   # coding, testing, local run, dependency rules
-├── 05-domain/        # environment/service/deployment/rule/binding/dr-group templates
+├── 05-domain/        # environment/service/deployment/rule/binding templates
 ├── 06-operations/    # deployment, release, security, troubleshooting
 ├── 07-templates/     # reusable artifact templates
 └── 99-archive/       # obsolete or historical docs
@@ -147,4 +147,4 @@ docs/
 | `security-model.md` | credential, policy and redaction controls |
 | `api-verification.md` | verified DSH runtime facts and open probes |
 | `implementation-plan.md` | ordered tasks, acceptance, cut line |
-| `decisions/ADR-*.md` | accepted decisions (ADR-0009 = UI transport, ADR-0010 = environment/plane model, ADR-0011 = K8s node/access model, ADR-0012 = DR groups + bundle import/export) |
+| `decisions/ADR-*.md` | accepted decisions (ADR-0009 = UI transport, ADR-0010 = environment/plane model, ADR-0011 = K8s node/access model, ADR-0012 = DR marking + bundle import/export) |

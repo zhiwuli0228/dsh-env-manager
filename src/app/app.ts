@@ -123,8 +123,6 @@ function notFoundCode(kind: RecordKind): string {
       return 'RULE_PROFILE_NOT_FOUND'
     case 'operationBinding':
       return 'BINDING_NOT_FOUND'
-    case 'drGroup':
-      return 'DR_GROUP_NOT_FOUND'
   }
 }
 
@@ -141,6 +139,9 @@ function summaryOf(kind: RecordKind, record: AnyRecord): RecordSummary {
       const env = record as import('../domain/types.js').Environment
       const accounts = env.hosts.reduce((total, host) => total + (host.accounts?.length ?? 0), 0)
       summary = `${env.category} · ${env.hosts.length} hosts · ${accounts} accounts · ${env.loginRecords?.length ?? 0} logins`
+      if (env.dr) {
+        summary += ` · DR ${env.dr.role} ${env.dr.type}${env.dr.peer ? ` → ${env.dr.peer}` : ''}`
+      }
       break
     }
     case 'service': {
@@ -165,12 +166,6 @@ function summaryOf(kind: RecordKind, record: AnyRecord): RecordSummary {
       summary = `${binding.operation} → ${binding.skill?.name ?? `execute:${binding.execute?.mode ?? 'none'}`}`
       break
     }
-    case 'drGroup': {
-      const group = record as import('../domain/types.js').DrGroup
-      const primaries = group.members.filter((member) => member.role === 'primary').length
-      summary = `${group.type} · ${group.members.length} members · ${primaries} primary`
-      break
-    }
   }
   return { kind, id: record.id, name: recordName(record), summary }
 }
@@ -181,14 +176,14 @@ function errorDiagnostic(code: string, message: string, details?: Record<string,
 
 /** Validate the top-level shape of an import document. */
 function normalizeBundleDocument(raw: unknown): Record<
-  'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding' | 'drGroup',
+  'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding',
   unknown[]
 > {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new EnvManagerError('IMPORT_INVALID', 'Import document must be a YAML/JSON object')
   }
   const value = raw as Record<string, unknown>
-  const allowed = new Set(['version', 'exportedAt', 'environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings', 'drGroups'])
+  const allowed = new Set(['version', 'exportedAt', 'environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings'])
   const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key))
   if (unknownKeys.length > 0) {
     throw new EnvManagerError('IMPORT_INVALID', `Unknown bundle field(s): ${unknownKeys.join(', ')}`, {
@@ -205,7 +200,7 @@ function normalizeBundleDocument(raw: unknown): Record<
     throw new EnvManagerError('IMPORT_TOO_LARGE', `Bundle exceeds ${BUNDLE_LIMITS.maxBytes} bytes`)
   }
   const byKind: Record<string, unknown[]> = {}
-  for (const key of ['environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings', 'drGroups']) {
+  for (const key of ['environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings']) {
     const entries = value[key]
     if (entries === undefined) continue
     if (!Array.isArray(entries)) {
@@ -227,7 +222,6 @@ function normalizeBundleDocument(raw: unknown): Record<
     deployment: byKind.deployments ?? [],
     ruleProfile: byKind.ruleProfiles ?? [],
     operationBinding: byKind.operationBindings ?? [],
-    drGroup: byKind.drGroups ?? [],
   }
 }
 
@@ -265,15 +259,10 @@ function referenceProblem(
       }
       return undefined
     }
-    case 'drGroup': {
-      const group = record as import('../domain/types.js').DrGroup
-      for (const member of group.members) {
-        if (!envOk(member.environmentId)) {
-          return {
-            code: 'DR_GROUP_MEMBER_UNKNOWN',
-            message: `References missing environment "${member.environmentId}"`,
-          }
-        }
+    case 'environment': {
+      const env = record as import('../domain/types.js').Environment
+      if (env.dr?.peer && !envOk(env.dr.peer)) {
+        return { code: 'DR_PEER_UNKNOWN', message: `References missing DR peer "${env.dr.peer}"` }
       }
       return undefined
     }
@@ -317,7 +306,6 @@ export class App {
       deployments: snapshot.deployments.size,
       ruleProfiles: snapshot.ruleProfiles.size,
       operationBindings: snapshot.operationBindings.size,
-      drGroups: snapshot.drGroups.size,
     }
   }
 
@@ -544,10 +532,11 @@ export class App {
 
   /**
    * Import a self-contained environment bundle: several environments plus the
-   * services, deployments, rule profiles, operation bindings and DR groups that
-   * reference them, in one call. Records are schema-validated first; references
-   * are checked against the registry plus the ids arriving in the same bundle.
-   * Bundle records carry `credentialRef` names only — never a password or key.
+   * services, deployments, rule profiles and operation bindings that reference
+   * them, in one call. Records are schema-validated first; references are checked
+   * against the registry plus the ids arriving in the same bundle. DR marking
+   * travels inside each environment (`dr`). Bundle records carry `credentialRef`
+   * names only — never a password or key.
    */
   async importBundle(request: ImportRequest, actor: Actor = 'agent'): Promise<ImportResult> {
     const mode: ImportConflictMode = request.mode ?? 'skip'
@@ -560,7 +549,7 @@ export class App {
     const skipped: ImportedRecordRef[] = []
     const failed: ImportFailure[] = []
 
-    const kindOrder = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'] as const
+    const kindOrder = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'] as const
     type Writable = { kind: RecordKind; record: AnyRecord; created: boolean }
     const pendingIds = {
       environment: new Set<string>(),
@@ -715,8 +704,9 @@ export class App {
   /**
    * Export a self-contained environment bundle. Without ids the whole registry is
    * exported; with ids, each named environment plus its deployments, referenced
-   * services, related bindings and DR groups is exported. Records contain only
-   * `credentialRef` names — never a credential value.
+   * services and related bindings is exported. DR marking travels inside each
+   * environment (`dr`). Records contain only `credentialRef` names — never a
+   * credential value.
    */
   async exportBundle(environmentIds?: string[]): Promise<BundleDocument> {
     const snapshot = await this.snapshot()
@@ -731,7 +721,6 @@ export class App {
         deployments: sorted(snapshot.deployments),
         ruleProfiles: sorted(snapshot.ruleProfiles),
         operationBindings: sorted(snapshot.operationBindings),
-        drGroups: sorted(snapshot.drGroups),
       }
     }
     const envIds = new Set<string>()
@@ -743,6 +732,26 @@ export class App {
         })
       }
       envIds.add(record.id)
+    }
+    // DR peers ride along so the bundle stays self-contained: exporting one half
+    // of a pair carries the other environment record too (without pulling that
+    // peer's deployments/services — only explicitly selected ids do). Both
+    // directions count: a selected env's peer, and an env whose peer is selected.
+    const included = new Set(envIds)
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const environment of snapshot.environments.values()) {
+        const peer = environment.dr?.peer
+        if (peer && included.has(environment.id) && !included.has(peer) && snapshot.environments.has(peer)) {
+          included.add(peer)
+          changed = true
+        }
+        if (peer && included.has(peer) && !included.has(environment.id)) {
+          included.add(environment.id)
+          changed = true
+        }
+      }
     }
     const deployments = [...snapshot.deployments.values()]
       .filter((deployment) => envIds.has(deployment.environmentId))
@@ -763,20 +772,16 @@ export class App {
           (binding.match.deploymentId && deploymentIds.has(binding.match.deploymentId)),
       )
       .sort((a, b) => a.id.localeCompare(b.id))
-    const drGroups = [...snapshot.drGroups.values()]
-      .filter((group) => group.members.some((member) => envIds.has(member.environmentId)))
-      .sort((a, b) => a.id.localeCompare(b.id))
     return {
       version: 1,
       exportedAt,
       environments: [...snapshot.environments.values()]
-        .filter((environment) => envIds.has(environment.id))
+        .filter((environment) => included.has(environment.id))
         .sort((a, b) => a.id.localeCompare(b.id)),
       services,
       deployments,
       ruleProfiles,
       operationBindings,
-      drGroups,
     }
   }
 
@@ -1299,8 +1304,6 @@ export class App {
         return snapshot.ruleProfiles
       case 'operationBinding':
         return snapshot.operationBindings
-      case 'drGroup':
-        return snapshot.drGroups
     }
   }
 

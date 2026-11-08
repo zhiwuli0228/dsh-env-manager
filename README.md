@@ -53,7 +53,7 @@ implemented and installed in the `desktop` profile.**
   `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` refs.
 - **环境 (Environments) is the default tab**, and the persistent header **新增环境**
   action is available from every tab. `记录 (Records)` is limited to services,
-  deployments, rule profiles, operation bindings and DR groups (容灾组).
+  deployments, rule profiles and operation bindings.
 - Remaining: database primary/replica/sharding topology (Phase 2), row-level delete for
   nodes/accounts/logins, light-theme visual QA, and the live approval/credential probes
   V4 and V6.
@@ -63,16 +63,20 @@ implemented and installed in the `desktop` profile.**
   writes an experience (success → summary, failure → lesson) into a review queue;
   routing surfaces the most relevant experiences so the tool gets smarter with use.
   `remote` targets are prepared as an ssh descriptor, never executed by the plugin.
-- **DR groups (容灾组)** join two or more environments into a disaster-recovery topology
-  (`AS` 主备 / `AA` 双活 / `AP` 主从 or a custom type) with member roles
-  (`primary`/`standby`) and RTO/RPO objectives, surfaced as its own panel tab. A group is
-  topology metadata: there is no failover/switch/promote operation and RTO/RPO are
-  descriptive objectives, never enforced.
+- **Disaster-recovery marking lives inside each environment record** (`dr` block:
+  `role` `primary` 生产 / `standby` 容灾, `type` `AS` 主备 / `AA` 双活 / `AP` 主从 or a
+  custom code, optional `peer` environment, `scope` 同城/异地, RTO/RPO minutes and a
+  note). The environment detail shows a 容灾 card with the role badge; a missing peer
+  is a `DR_PEER_UNKNOWN` warning and deleting a referenced peer is blocked
+  (`RECORD_IN_USE`). The marking is metadata: there is no failover/switch/promote
+  operation and RTO/RPO are descriptive objectives, never enforced.
 - **Bundle import/export** (`env_import` / `env_export`, plus the panel's 导入 / 导出
   actions) onboards, backs up or migrates whole sets of environments with their services,
-  deployments, rule profiles, operation bindings and DR groups in one versioned
-  document. Bundles are strict (no passwords), size-capped, reference-checked and gated
-  by the same approval and production policy as single-record writes.
+  deployments, rule profiles and operation bindings in one versioned document. DR marking
+  travels inside each environment; exporting one half of a DR pair automatically carries
+  the peer so the bundle stays self-contained. Bundles are strict (no passwords),
+  size-capped, reference-checked and gated by the same approval and production policy as
+  single-record writes.
 - **DSH compatibility:** the bundle targets DSH `0.2.1-rc.5` through the `0.2.2` line
   (including `0.2.2-rc.x`); `0.3.0` is intentionally excluded until verified. The full
   suite (typecheck + build + tests) passes against both `@deepseek-ai/dsh-tools@0.2.1-rc.5`
@@ -149,24 +153,26 @@ A password entered on the node or account form is sent once to the Host and stor
 DSH credential service. It never appears in the registry YAML, tool output or logs. Use
 **新建记录** only when you need to paste an advanced YAML template.
 
-## DR groups (容灾组) and bundles
+## Disaster-recovery marking and bundles
 
 1. Create both environments first (production site and DR site are independent records).
-2. Open **DR Groups (容灾组)**; click **新建容灾组** (New DR group) to open the template
-   in Records → 容灾组. Set the type (`AS`/`AA`/`AP` or a custom code), optional scope and
-   RTO/RPO, then add one member per environment with `primary` (生产) or `standby` (容灾).
-   `AS` and `AP` allow exactly one primary; `AA` allows several.
-3. Save and run **校验 (Validate)** from Overview: a member pointing at a missing
-   environment is flagged `DR_GROUP_MEMBER_UNKNOWN`, and deleting an environment that is
-   a member is blocked with `RECORD_IN_USE` until the group is edited or removed.
-4. To onboard or back up a whole set, use **导入 / 导出** in the DR Groups header (or the
+2. Open the production environment (or use **新建记录** for the YAML template) and fill the
+   **容灾 (DR)** card in the environment detail: `role` `primary` (生产) or `standby` (容灾),
+   `type` (`AS` 主备 / `AA` 双活 / `AP` 主从 or a custom code), optional `peer` (the other
+   environment's id), `scope` (同城/异地), RTO/RPO minutes and a note. Every environment
+   carries its own marking; there is no separate DR module.
+3. Run **校验 (Validate)** from Overview: an environment whose `dr.peer` is missing is
+   flagged `DR_PEER_UNKNOWN`, and deleting an environment that is the DR peer of another
+   is blocked with `RECORD_IN_USE` until the peer link is edited or removed.
+4. To onboard or back up a whole set, use **导入 / 导出** in the panel header (or the
    agent tools `env_import` / `env_export`). Export produces a versioned JSON bundle for
-   the whole registry or a selected list of environments (plus everything that references
-   them); import accepts YAML/JSON bundle text with `skip` / `overwrite` / `error`
-   conflict modes, reports per-record failures, and asks for confirmation before touching
-   production records.
+   the whole registry or a selected list of environments; DR marking travels inside each
+   environment, and exporting one half of a DR pair automatically carries the peer so the
+   bundle stays self-contained. Import accepts YAML/JSON bundle text with
+   `skip` / `overwrite` / `error` conflict modes, reports per-record failures, and asks
+   for confirmation before touching production records.
 
-A DR group is topology only: it never executes anything, and RTO/RPO values are
+DR marking is metadata only: it never executes anything, and RTO/RPO values are
 objectives, not measured or enforced limits.
 
 Design references:
@@ -177,10 +183,10 @@ Design references:
   why one network is one environment and planes are role views;
 - [`docs/01-architecture/decisions/ADR-0011-k8s-node-execution-model.md`](docs/01-architecture/decisions/ADR-0011-k8s-node-execution-model.md) —
   why K8s/Pod hosts are machines with command surfaces, not a new plane;
-- [`docs/01-architecture/decisions/ADR-0012-dr-groups-and-bundle-import-export.md`](docs/01-architecture/decisions/ADR-0012-dr-groups-and-bundle-import-export.md) —
-  why DR groups are a separate record and bundles are versioned and strict;
-- [`docs/05-domain/dr-group-template.md`](docs/05-domain/dr-group-template.md) — DR group
-  record template and invariants;
+- [`docs/01-architecture/decisions/ADR-0012-dr-marking-and-bundle-import-export.md`](docs/01-architecture/decisions/ADR-0012-dr-marking-and-bundle-import-export.md) —
+  why DR marking lives inside each environment record and bundles are versioned and strict;
+- [`docs/05-domain/environment-template.md`](docs/05-domain/environment-template.md) —
+  environment record template, including the `dr` block;
 - [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) —
   module contracts, storage, tools, HTTP;
 - [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) —
@@ -275,9 +281,9 @@ Key documents:
 | [`docs/00-project/project-brief.md`](docs/00-project/project-brief.md) | positioning and V1 scope |
 | [`docs/01-architecture/design.md`](docs/01-architecture/design.md) | design, algorithms, acceptance criteria |
 | [`docs/01-architecture/detailed-design.md`](docs/01-architecture/detailed-design.md) | module contracts, tools, HTTP transport |
-| [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md) | record schemas (including DR groups and bundles, §8–§9) |
+| [`docs/01-architecture/data-model.md`](docs/01-architecture/data-model.md) | record schemas (including DR marking and bundles, §8–§9) |
 | [`docs/01-architecture/tool-contract.md`](docs/01-architecture/tool-contract.md) | model-facing tool surface (14 tools) |
-| [`docs/05-domain/dr-group-template.md`](docs/05-domain/dr-group-template.md) | DR group record template |
+| [`docs/05-domain/environment-template.md`](docs/05-domain/environment-template.md) | environment record template (including the `dr` block) |
 | [`docs/01-architecture/ui-design.md`](docs/01-architecture/ui-design.md) | panel design and manual QA |
 | [`docs/01-architecture/implementation-plan.md`](docs/01-architecture/implementation-plan.md) | implementation order |
 | [`docs/01-architecture/security-model.md`](docs/01-architecture/security-model.md) | credential and policy controls |

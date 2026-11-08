@@ -21,7 +21,6 @@ function emptySnapshot(): RegistrySnapshot {
     deployments: new Map(),
     ruleProfiles: new Map(),
     operationBindings: new Map(),
-    drGroups: new Map(),
     byAlias: new Map(),
     diagnostics: [],
     loadedAt: new Date().toISOString(),
@@ -40,8 +39,6 @@ function mapFor(snapshot: RegistrySnapshot, kind: RecordKind): Map<string, AnyRe
       return snapshot.ruleProfiles
     case 'operationBinding':
       return snapshot.operationBindings
-    case 'drGroup':
-      return snapshot.drGroups
   }
 }
 

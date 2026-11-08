@@ -15,7 +15,7 @@ TypeScript declarations below are the source of truth for the Host implementatio
 ### 1.1 Identifiers
 
 - Pattern: `^[a-z0-9][a-z0-9-]{0,62}$` (1–63 characters).
-- One namespace per record type: environment ids, service ids, deployment ids, rule profile ids, operation binding ids and DR group ids are unique within their own type.
+- One namespace per record type: environment ids, service ids, deployment ids, rule profile ids and operation binding ids are unique within their own type.
 - A record's `id` must equal its file name without extension.
 
 ### 1.2 Timestamps
@@ -60,7 +60,7 @@ type HostKind = 'vm' | 'physical' | 'k8s-all-in-one' | 'k8s-worker' | 'pod-host'
 
 type HostAccessMethod = 'ssh' | 'kubectl' | 'docker';
 
-type DrGroupRole = 'primary' | 'standby';
+type DrRole = 'primary' | 'standby';
 
 type ClusterTopology = 'all-in-one' | 'separate' | 'external';
 
@@ -162,11 +162,22 @@ interface LoginRecord {
   note?: string;
 }
 
+interface EnvironmentDr {
+  role: DrRole;                 // primary = 生产/主用, standby = 容灾/备用; required inside the block
+  type: string;                 // AS | AA | AP or a custom short token (≤16 chars); required
+  peer?: string;                // partner environment id, ≤128
+  scope?: string;               // ≤40 chars, e.g. 同城 / 两地三中心
+  rpoMinutes?: number;          // recovery point objective, minutes, 0..10080
+  rtoMinutes?: number;          // recovery time objective, minutes, 0..10080
+  note?: string;                // ≤2000 chars
+}
+
 interface Environment extends RecordMeta {
   name: string;
   aliases: string[];
   category: EnvironmentCategory;
   description?: string;
+  dr?: EnvironmentDr;           // optional disaster-recovery marking; see §8
   roles: LogicalRole[];     // at least one; standard four are seeded on create
   hosts: Host[];
   clusters: Cluster[];
@@ -721,95 +732,71 @@ updatedAt: 2026-11-01T03:00:00.000Z
 
 ---
 
-## 8. DR group
+## 8. Disaster-recovery marking (environment)
 
-A disaster-recovery group joins two or more environments (typically a production site and
-its standby) so the panel can present the DR topology together. Membership lives **in the
-group record**: environments do not point back at groups. Members are metadata that join
-environments for display — a group never triggers writes by itself, and no failover /
-switch / promote operation exists (roadmap).
+Disaster recovery is **not a separate record kind**. An environment may carry an
+optional `dr` block marking it as one half of a DR pair (typically a production site and
+its standby), so the panel can present the topology next to the environments themselves.
+The marking lives **in the environment record**: a pair is two `dr` blocks whose `peer`
+fields point at each other. It is metadata — it never triggers writes by itself, and no
+failover / switch / promote operation exists (roadmap).
 
 ```ts
-interface DrGroupMember {
-  environmentId: string;        // must exist; see §14
-  role: DrGroupRole;            // primary = 生产/主用, standby = 容灾/备用
-  weight?: number;              // 0..1000 traffic/priority weight; primary usually 100, standby 0
-  note?: string;                // ≤500 chars
-}
-
-interface DrGroup extends RecordMeta {
-  name: string;                 // 1..120, required; names are not unique (ids are)
-  type: string;                 // AS | AA | AP or a custom token, required
+interface EnvironmentDr {
+  role: DrRole;                 // primary = 生产/主用, standby = 容灾/备用
+  type: string;                 // AS | AA | AP or a custom short token (≤16 chars)
+  peer?: string;                // partner environment id, ≤128
   scope?: string;               // ≤40 chars, e.g. 同城 / 两地三中心
   rpoMinutes?: number;          // recovery point objective, minutes, 0..10080
   rtoMinutes?: number;          // recovery time objective, minutes, 0..10080
   note?: string;                // ≤2000 chars
-  members: DrGroupMember[];     // 1..8 entries
 }
 ```
 
+- `dr` is validated by a Zod shape (`o(drFields(mode), mode).optional()`) on the
+  `Environment` schema; `role` and `type` are required inside the block.
 - `type` is a short token matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`. The standard codes
   are `AS` (Active-Standby 主备), `AA` (Active-Active 双活) and `AP` (Active-Passive 主从);
-  the UI labels them through the `DR_GROUP_TYPE_LABELS` constant and displays custom codes
+  the UI labels them through the `DR_TYPE_LABELS` constant and displays custom codes
   as-is.
 - `rtoMinutes` / `rpoMinutes` are descriptive objectives in minute granularity
-  (`DR_GROUP_LIMITS.maxMinutes = 7 * 24 * 60`); they are targets, not enforced limits.
-- Cross-checks (`crossCheck`): member `environmentId`s must be unique within the group; at
-  least one member must be `primary`; for `AS` and `AP` exactly one `primary` is required
-  (`AA` allows several).
-- A witness/仲裁 member role is deliberately **not** modelled (roadmap). No secrets: the
-  same `credentialRef`-only rule as every other record applies.
+  (`DR_LIMITS.maxMinutes = 7 * 24 * 60`); they are targets, not enforced limits.
+- Cross-checks (`crossCheck`): `dr.peer` cannot equal the environment's own id.
+- A witness/仲裁 role is deliberately **not** modelled (roadmap). No secrets: the same
+  `credentialRef`-only rule as every other record applies.
 
 ### 8.1 Referential integrity
 
-- Every `members[].environmentId` must exist. `env_validate` reports a missing one as a
-  `DR_GROUP_MEMBER_UNKNOWN` warning; a bundle import fails that record with the same code.
-- `findReferences` scans groups, so deleting an environment that is a member of a group is
-  blocked with `RECORD_IN_USE` until the group is edited or removed.
+- A `dr.peer` that names a missing environment is reported as a `DR_PEER_UNKNOWN` warning
+  by `env_validate` (severity warning, file `environments/{id}.yaml`, path `dr.peer`); a
+  bundle import fails that record with the same code (HTTP 400).
+- `findReferences` scans `dr.peer`, so deleting an environment that is the DR peer of
+  another environment is blocked with `RECORD_IN_USE` while the link exists; the blocker's
+  `details.referrer` is `{ kind: 'environment', id, field: 'dr.peer' }`.
 
-### 8.2 YAML examples
+### 8.2 YAML example
 
 AS (Active-Standby 主备):
 
 ```yaml
-id: dr-prod-as
+id: prod-a
 schemaVersion: 1
-name: 生产主备
-type: AS
-scope: 同城
-rtoMinutes: 30
-rpoMinutes: 10
-members:
-  - environmentId: prod-env
-    role: primary
-    weight: 100
-    note: 生产
-  - environmentId: dr-env
-    role: standby
-    weight: 0
-    note: 容灾
+name: Production A
+category: production
+dr:
+  role: primary            # primary = 生产/主用, standby = 容灾/备用
+  type: AS                 # AS 主备 | AA 双活 | AP 主从 | custom token
+  peer: dr-a               # the other half of the pair (optional)
+  scope: 同城
+  rtoMinutes: 30
+  rpoMinutes: 10
+  note: 生产主备，同城灾备；备用环境平时不承载业务流量。
 createdAt: 2026-11-08T00:00:00.000Z
 updatedAt: 2026-11-08T00:00:00.000Z
 ```
 
-AA (Active-Active 双活) with several primaries:
-
-```yaml
-id: dr-fin-aa
-schemaVersion: 1
-name: 两地双活
-type: AA
-scope: 两地三中心
-members:
-  - environmentId: fin-site-a
-    role: primary
-    weight: 50
-  - environmentId: fin-site-b
-    role: primary
-    weight: 50
-createdAt: 2026-11-08T00:00:00.000Z
-updatedAt: 2026-11-08T00:00:00.000Z
-```
+The standby half (`dr-a`) carries the same block with `role: standby` and
+`peer: prod-a`.
 
 ---
 
@@ -831,7 +818,6 @@ interface BundleDocument {
   deployments?: Deployment[];
   ruleProfiles?: RuleProfile[];
   operationBindings?: OperationBinding[];
-  drGroups?: DrGroup[];
 }
 ```
 
@@ -847,11 +833,12 @@ interface BundleDocument {
 1. Every record is parsed with the same zod schema as a normal save (`RECORD_INVALID` on
    failure).
 2. Records are applied in topological order: environment → service → deployment →
-   ruleProfile → operationBinding → drGroup.
+   ruleProfile → operationBinding.
 3. References resolve against the existing registry **plus** the ids being written by this
    same bundle, so a bundle may create an environment and its deployments together. An
    unresolved reference fails that record with `ENV_NOT_FOUND` / `SERVICE_NOT_FOUND` /
-   `DEPLOYMENT_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`.
+   `DEPLOYMENT_NOT_FOUND` / `RULE_PROFILE_NOT_FOUND` / `DR_PEER_UNKNOWN` — the same codes
+   as single-record validation.
 4. Conflict modes:
    - `skip` (default) — keeps the existing record and reports it as skipped;
    - `overwrite` — replaces it, preserving the existing `createdAt`;
@@ -874,8 +861,11 @@ interface BundleDocument {
 - Omitted or empty ids → the whole registry.
 - Explicit ids → those environments plus their deployments, the services those deployments
   reference, operation bindings whose match hits a selected environment/service/deployment,
-  rule profiles referenced by those services and bindings, and DR groups that contain at
-  least one selected environment as a member. Lists are sorted by id; `exportedAt` is set.
+  and rule profiles referenced by those services and bindings. DR peers ride along **in
+  both directions** — a selected environment's `dr.peer` is added, and an environment whose
+  `dr.peer` is selected is added too (fixpoint) — so the bundle stays self-contained. The
+  peer's deployments, services, rule profiles and bindings are still derived only from the
+  explicitly selected ids. Lists are sorted by id; `exportedAt` is set.
 - An unknown id fails with `ENV_NOT_FOUND`.
 
 ### 9.4 Surface
@@ -886,8 +876,7 @@ interface BundleDocument {
 - Tools: `env_import` (JSON `document`, `mode` skip/overwrite/error, `confirm`; retries
   once with an approval prompt on `APPROVAL_REQUIRED`) and `env_export` (optional
   `environmentIds` → document + counts).
-- Status mapping: `DR_GROUP_NOT_FOUND` → 404, `IMPORT_TOO_LARGE` → 413,
-  `IMPORT_INVALID` / `DR_GROUP_MEMBER_UNKNOWN` → 400.
+- Status mapping: `IMPORT_TOO_LARGE` → 413, `IMPORT_INVALID` / `DR_PEER_UNKNOWN` → 400.
 
 ---
 
@@ -1152,8 +1141,7 @@ smarter with use without any auto-apply path.
 | `EXECUTION_FAILED` | error | Execution could not start or exited non-zero |
 | `APPROVAL_REQUIRED` | error | Gated write execution needs explicit approval (`confirm: true`) |
 | `EXPERIENCE_NOT_FOUND` | error | Experience id does not exist |
-| `DR_GROUP_NOT_FOUND` | error | DR group id does not exist |
-| `DR_GROUP_MEMBER_UNKNOWN` | warning | A DR group member references a missing environment (`env_validate`); a bundle import fails that record with the same code |
+| `DR_PEER_UNKNOWN` | warning | An environment's `dr.peer` references a missing environment (`env_validate`); a bundle import fails that record with the same code |
 | `IMPORT_INVALID` | error | Import document shape, version or field validation failed |
 | `IMPORT_TOO_LARGE` | error | Import document exceeds `BUNDLE_LIMITS` (500 records / 100 environments / 2 MiB) |
 | `RECORD_EXISTS` | error | Import conflict mode `error`: the id already exists (per-record failure code, not an `EnvManagerError` code) |
@@ -1181,7 +1169,8 @@ Validated on every write and by `env_validate`:
 10. `Environment.loginRecords[].accountId` exists on the referenced host when both are set.
 11. `OperationBinding` match references (when present) exist.
 12. `OperationBinding.skill.name` is non-empty.
-13. `DrGroup.members[].environmentId` exists.
+13. `Environment.dr.peer` exists (warning `DR_PEER_UNKNOWN`; deleting the referenced
+    environment is blocked with `RECORD_IN_USE`).
 
 Duplicate host ids and duplicate host IPs are also reported as integrity errors.
 Schema validation additionally rejects an environment whose `roles` is empty, and a host whose
@@ -1204,7 +1193,7 @@ Service     1 ── N DeploymentBinding
 Environment 1 ── N DeploymentBinding
 Service     1 ── N RuleProfile    (ordered ruleProfileRefs)
 OperationBinding N ── predicate over Environment/Service/Deployment
-DR group   N ── N Environment   (via DrGroup.members; membership lives in the group)
+Environment 1 ── 0..1 Environment   (DR pair via dr.peer; both halves may declare each other)
 ```
 
 ---
@@ -1217,9 +1206,9 @@ The following are deliberately postponed:
 - Storing discovered assets separately from declared assets.
 - Vector or embedding-based retrieval for services.
 - Per-user permissions inside one DSH profile.
-- Failover / switch / promote operations for DR groups: a group is topology metadata only
-  and never triggers writes by itself.
-- A witness/仲裁 member role and scheduled DR-drill tracking for groups.
+- Failover / switch / promote operations for DR pairs: an environment's `dr` marking is
+  topology metadata only and never triggers writes by itself.
+- A witness/仲裁 role and scheduled DR-drill tracking.
 - Partial-per-kind bundle documents: a bundle always uses the full plural-kind shape
-  (`environments`, `services`, `deployments`, `ruleProfiles`, `operationBindings`,
-  `drGroups`); importing only some kinds means omitting the others.
+  (`environments`, `services`, `deployments`, `ruleProfiles`, `operationBindings`);
+  importing only some kinds means omitting the others.

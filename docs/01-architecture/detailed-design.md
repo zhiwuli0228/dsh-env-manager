@@ -12,7 +12,7 @@ This document specifies:
 
 1. the plugin configuration and its effective defaults;
 2. every Host module's public interface and internal algorithm;
-3. the exact `defineTool` contract for all ten tools;
+3. the exact `defineTool` contract for all fourteen tools;
 4. the plugin-owned HTTP API used by the Client panel;
 5. error mapping, limits, concurrency and test obligations.
 
@@ -295,6 +295,7 @@ diagnostic, and the snapshot keeps the other kinds.
 | operation binding `match.environmentId` | environment exists | `ENV_NOT_FOUND` |
 | operation binding `match.serviceId` | service exists | `SERVICE_NOT_FOUND` |
 | operation binding `match.deploymentId` | deployment exists | `DEPLOYMENT_NOT_FOUND` |
+| environment `dr.peer` | peer environment exists (warning diagnostic, path `dr.peer`) | `DR_PEER_UNKNOWN` |
 | any `credentialRef` | non-empty string matching the DSH credential grammar `^[A-Za-z_][A-Za-z0-9_]*$` | `RECORD_INVALID` |
 
 Schema validation rejects an environment with zero logical roles and a host with zero
@@ -675,6 +676,10 @@ class EnvManagerError extends HarnessError {
 | `env_save` | `kind`, `record`, `dryRun?` | `{ id, kind, created, dryRun, warnings }` | no | production env |
 | `env_delete` | `kind`, `id`, `confirm` | `{ id, kind, deleted, blockers }` | no | yes |
 | `env_validate` | — | `{ ok, counts, diagnostics }` | no | no |
+| `env_operate` | `operation`, `environmentId?`, `serviceId?`, `deploymentId?`, `confirm?`, `dryRun?`, `note?` | `{ resolution, execution, experience?, warnings }` | default env | gated write |
+| `env_experience` | `action`, filters, `kind?`, `title?`, `content?`, `tags?`, `id?`, `note?`, `limit?` | `{ items, warnings }` or `{ record, warnings }` | no | no |
+| `env_import` | `document`, `mode?`, `confirm?` | `{ imported, skipped, failed, warnings }` | no | production bundle |
+| `env_export` | `environmentIds?` | `{ document, counts }` | no | no |
 
 ### 11.3 Parameter definitions
 

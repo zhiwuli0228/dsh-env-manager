@@ -89,7 +89,7 @@ function bundleApp() {
     },
     exportBundle: async (ids?: string[]) => {
       calls.push({ op: 'export', value: ids })
-      return { version: 1, environments: [{ id: 'test-a' }], drGroups: [] }
+      return { version: 1, environments: [{ id: 'test-a' }] }
     },
   }
 }
