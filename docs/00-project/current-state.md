@@ -31,6 +31,19 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
+**DSH 0.2.2-rcx compatibility (2026-11-08):** the bundle now declares support for DSH
+`0.2.1-rc.5` through the `0.2.2` line, including `0.2.2-rc.x`: `engines.dsh` and the
+`dsh-llm`/`dsh-tools` peer ranges use `>=0.2.1-rc.5 <0.3.0-0 || >=0.2.2-0 <0.3.0-0`
+(a plain `>=0.2.1-rc.5` does **not** match prereleases of another tuple under node-semver),
+the optional `cordis` peer widened to `>=4.0.5 <5.0.0`, and `0.3.0` stays excluded until
+verified. Code-level audit against `dsh-tools@0.2.2-rc.1` found no breaking change for our
+surface (`defineTool` options shape identical, `ToolDefinition`, `tools/pre-execute`,
+`HarnessError(message, code, options?)`, `ContentBlock` all preserved; the plugin passes
+`ctx`/`exec` as `any`, so it has no static coupling to cordis). Verified by installing the
+full `0.2.2-rc.1` family in a throwaway copy — typecheck, build and all 67 tests pass —
+and by a new `tests/compat.test.ts` that pins the version matrix (67 tests total).
+Released as `dsh-env-manager-plugin@0.1.5`.
+
 **Release status (2026-11-06):** `dsh-env-manager-plugin@0.1.4` is the `latest` npm tag
 and the credential-store format fix release: account/SSH passwords are stored under
 POSIX-style `DSH_ENV_MANAGER_*` refs, `setCredential`/`unsetCredential` and the registry

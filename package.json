@@ -1,6 +1,6 @@
 {
   "name": "dsh-env-manager-plugin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Environment registry, service catalog and operation-to-Skill routing for DSH.",
   "author": "zhiwuli0228",
@@ -41,7 +41,7 @@
   "license": "MIT",
   "engines": {
     "node": ">=20",
-    "dsh": ">=0.2.1-rc.5"
+    "dsh": ">=0.2.1-rc.5 <0.3.0-0 || >=0.2.2-0 <0.3.0-0"
   },
   "publishConfig": {
     "access": "public"
@@ -75,6 +75,8 @@
     "@deepseek-ai/dsh-util-values": "0.2.1-rc.5",
     "@deepseek-ai/dsh-working-directory": "0.2.1-rc.5",
     "@types/node": "^24.19.2",
+    "@types/semver": "^7.8.0",
+    "semver": "^7.8.6",
     "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   },
@@ -89,9 +91,9 @@
   },
   "main": "index.js",
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.5"
+    "@deepseek-ai/cordis": ">=4.0.5 <5.0.0",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.5 <0.3.0-0 || >=0.2.2-0 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.5 <0.3.0-0 || >=0.2.2-0 <0.3.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {

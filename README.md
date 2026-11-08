@@ -25,7 +25,7 @@ Works in DSH Web and Desktop.
 **Phase 1 of the environment/plane model and Phase 1.1 of the K8s node/execution model are
 implemented and installed in the `desktop` profile.**
 
-- 52 Vitest tests pass; `npm run build` emits the committed `lib/` tree.
+- 67 Vitest tests pass; `npm run build` emits the committed `lib/` tree.
 - Ten `env_*` tools, the same-origin `/env-manager/api` route and the sidebar/main panel
   are implemented.
 - One environment is one complete network and one configuration page. Management,
@@ -49,7 +49,7 @@ implemented and installed in the `desktop` profile.**
 - The Kubernetes/clusters tab creates and edits cluster metadata (kind, topology, API
   endpoint, namespaces, credential reference) and derives node counts from `clusterRef`.
 - Passwords are written to the DSH credential service; YAML keeps only
-  `env-manager/<environmentId>/<hostId>-<username>`.
+  `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` refs.
 - **环境 (Environments) is the default tab**, and the persistent header **新增环境**
   action is available from every tab. `记录 (Records)` is limited to services,
   deployments, rule profiles and operation bindings.
@@ -57,6 +57,11 @@ implemented and installed in the `desktop` profile.**
   nodes/accounts/logins, light-theme visual QA, and the live approval/credential probes
   V4 and V6.
 - No operation execution: routing returns the bound Skill and policy, it does not run it.
+- **DSH compatibility:** the bundle targets DSH `0.2.1-rc.5` through the `0.2.2` line
+  (including `0.2.2-rc.x`); `0.3.0` is intentionally excluded until verified. The full
+  suite (typecheck + build + tests) passes against both `@deepseek-ai/dsh-tools@0.2.1-rc.5`
+  and `@0.2.2-rc.1`; `engines.dsh` and the peer ranges encode that contract and are
+  covered by `tests/compat.test.ts`.
 
 ## How agents discover the registry
 
