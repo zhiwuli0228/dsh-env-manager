@@ -62,11 +62,12 @@ The repository's own `@deepseek-ai/*` devDependencies now track the same family
 newest DSH line (no throwaway needed).
 Released as `dsh-env-manager-plugin@0.1.5`.
 
-**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.5` is the `latest` npm tag
-and the DSH-0.2.2-rcx compatibility release (see the compatibility entry above); the
-[GitHub Release v0.1.5](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.5)
-contains `dsh-env-manager-plugin-0.1.5.tgz`. `v0.1.4` was the credential-store format fix
-release: account/SSH passwords are stored under POSIX-style `DSH_ENV_MANAGER_*` refs,
+**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.6` is the `latest` npm tag
+and the panel-route fix release (mount the HTTP route through `ctx.inject(['webServer'])`;
+see the fix entry above); the
+[GitHub Release v0.1.6](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.6)
+contains `dsh-env-manager-plugin-0.1.6.tgz`. `v0.1.5` was the DSH-0.2.2-rcx
+compatibility release. `v0.1.4` was the credential-store format fix: account/SSH passwords are stored under POSIX-style `DSH_ENV_MANAGER_*` refs,
 `setCredential`/`unsetCredential` and the registry schema reject non-conforming refs at
 save, and the Client generates the new refs — the DSH file store rejects invalid `refs:`
 keys at boot, which had made `.credentials.yaml` unloadable and broken client startup.
