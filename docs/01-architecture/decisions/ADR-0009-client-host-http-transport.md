@@ -35,7 +35,12 @@ body:    { "op": "...", "payload": { ... } }
 ```
 
 - The route is registered with `ctx.webServer.register({ kind: 'prefix', ... })` and
-  disposed with the plugin fiber.
+  disposed with the plugin fiber. It is mounted through
+  `ctx.inject(['webServer'], (webCtx) => webCtx.effect(...))` rather than a synchronous
+  `ctx.get('webServer')` in `apply`: on DSH 0.2.2-rc.1 the web runtime started after
+  this bundle, so the synchronous read lost the race and the panel API fell through to
+  the SPA handler (`405 allow: GET, HEAD`). `inject` mounts the route once the service
+  is provided and keeps it optional on headless profiles.
 - The route handler is a thin adapter over the same application service the tools use;
   there is no second business path.
 - Authentication is a required custom header plus an `Origin` equality check against

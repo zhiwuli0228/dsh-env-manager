@@ -31,6 +31,21 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
+**DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
+panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
+the synchronous `ctx.get('webServer')` in `apply` returned `undefined` and the transport
+silently disabled itself — every `/env-manager/api` request fell through to DSH's SPA
+resource handler (GET → `404`, POST → `405 allow: GET, HEAD`), never reaching the plugin
+handler (which answers `405 allow: POST` with JSON). Root cause confirmed live: tools
+registered, plugin active, no route in the webServer prefix table; after a plugin reload
+the same code registered successfully, proving a first-load timing race. Fix: register
+the route via `ctx.inject(['webServer'], (webCtx) => webCtx.effect(...))` — the pattern
+core plugins use — so it mounts when the service is actually provided and stays optional
+on headless profiles. Regression coverage: `tests/transport/transport.test.ts` (route
+registration/disposal, method/content-type/header gates, meta round-trip) plus the
+updated `tests/plugin/plugin.test.ts` asserting the `webServer` injection wiring
+(74 tests total). Shipped as `dsh-env-manager-plugin@0.1.6`.
+
 **DSH 0.2.2-rcx compatibility (2026-11-08):** the bundle now declares support for DSH
 `0.2.1-rc.5` through the `0.2.2` line, including `0.2.2-rc.x`: `engines.dsh` and the
 `dsh-llm`/`dsh-tools` peer ranges use `>=0.2.1-rc.5 <0.3.0-0 || >=0.2.2-0 <0.3.0-0`

@@ -37,6 +37,7 @@ describe('plugin apply', () => {
         effectDisposer = callback() ?? undefined
         return () => effectDisposer?.()
       },
+      inject: () => undefined,
     }
 
     await apply(ctx as any, normalizeConfig({ dataDir: dir }))
@@ -74,30 +75,25 @@ describe('plugin apply', () => {
         callback()
         return () => undefined
       },
+      inject: () => undefined,
     }
 
     await apply(ctx as any, normalizeConfig({ dataDir: dir, registerSkill: false }))
     expect(registerCalls).toBe(0)
   })
 
-  it('registers tools and the HTTP route, then disposes them', async () => {
+  it('registers tools and the HTTP route through webServer injection, then disposes them', async () => {
     const dir = await tempDir()
     dirs.push(dir)
     await writeFixture(dir)
     const tools = new Map<string, unknown>()
     const disposed: string[] = []
     let effectDisposer: (() => void) | undefined
+    let transportDisposer: (() => void) | undefined
+    const injectDeps: string[][] = []
     const ctx = {
       get: (key: string) => {
         if (key === 'profileContext') return { dir }
-        if (key === 'webServer') {
-          return {
-            register: (route: { path: string }) => {
-              expect(route.path).toBe('/env-manager/api')
-              return () => disposed.push('http')
-            },
-          }
-        }
         return undefined
       },
       tools: {
@@ -110,11 +106,37 @@ describe('plugin apply', () => {
         effectDisposer = callback() ?? undefined
         return () => effectDisposer?.()
       },
+      inject: (deps: string[], callback: (webCtx: any) => void) => {
+        injectDeps.push(deps)
+        // The webServer service is already available: run the callback now.
+        const webCtx = {
+          get: (key: string) => {
+            if (key === 'webServer') {
+              return {
+                register: (route: { kind: string; path: string }) => {
+                  expect(route.kind).toBe('prefix')
+                  expect(route.path).toBe('/env-manager/api')
+                  return () => disposed.push('http')
+                },
+              }
+            }
+            return undefined
+          },
+          effect: (callback2: () => (() => void) | void) => {
+            transportDisposer = callback2() ?? undefined
+            return () => transportDisposer?.()
+          },
+        }
+        callback(webCtx)
+        return undefined
+      },
     }
     await apply(ctx as any, normalizeConfig({ dataDir: dir, defaults: { environmentId: 'test-a' } }))
     expect([...tools.keys()]).toHaveLength(10)
+    expect(injectDeps.some((deps) => deps.includes('webServer'))).toBe(true)
     expect(disposed).not.toContain('http')
     effectDisposer?.()
+    transportDisposer?.()
     expect(disposed).toContain('http')
     expect(disposed).toContain('env_list')
   })

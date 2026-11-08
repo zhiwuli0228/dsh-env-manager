@@ -207,7 +207,15 @@ schema changes). A projection-based implementation is recorded as a P2 alternati
 route and returns a disposer; duplicate `(kind, path)` throws.
 `getOrigin()` returns the local origin. `tapIndex(transform)` can inject markup.
 
-Evidence: Service contract `webServer`.
+**Availability:** the `webServer` service is not guaranteed to be provided when a
+bundle's `apply` runs — on DSH 0.2.2-rc.1 the web runtime started after this bundle, so
+a synchronous `ctx.get('webServer')` returned `undefined` and silently disabled the
+panel (GET `/env-manager/api` → SPA 404, POST → `405 allow: GET, HEAD`). Register the
+route through `ctx.inject(['webServer'], (webCtx) => webCtx.effect(() => webCtx.webServer.register(...)))`
+(core plugins use the same pattern), which mounts the route once the service is
+provided and keeps it optional on headless profiles.
+
+Evidence: Service contract `webServer`; live probe on 0.2.2-rc.1; `tests/plugin/plugin.test.ts`.
 
 Design consequence: the Client panel talks to the Host through
 `POST /env-manager/api` registered by this plugin, authenticated by a required custom

@@ -95,7 +95,16 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
     for (const definition of definitions) {
       disposeTools.push(ctx.tools.register(definition))
     }
-    const disposeHttp = registerHttpTransport(ctx, app, consoleLogger)
+
+    // The HTTP panel transport is registered through `ctx.inject`, so the
+    // route is mounted once the `webServer` service is actually provided.
+    // A synchronous `ctx.get('webServer')` in `apply` loses the race when the
+    // web runtime starts after this bundle (observed on DSH 0.2.2-rc.x), which
+    // silently disabled the panel. `inject` also keeps the transport optional
+    // on headless profiles.
+    ctx.inject(['webServer'], (webCtx: any) => {
+      webCtx.effect(() => registerHttpTransport(webCtx, app, consoleLogger))
+    })
 
     let disposeSkill: (() => void) | undefined
     if (normalized.registerSkill && skills && typeof skills.register === 'function') {
@@ -112,7 +121,6 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
     return () => {
       disposeSkill?.()
       for (const dispose of disposeTools.splice(0)) dispose()
-      disposeHttp()
     }
   })
 
