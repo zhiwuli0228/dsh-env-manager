@@ -42,6 +42,9 @@ surface (`defineTool` options shape identical, `ToolDefinition`, `tools/pre-exec
 `ctx`/`exec` as `any`, so it has no static coupling to cordis). Verified by installing the
 full `0.2.2-rc.1` family in a throwaway copy — typecheck, build and all 67 tests pass —
 and by a new `tests/compat.test.ts` that pins the version matrix (67 tests total).
+The repository's own `@deepseek-ai/*` devDependencies now track the same family
+(`0.2.2-rc.1`, cordis `~4.1.0`), so `npm run check` builds and tests directly against the
+newest DSH line (no throwaway needed).
 Released as `dsh-env-manager-plugin@0.1.5`.
 
 **Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.5` is the `latest` npm tag
