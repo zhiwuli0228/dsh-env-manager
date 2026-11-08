@@ -53,7 +53,7 @@ Rules:
 - Unexpected exceptions are wrapped as `INTERNAL_ERROR` with a redacted message.
 - A cancelled call surfaces DSH's own abort error; do not translate it.
 
-Codes are defined in [`data-model.md`](data-model.md) §11.
+Codes are defined in [`data-model.md`](data-model.md) §13.
 
 ### 1.3 Approval
 
@@ -61,6 +61,7 @@ Codes are defined in [`data-model.md`](data-model.md) §11.
 |---|---|
 | `env_delete` | always, when `confirm: true` and `writePolicy.requireApprovalForDelete` |
 | `env_save` | when the record is a production environment, or a deployment whose environment is production, and `writePolicy.requireApprovalForProductionSave` |
+| `env_import` | when the bundle touches production records (an environment with `category: production`, or a record referencing a production environment/service/deployment); the tool retries once after a native `ctx.approval` grant |
 | everything else | no |
 
 Approval uses `ctx.approval.request` with the executing agent, the tool name, the call
@@ -101,7 +102,11 @@ interface RecordSummary {
 interface WarningList { warnings: Diagnostic[] }
 ```
 
-`RecordKind = 'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding'`.
+`BundleDocument` and the import/export result shapes (`ImportedRecordRef`, `ImportFailure`)
+are defined in [`data-model.md`](data-model.md) §9; the tool surface just passes them
+through.
+
+`RecordKind = 'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding' | 'drGroup'`.
 
 ## 2. Read tools
 
@@ -114,7 +119,7 @@ parameters: {
   kind: {
     type: 'string',
     required: false,
-    enum: ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'],
+    enum: ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'],
     description: 'Restrict to one record kind.',
   },
   query: {
@@ -147,7 +152,7 @@ Use when the caller already has an id and needs the full record.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  kind: { type: 'string', required: true, enum: [/* six kinds */] },
   id: { type: 'string', required: true, description: 'Record id, e.g. test-a.' },
 }
 ```
@@ -163,8 +168,8 @@ Returns:
 - Unknown fields in the file are preserved in both.
 
 Errors: `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`, `DEPLOYMENT_NOT_FOUND`,
-`RULE_PROFILE_NOT_FOUND`, `BINDING_NOT_FOUND` depending on `kind`; `INVALID_ARGUMENT`
-for a malformed id (fails before any I/O).
+`RULE_PROFILE_NOT_FOUND`, `BINDING_NOT_FOUND`, `DR_GROUP_NOT_FOUND` depending on `kind`;
+`INVALID_ARGUMENT` for a malformed id (fails before any I/O).
 
 Render: `"environment test-a (Test A), updated 2026-11-01."`
 
@@ -216,7 +221,7 @@ parameters: {
 }
 ```
 
-Returns the Service Context from `data-model.md` §8.2, including `provenance` and
+Returns the Service Context from `data-model.md` §10.2, including `provenance` and
 `warnings`. With no environment, `credentials` is empty and
 `environmentId`/`deploymentId`/`runtimeMode`/`location` are absent.
 
@@ -250,7 +255,7 @@ parameters: {
   environment fails (`INVALID_ARGUMENT` / `ENVIRONMENT_REQUIRED`) instead of downgrading
   to a lower binding.
 
-Returns `OperationResolution` from `data-model.md` §8.3:
+Returns `OperationResolution` from `data-model.md` §10.3:
 
 ```json
 {
@@ -325,7 +330,7 @@ whole record; do not send a partial patch.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  kind: { type: 'string', required: true, enum: [/* six kinds */] },
   record: {
     type: 'json',
     required: true,
@@ -365,7 +370,7 @@ Use only when the user explicitly asks to remove a record.
 
 ```ts
 parameters: {
-  kind: { type: 'string', required: true, enum: [/* five kinds */] },
+  kind: { type: 'string', required: true, enum: [/* six kinds */] },
   id: { type: 'string', required: true },
   confirm: {
     type: 'boolean',
@@ -406,7 +411,7 @@ Returns:
   "ok": false,
   "counts": {
     "environment": 2, "service": 1, "deployment": 1,
-    "ruleProfile": 1, "operationBinding": 2
+    "ruleProfile": 1, "operationBinding": 2, "drGroup": 1
   },
   "diagnostics": [
     { "severity": "error", "code": "RULE_PROFILE_NOT_FOUND",
@@ -421,24 +426,227 @@ Returns:
 
 Render: `"Registry invalid: 2 errors, 1 warning."`
 
+### 3.4 `env_operate`
+
+Use to execute the bound target for an operation inside the selected environment. Skill
+targets return a prepared reference (the agent invokes the Skill itself); local commands
+and scripts run as a bounded process; remote targets return a prepared ssh command
+descriptor. This tool is the only one that spawns local processes and it does so only
+through a matching enabled binding — never ad hoc.
+
+```ts
+parameters: {
+  operation: { type: 'string', required: true, description: 'Standard or custom operation id.' },
+  environmentId: { type: 'string', description: 'Defaults to the session environment; required unless deploymentId supplies one.' },
+  serviceId: { type: 'string', description: 'Service id; required unless the operation is environment-scoped or deploymentId supplies one.' },
+  deploymentId: { type: 'string', description: 'Deployment id; supplies the service and environment when omitted.' },
+  confirm: { type: 'boolean', description: 'true only after the user approved a gated (write) execution.' },
+  dryRun: { type: 'boolean', description: 'Resolve and gate but run nothing.' },
+  note: { type: 'string', description: 'Optional note stored with the experience record.' },
+}
+```
+
+Returns `{ resolution, execution, experience?, warnings }`:
+
+```json
+{
+  "resolution": { "ok": true, "operation": "restart", "requested": { "environmentId": "test-a", "serviceId": "aicoservice" },
+                  "matchedBindingId": "binding-001", "matchLevel": "environment-service",
+                  "target": { "mode": "command", "command": { "argv": ["kubectl", "rollout", "restart", "aicoservice", "-n", "dv-sop"] } },
+                  "policy": { "requiresApproval": true, "allowProduction": false }, "experiences": [], "diagnostics": [] },
+  "execution": { "status": "completed", "exitCode": 0, "stdout": "…", "stderr": "", "durationMs": 812, "diagnostics": [] },
+  "experience": { "id": "exp-20261108-034947", "kind": "success-summary", "status": "proposed" },
+  "warnings": []
+}
+```
+
+Behavior:
+
+- Routes the operation exactly like `env_resolve_operation`, then runs the resolved
+  target. A `script`/`command` target is spawned with `shell: false` under `<dataDir>`,
+  with bounded output (64 KiB per stream), a timeout (default 600 s, max 3600 s,
+  `SIGTERM` → `SIGKILL`) and `password=`-style redaction.
+- A `remote` target returns a prepared ssh descriptor (`address`, `port`, `username`,
+  `command`, `credentialRef`); the plugin never reads credential values, so it cannot
+  open the connection itself. A `skill` target returns the prepared reference only.
+- Gates: a write operation whose binding has `requiresApproval: true` refuses to run
+  without `confirm: true` → `APPROVAL_REQUIRED` (the tool turns that into a native
+  `ctx.approval` request and retries once with `confirm: true`); production execution is
+  denied unless the binding sets `allowProduction: true` → `POLICY_DENIED`.
+- Every completed or failed execution writes an experience (success → `success-summary`,
+  failure → `failure-lesson`) into the review queue as `proposed`; later routes surface
+  related experiences.
+
+Errors: `ENVIRONMENT_REQUIRED`, `ENV_NOT_FOUND`, `SERVICE_NOT_FOUND`,
+`DEPLOYMENT_NOT_FOUND`, `BINDING_NOT_FOUND`, `BINDING_CONFLICT`, `POLICY_DENIED`,
+`APPROVAL_REQUIRED` (when approval is unavailable), `SCRIPT_NOT_FOUND`,
+`SCRIPT_PATH_TRAVERSAL`, `EXECUTION_TIMEOUT`, `EXECUTION_FAILED`.
+
+Render: `"Execution completed exit=0; experience exp-20261108-034947 (success-summary) queued."`
+
+### 3.5 `env_experience`
+
+Use to manage the experience review queue: list experiences, add a hand-written
+lesson/summary (e.g. from a Skill run you observed), or approve/reject a proposed one.
+Nothing auto-applies: accepted experiences are surfaced on later routes so the tool gets
+smarter with use.
+
+```ts
+parameters: {
+  action: { type: 'string', required: true, enum: ['list', 'add', 'approve', 'reject'] },
+  operation: { type: 'string', description: 'Filter or set the operation id.' },
+  environmentId: { type: 'string', description: 'Filter or set the environment scope.' },
+  serviceId: { type: 'string', description: 'Filter or set the service scope.' },
+  deploymentId: { type: 'string', description: 'Set the deployment scope (add only).' },
+  bindingId: { type: 'string', description: 'Optional binding id (add only).' },
+  kind: { type: 'string', enum: ['success-summary', 'failure-lesson'], description: 'Experience kind; filter for list, required for add.' },
+  status: { type: 'string', enum: ['proposed', 'accepted', 'rejected'], description: 'Filter by review status (list only).' },
+  outcome: { type: 'string', enum: ['success', 'failure', 'skipped'], description: 'Result that produced the experience (add only).' },
+  mode: { type: 'string', enum: ['skill', 'script', 'command', 'remote'], description: 'Target mode (add only).' },
+  title: { type: 'string', description: 'Short title (add only).' },
+  content: { type: 'string', description: 'Narrative: what happened, why it worked or failed, what to do next time (add only).' },
+  tags: { type: 'array', items: { type: 'string' }, description: 'Optional tags (add only).' },
+  id: { type: 'string', description: 'Experience id (approve/reject only).' },
+  note: { type: 'string', description: 'Review note (approve/reject only).' },
+  limit: { type: 'number', description: 'Max list items, default 25, at most 100.' },
+}
+```
+
+Returns `{ items, warnings }` for `list`, or `{ record, warnings }` for
+`add`/`approve`/`reject`. The review queue is the only apply path: `approve` and
+`reject` are the only status transitions, and proposed records surface on later routes
+until then.
+
+Errors: `EXPERIENCE_NOT_FOUND`, `INVALID_ARGUMENT` (e.g. `add` without `operation`,
+`kind`, `title` and `content`).
+
+Render: `"2 experience(s)."` or `"Experience exp-20261108-034947 accepted (success-summary)."`
+
+### 3.6 `env_import`
+
+Use to apply a self-contained environment bundle (several environments plus their
+services, deployments, rule profiles, operation bindings and DR groups) in one call.
+
+```ts
+parameters: {
+  document: { type: 'json', required: true,
+              description: 'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...], drGroups: [...] }.' },
+  mode: { type: 'string', enum: ['skip', 'overwrite', 'error'], description: 'Conflict mode for ids that already exist; defaults to skip.' },
+  confirm: { type: 'boolean', description: 'true only after the user approved importing production records.' },
+}
+```
+
+Returns:
+
+```json
+{
+  "imported": [ { "kind": "environment", "id": "test-a" } ],
+  "skipped": [ { "kind": "service", "id": "aicoservice" } ],
+  "failed": [ { "kind": "drGroup", "id": "dr-prod-as", "code": "DR_GROUP_MEMBER_UNKNOWN", "message": "…" } ],
+  "warnings": []
+}
+```
+
+Behavior:
+
+- Every record is parsed with the same schema as `env_save`; a per-record failure does
+  not abort the rest (some records may still be imported when others fail).
+- Records apply in dependency order (environment → service → deployment → ruleProfile →
+  operationBinding → drGroup); references resolve against the existing registry plus the
+  ids in the same bundle.
+- Conflict modes: `skip` (default) keeps the existing record and reports it as skipped;
+  `overwrite` replaces it, preserving the existing `createdAt`; `error` fails that record
+  with `RECORD_EXISTS`.
+- If any candidate record is production (a production environment, or a record referencing
+  a production environment/service/deployment), the call throws `APPROVAL_REQUIRED`
+  unless `confirm: true`; the tool then asks `ctx.approval` and retries once.
+- Passwords are never accepted: the strict record schemas reject `password` /
+  `sshPassword`-style fields with `RECORD_INVALID`.
+- The returned value is strict-JSON-safe; nothing is written outside `dataDir`.
+
+Errors: `IMPORT_INVALID`, `IMPORT_TOO_LARGE`, `APPROVAL_REQUIRED`, `POLICY_DENIED`,
+`FORBIDDEN` (ui actor without `writePolicy.allowUiProductionWrites`).
+
+Example bundle snippet:
+
+```json
+{
+  "version": 1,
+  "environments": [ { "id": "prod-env", "schemaVersion": 1, "name": "Production", "category": "production", "roles": [ { "id": "management", "name": "Management" } ], "hosts": [], "clusters": [], "endpoints": [], "loginRecords": [], "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" } ],
+  "drGroups": [ { "id": "dr-prod-as", "schemaVersion": 1, "name": "生产主备", "type": "AS", "members": [ { "environmentId": "prod-env", "role": "primary", "weight": 100 } ], "createdAt": "2026-11-08T00:00:00.000Z", "updatedAt": "2026-11-08T00:00:00.000Z" } ]
+}
+```
+
+Render: `"Imported 1, skipped 0, failed 0."`
+
+### 3.7 `env_export`
+
+Use to export a self-contained environment bundle for backup or migration.
+
+```ts
+parameters: {
+  environmentIds: { type: 'array', items: { type: 'string' },
+                    description: 'Optional environment ids or names to include; omit for a full export.' },
+}
+```
+
+Returns `{ document, counts }`: `document` is the bundle (`version: 1`, `exportedAt`,
+plural-kind arrays), `counts` breaks down the numbers per kind. Omitted ids export the
+whole registry; explicit ids export those environments plus everything that references
+them (their deployments, the services those deployments reference, operation bindings
+whose match hits a selected environment/service/deployment, referenced rule profiles,
+and DR groups containing a selected environment). Records carry `credentialRef` names
+only — an export never contains a credential value.
+
+Errors: `ENV_NOT_FOUND` for an unknown id.
+
+Example subset export:
+
+```json
+{
+  "document": {
+    "version": 1,
+    "exportedAt": "2026-11-08T00:00:00.000Z",
+    "environments": [ { "id": "test-a", "schemaVersion": 1, "name": "Test Environment A", "category": "test" } ],
+    "drGroups": [ { "id": "dr-test-as", "schemaVersion": 1, "name": "测试主备", "type": "AS", "members": [ { "environmentId": "test-a", "role": "primary" }, { "environmentId": "test-b", "role": "standby" } ] } ]
+  },
+  "counts": { "environments": 1, "services": 0, "deployments": 0, "ruleProfiles": 0, "operationBindings": 0, "drGroups": 1 }
+}
+```
+
+Render: `"Exported 7 record(s)."`
+
 ## 4. Cross-tool rules
 
 1. **Ids are data, not paths.** A tool never accepts a filesystem path.
 2. **No credentials.** `credentialRef` status is reported as
    `{ ref, configured, source }`; values are never resolved.
-3. **No execution.** No tool runs a Skill, a shell command, or a network request.
+3. **Execution only through explicit bindings.** Only `env_operate` runs a local
+   script/command target, and only when a matching enabled binding exists; no tool runs a
+   Skill, an ad-hoc shell command, or a network request.
 4. **Determinism.** Same registry and inputs produce the same result; no random ids,
    no wall-clock ordering.
 5. **Read-only means read-only.** `env_validate`, `env_get_context`, `env_list`,
-   `env_get`, `env_find`, `env_resolve`, `env_resolve_operation` never write a file.
+   `env_get`, `env_find`, `env_resolve`, `env_resolve_operation`, `env_export` never
+   write a file.
 6. **Fail closed.** A conflict, missing Skill, broken reference or production denial is
    an error, never a fallback.
+7. **Bulk surface.** `env_import` and `env_export` are the only bulk read/write surface.
+   Both return strict-JSON-safe values, an import reports per-record outcomes instead of
+   aborting on the first failure, and an export contains `credentialRef` names only —
+   never a credential value.
 
 ## 5. Non-goals for V1 tools
 
-- Executing an operation or invoking a Skill.
-- Writing operation records to memory.
-- Bulk import/export.
+- Invoking a Skill. A `skill` target is discovery information; `env_operate` prepares a
+  reference, it never calls the Skill.
+- Running anything without a matching enabled binding: `env_operate` routes first and
+  fails closed, it never guesses a target.
+- Writing registry facts or operation records to memory. Only experiences (success
+  summary / failure lesson) are written, and only to the plugin-owned review queue;
+  operation records remain a P1 boundary.
+- Partial-per-kind bundle documents: `env_import` consumes the full plural-kind shape, and
+  omitting a kind means not importing it.
 - Editing plugin configuration.
 - Reading or writing session context for a session other than the caller's.
-- Any network or shell access.
+- Any network or shell access outside an explicit `env_operate` binding.

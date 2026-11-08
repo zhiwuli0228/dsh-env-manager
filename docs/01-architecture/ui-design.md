@@ -34,7 +34,8 @@ Sidebar
     └── main panel (key: dsh-env-manager)
         ├── Environments  (default; list, detail, New environment)
         ├── Overview      (counts, runtime, warnings, getting started, validation)
-        ├── Records       (Services, Deployments, Rule Profiles, Operation Bindings)
+        ├── DR Groups     (容灾组; one card per group, import/export header actions)
+        ├── Records       (Services, Deployments, Rule Profiles, Operation Bindings, DR Groups)
         ├── Context Preview
         └── Operation Preview
 ```
@@ -43,8 +44,8 @@ Sections are a horizontal tab strip inside the panel, not separate sidebar entri
 sidebar entry is the only global surface; the panel fills the same region as
 `conversation`. **Environments is the default section** because host and account
 management is the primary job; the panel header also carries a persistent
-`New environment` action. Records is for the remaining configuration kinds and no longer
-offers environment creation.
+`New environment` action. The **DR Groups** tab sits right after Overview. Records is for
+the remaining configuration kinds and no longer offers environment creation.
 
 ### 3.1 Sidebar slot contract
 
@@ -135,7 +136,9 @@ async function call(op, payload, signal) {
 
 `meta`, `record.list`, `record.get`, `record.find`, `record.save`, `record.remove`
 (with `confirm`), `record.validate`, `context.resolve`, `operation.resolve`,
-`diagnostics`. No session-context operation.
+`diagnostics`, `import` (bundle document or YAML text, conflict mode, `confirm`),
+`export` (optional environment ids). No session-context operation, and no operate call:
+the panel never executes a target.
 
 ### 4.3 Failure presentation
 
@@ -158,7 +161,7 @@ sidebar:
 │ [glyph] Environment Manager                  [New environment]│
 │         Environments, services, deployments, routing.        │
 │                                                              │
-│ Environments   Overview   Records   Context   Operations     │
+│ Environments   Overview   DR Groups   Records   Context   Operations │
 │ ────────────                                                 │
 │ Environments                                    [Refresh]    │
 │ ┌────────────────────┬───────────────────────────────────┐   │
@@ -173,8 +176,10 @@ sidebar:
 - Title 22 px / 650; subtitle 13 px secondary. The header carries identity **and** the
   persistent `New environment` primary action; each view still supplies its own toolbar.
 - Tabs are a horizontal underline strip (`role="tablist"`), never host `nav` styling.
-  Environments / Overview / Records / Context / Operations are views. Environments is
-  the default; record kinds are a second, segmented control inside Records.
+  Environments / Overview / DR Groups / Records / Context / Operations are views.
+  Environments is the default; record kinds are a second, segmented control inside
+  Records. The DR Groups and Records views carry the header-level 导入 / 导出 actions when
+  relevant.
 - Panel background: `--dsw-alias-bg-base`; cards `--dsw-alias-bg-layer-1`; borders
   `--dsw-alias-border-l1`; secondary text `--dsw-alias-label-secondary`.
 - The primary button is filled with `--dsw-alias-brand-primary` and uses
@@ -189,8 +194,8 @@ sidebar:
 
 ### 6.1 Overview
 
-- Five compact stat cards: Environments, Services, Deployments, Rule Profiles,
-  Operation Bindings. Each shows the count only; no per-card diagnostics.
+- Six compact stat cards: Environments, Services, Deployments, Rule Profiles,
+  Operation Bindings, DR Groups. Each shows the count only; no per-card diagnostics.
 - Two side-by-side cards: Runtime (`dataDir`, total records, version pill) and Warnings
   (count pill, diagnostic list, or an empty state).
 - `Refresh` reloads `meta`; `Validate` calls `validate` and renders a result card with
@@ -217,11 +222,29 @@ sidebar:
 
 ### 6.2a Records
 
-- A kind segmented control for Services, Deployments, Rule Profiles and Operation
-  Bindings only. Environments are not listed here.
+- A kind segmented control for Services, Deployments, Rule Profiles, Operation
+  Bindings and DR Groups only. Environments are not listed here.
 - `New record` loads the selected kind's YAML template into the editor; `Refresh`
-  reloads the list. This is the advanced path for non-environment records.
+  reloads the list. This is the advanced path for non-environment records. The DR Groups
+  kind's template shows a `members` example with `primary`/`standby` roles.
 - Empty lists show a dashed empty state with a short hint, not a blank card.
+
+### 6.2b DR Groups (容灾组)
+
+- One card per DR group, newest state first. Each card shows the group name and id, a
+  type badge (`AS 主备`, `AA 双活`, `AP 主从`, or the custom code as-is), the optional
+  `scope`, `RTO` / `RPO` pills when set, and one member row per environment:
+  a 生产/容灾 role badge, the environment name and id, the optional weight, and an
+  `open environment` button that deep-links into Environments → that environment's detail.
+- The header of this view carries `新建容灾组` (opens Records → 容灾组 with the template
+  prefilled), `导入` and `导出` buttons.
+- The import modal accepts pasted bundle text (YAML or JSON), offers the conflict mode
+  select (`skip` / `overwrite` / `error`) and renders a readable result report with the
+  imported / skipped / failed counts and per-record failure messages. A production-touching
+  bundle shows the confirmation prompt before importing.
+- The export modal exports the whole registry by default, or a comma-separated list of
+  environment ids/names; the result is a JSON bundle file download shown by a done state.
+- Empty state: a dashed card with a short hint and `新建容灾组`.
 
 ### 6.3 Environment detail
 
@@ -416,6 +439,14 @@ Namespace `envManager`; dictionaries registered for `en` and `zh`.
 | `section.context` | Context Preview | 上下文预览 |
 | `section.operation` | Operation Preview | 操作预览 |
 | `section.diagnostics` | Diagnostics | 诊断 |
+| `section.drGroups` | DR Groups | 容灾组 |
+| `drStandby` | Standby | 容灾 |
+| `drNoGroups` | No DR groups yet | 还没有容灾组 |
+| `drNewGroup` | New DR group | 新建容灾组 |
+| `importExport` | Import / Export | 导入 / 导出 |
+| `drImportModeSkip` | Skip existing | 跳过已存在 |
+| `drImportModeOverwrite` | Overwrite existing | 覆盖已存在 |
+| `drImportModeError` | Fail on conflict | 冲突即失败 |
 | `action.new` | New | 新建 |
 | `action.save` | Save | 保存 |
 | `action.validate` | Validate | 校验 |
@@ -487,7 +518,7 @@ const S = {
 EnvManagerPanel
 ├── PanelHeader (glyph, title, subtitle)
 ├── HeaderActions (New environment, persistent)
-├── SectionTabs (Environments / Overview / Records / Context / Operations)
+├── SectionTabs (Environments / Overview / DR Groups / Records / Context / Operations)
 ├── SectionContent
 │   ├── OverviewView (stat cards, runtime, warnings, onboarding)
 │   ├── EnvironmentsView
@@ -506,8 +537,13 @@ EnvManagerPanel
 │   │   │   ├── EndpointTable
 │   │   │   └── YamlEditor
 │   │   └── EnvironmentWizard (shell create: name/id/category/description + default planes)
+│   ├── DrGroupsView
+│   │   ├── DrGroupCard (type badge, scope, RTO/RPO pills)
+│   │   ├── DrMemberRow (生产/容灾 badge, weight, open environment)
+│   │   ├── ImportBundleModal (paste text, conflict mode, result report)
+│   │   └── ExportBundleModal (environment-id filter, JSON download)
 │   ├── RecordsView
-│   │   └── YamlRecordEditor (service/deployment/rule/binding)
+│   │   └── YamlRecordEditor (service/deployment/rule/binding/drGroup)
 │   ├── ContextView ── ResultBlock
 │   └── OperationsView ── ResultBlock
 └── Toast / ErrorBox
@@ -515,7 +551,8 @@ EnvManagerPanel
 
 Each component is a function in `client.js`; shared helpers are `h()`, `t()`, `call()`,
 `formatTime()`, `categoryLabel()`, `authLabel()`, `roleName()`, `countByRole()`,
-`hostKindLabel()`, `hostAccessLabel()`, `topologyLabel()`, `stableSlug()` and the form
+`hostKindLabel()`, `hostAccessLabel()`, `topologyLabel()`, `drTypeLabel()`,
+`stableSlug()` and the form
 primitives `Field`, `Select` and `TextArea`.
 
 ## 12. Manual QA checklist
@@ -566,6 +603,16 @@ primitives `Field`, `Select` and `TextArea`.
 - [ ] Production save is denied when `allowUiProductionWrites` is false.
 - [ ] Context preview returns a structured context.
 - [ ] Operation preview resolves a binding or a clear diagnostic.
+- [ ] DR Groups tab renders one card per group: type badge (AS/AA/AP/custom), scope,
+      RTO/RPO pills, and one member row per environment with 生产/容灾 badge and weight;
+      the open-environment button jumps to the environment detail.
+- [ ] 新建容灾组 opens Records → 容灾组 with the members template; a saved group with no
+      `primary` member or duplicate environments is rejected by the Host.
+- [ ] Import accepts pasted YAML/JSON bundles, applies the chosen conflict mode, and
+      reports imported / skipped / failed counts with per-record messages; a
+      production-touching bundle asks for confirmation first.
+- [ ] Export downloads a JSON bundle for the whole registry or a comma-separated list of
+      environment ids/names, and the done state shows the per-kind counts.
 - [ ] Language switch between `en` and `zh` updates every visible string.
 - [ ] Light and dark themes both keep contrast on cards and badges.
 - [ ] Keyboard-only navigation reaches every action.
@@ -587,3 +634,5 @@ primitives `Field`, `Select` and `TextArea`.
 - Executing a Skill or showing an operation timeline.
 - Multi-user presence, comments, or audit UI.
 - JumpServer/PAM API synchronization; login data is entered or imported explicitly.
+- A DR witness/仲裁 member role, scheduled drill tracking, and any failover/switch/promote
+  action: the DR Groups tab is read-only topology with an import/export surface.

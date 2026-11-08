@@ -273,6 +273,7 @@ Responsibilities:
 - Read/write deployment binding records
 - Read/write rule profile records
 - Read/write operation binding records
+- Read/write DR group records
 - Atomic writes and schema validation
 
 Must not:
@@ -428,6 +429,7 @@ data/
 ├── deployments/{deploymentId}.yaml
 ├── rules/{ruleProfileId}.yaml
 ├── operations/{bindingId}.yaml
+├── drGroups/{drGroupId}.yaml  # DR topology: members are environment references
 ├── scripts/                  # scripts referenced by execute targets
 └── experiences/{id}.yaml     # execution review queue (not registry records)
 ```
@@ -453,6 +455,8 @@ Reads must tolerate missing files and skip invalid records with a warning.
 
 - Deployment bindings must reference existing environments and services.
 - Operation bindings must reference an existing environment/service scope when specified.
+- DR group members must reference existing environments; deleting an environment that is
+  a member of a group is blocked with `RECORD_IN_USE` while the group exists.
 - Broken references must be reported, not silently ignored.
 
 ### 7.5 Data directory and sessions

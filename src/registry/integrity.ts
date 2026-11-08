@@ -204,6 +204,21 @@ export function checkIntegrity(snapshot: RegistrySnapshot): Diagnostic[] {
     }
   }
 
+  for (const group of snapshot.drGroups.values()) {
+    const file = `drGroups/${group.id}.yaml`
+    for (const [index, member] of group.members.entries()) {
+      if (!environmentIds.has(member.environmentId)) {
+        out.push(
+          diag(
+            'DR_GROUP_MEMBER_UNKNOWN',
+            `DR group ${group.id} references missing environment ${member.environmentId}`,
+            { file, path: `members[${index}].environmentId` },
+          ),
+        )
+      }
+    }
+  }
+
   return out
 }
 
@@ -230,6 +245,13 @@ export function findReferences(
       for (const binding of snapshot.operationBindings.values()) {
         if (binding.match.environmentId === id) {
           refs.push({ kind: 'operationBinding', id: binding.id, field: 'match.environmentId' })
+        }
+      }
+      for (const group of snapshot.drGroups.values()) {
+        for (const member of group.members) {
+          if (member.environmentId === id) {
+            refs.push({ kind: 'drGroup', id: group.id, field: 'members.environmentId' })
+          }
         }
       }
       break
@@ -260,6 +282,8 @@ export function findReferences(
       }
       break
     case 'operationBinding':
+      break
+    case 'drGroup':
       break
   }
   return refs

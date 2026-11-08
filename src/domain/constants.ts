@@ -13,6 +13,7 @@ export const RECORD_KINDS: readonly RecordKind[] = [
   'deployment',
   'ruleProfile',
   'operationBinding',
+  'drGroup',
 ]
 
 export const KIND_DIRECTORIES: Record<RecordKind, string> = {
@@ -21,6 +22,7 @@ export const KIND_DIRECTORIES: Record<RecordKind, string> = {
   deployment: 'deployments',
   ruleProfile: 'rules',
   operationBinding: 'operations',
+  drGroup: 'drGroups',
 }
 
 export const STANDARD_OPERATIONS = [
@@ -71,6 +73,35 @@ export const LIMITS = {
   backupCount: 5,
   maxSnapshotRecords: 5000,
 } as const
+
+// ---------------------------------------------------------------------------
+// Bulk import / export and disaster-recovery groups
+// ---------------------------------------------------------------------------
+
+export const BUNDLE_LIMITS = {
+  /** Maximum records in one import document, across all kinds. */
+  maxRecords: 500,
+  /** Serialized import document cap. */
+  maxBytes: 2 * 1024 * 1024,
+  /** Maximum environments in one bundle. */
+  maxEnvironments: 100,
+} as const
+
+export const DR_GROUP_LIMITS = {
+  maxMembers: 8,
+  maxTypeLength: 16,
+  maxScopeLength: 40,
+  maxNoteLength: 2000,
+  /** RPO/RTO are minutes; 0..7 days is plenty. */
+  maxMinutes: 7 * 24 * 60,
+} as const
+
+/** Human labels for the standard DR patterns; unknown codes render as-is. */
+export const DR_GROUP_TYPE_LABELS: Readonly<Record<string, string>> = {
+  AS: '主备 Active-Standby',
+  AA: '双活 Active-Active',
+  AP: '主从 Active-Passive',
+}
 
 // ---------------------------------------------------------------------------
 // Operation execution and the experience loop

@@ -33,7 +33,7 @@ function makeApp(dataDir: string) {
 }
 
 describe('tools', () => {
-  it('builds twelve valid definitions and executes env_list', async () => {
+  it('builds fourteen valid definitions and executes env_list', async () => {
     const dir = await tempDir()
     dirs.push(dir)
     await writeFixture(dir)
@@ -57,6 +57,8 @@ describe('tools', () => {
       'env_validate',
       'env_operate',
       'env_experience',
+      'env_import',
+      'env_export',
     ])
     for (const definition of definitions) {
       expect(() => assertObjectJsonSchema(definition.output.schema as any)).not.toThrow()

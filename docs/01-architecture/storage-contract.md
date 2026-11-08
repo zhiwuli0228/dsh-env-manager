@@ -17,6 +17,7 @@ Related: [data-model.md](./data-model.md), [design.md](./design.md) §5.
 ├── deployments/{deploymentId}.yaml
 ├── rules/{ruleProfileId}.yaml
 ├── operations/{bindingId}.yaml
+├── drGroups/{drGroupId}.yaml   # DR topology: members are environment references
 ├── scripts/                  # execution scripts referenced by bindings
 ├── experiences/{id}.yaml     # review-queue records (success summaries / failure lessons)
 ├── sessions/{sessionId}.json
@@ -27,6 +28,16 @@ Related: [data-model.md](./data-model.md), [design.md](./design.md) §5.
 of the registry: records there are validated by the experience schema and never
 participate in registry referential integrity. `scripts/` holds only files a binding
 explicitly references; bindings and the executor reject absolute paths and `..`.
+`drGroups/` holds DR group records; they are registry records and follow the same rules as
+every other kind, with one extra referential rule (§8).
+
+### 1.3 Bundle import / export files
+
+Bundles (import/export documents) are **not stored**: an import document is parsed in
+memory and applied record by record; an export document is serialized in memory and handed
+to the caller (a JSON download in the panel). Nothing is written to `dataDir` beyond the
+regular record writes the import performs through `storage`, so a bundle can never create
+files outside `dataDir`.
 
 ### 1.1 Resolving `dataDir`
 
@@ -170,6 +181,9 @@ Storage itself does not enforce cross-record references; the registry does, on l
 - Broken references are reported by `env_validate`.
 - On load, an invalid reference produces a warning; the record stays usable for name lookups.
 - On write, an invalid reference is rejected (`RECORD_INVALID` with details).
+- A DR group whose `members[].environmentId` is missing is reported as a
+  `DR_GROUP_MEMBER_UNKNOWN` warning on load/validate; deleting an environment that is a
+  member of a group is blocked with `RECORD_IN_USE` until the group is edited or removed.
 
 This split keeps a single bad file from making the whole registry unusable.
 

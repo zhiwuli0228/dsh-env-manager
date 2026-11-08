@@ -1,5 +1,5 @@
 import { type ProcessRunner } from '../executor/runner.js';
-import type { Actor, CredentialDirectory, Diagnostic, ExperienceFilter, ExperienceRecord, ExperienceSummary, FindResult, GetResult, ListResult, MetaResult, OperateRequest, OperateResult, OperationResolution, RecordKind, RemoveOptions, RemoveResult, ResolveRequest, RouteRequest, SaveOptions, SaveResult, ServiceContext, SessionContext, SkillDirectory, ValidationReport } from '../domain/types.js';
+import type { Actor, BundleDocument, CredentialDirectory, Diagnostic, ExperienceFilter, ExperienceRecord, ExperienceSummary, FindResult, GetResult, ImportRequest, ImportResult, ListResult, MetaResult, OperateRequest, OperateResult, OperationResolution, RecordKind, RemoveOptions, RemoveResult, ResolveRequest, RouteRequest, SaveOptions, SaveResult, ServiceContext, SessionContext, SkillDirectory, ValidationReport } from '../domain/types.js';
 import type { Logger } from '../logger.js';
 export declare const VERSION: string;
 export interface AppOptions {
@@ -46,6 +46,21 @@ export declare class App {
     save(kind: RecordKind, raw: unknown, options?: SaveOptions & SaveContext): Promise<SaveResult>;
     remove(kind: RecordKind, id: string, actor: Actor, options?: RemoveOptions): Promise<RemoveResult>;
     validate(): Promise<ValidationReport>;
+    /**
+     * Import a self-contained environment bundle: several environments plus the
+     * services, deployments, rule profiles, operation bindings and DR groups that
+     * reference them, in one call. Records are schema-validated first; references
+     * are checked against the registry plus the ids arriving in the same bundle.
+     * Bundle records carry `credentialRef` names only — never a password or key.
+     */
+    importBundle(request: ImportRequest, actor?: Actor): Promise<ImportResult>;
+    /**
+     * Export a self-contained environment bundle. Without ids the whole registry is
+     * exported; with ids, each named environment plus its deployments, referenced
+     * services, related bindings and DR groups is exported. Records contain only
+     * `credentialRef` names — never a credential value.
+     */
+    exportBundle(environmentIds?: string[]): Promise<BundleDocument>;
     /**
      * Store one SSH/web credential in the DSH credential service and return only
      * its reference. Registry YAML must never contain the value itself. Refs are

@@ -78,6 +78,30 @@ function fakeApp() {
   }
 }
 
+function bundleApp() {
+  const calls: Array<{ op: string; value?: unknown }> = []
+  return {
+    calls,
+    meta: async () => ({ dataDir: '/tmp/env-manager', version: 'test' }),
+    importBundle: async (request: unknown, actor: string) => {
+      calls.push({ op: 'import', value: { request, actor } })
+      return { imported: [{ kind: 'environment', id: 'test-a' }], skipped: [], failed: [], warnings: [] }
+    },
+    exportBundle: async (ids?: string[]) => {
+      calls.push({ op: 'export', value: ids })
+      return { version: 1, environments: [{ id: 'test-a' }], drGroups: [] }
+    },
+  }
+}
+
+function post(body: string): any {
+  return makeReq({
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-env-manager-request': '1' },
+    body,
+  })
+}
+
 describe('transport', () => {
   const routes: FakeRoute[] = []
   const disposed: string[] = []
@@ -170,6 +194,55 @@ describe('transport', () => {
       }),
       res,
     )
+    expect(res.status).toBe(400)
+    expect(JSON.parse(res.body()).error.code).toBe('INVALID_ARGUMENT')
+  })
+
+  it('parses a YAML bundle and imports it as the ui actor', async () => {
+    const webServer = makeWebServer(routes)
+    const app = bundleApp()
+    registerHttpTransport({ get: () => webServer }, app as any, quietLogger)
+    const res = makeRes()
+    await routes[0].handler(
+      post(JSON.stringify({
+        op: 'import',
+        payload: {
+          yaml: 'version: 1\nenvironments:\n  - id: test-a\n    name: Test A\n',
+          mode: 'skip',
+          confirm: true,
+        },
+      })),
+      res,
+    )
+    expect(res.status).toBe(200)
+    const call = app.calls.find((item) => item.op === 'import') as any
+    expect(call.value.actor).toBe('ui')
+    expect(call.value.request.mode).toBe('skip')
+    expect(call.value.request.confirm).toBe(true)
+    expect(call.value.request.document.environments).toEqual([{ id: 'test-a', name: 'Test A' }])
+    expect(JSON.parse(res.body()).data.imported).toHaveLength(1)
+  })
+
+  it('dispatches export with the requested environment ids', async () => {
+    const webServer = makeWebServer(routes)
+    const app = bundleApp()
+    registerHttpTransport({ get: () => webServer }, app as any, quietLogger)
+    const res = makeRes()
+    await routes[0].handler(
+      post(JSON.stringify({ op: 'export', payload: { environmentIds: ['test-a'] } })),
+      res,
+    )
+    expect(res.status).toBe(200)
+    expect(app.calls.find((item) => item.op === 'export')?.value).toEqual(['test-a'])
+    expect(JSON.parse(res.body()).data.document.version).toBe(1)
+    expect(JSON.parse(res.body()).data.counts.environments).toBe(1)
+  })
+
+  it('rejects an unknown op with 400', async () => {
+    const webServer = makeWebServer(routes)
+    registerHttpTransport({ get: () => webServer }, fakeApp() as any, quietLogger)
+    const res = makeRes()
+    await routes[0].handler(post(JSON.stringify({ op: 'nope', payload: {} })), res)
     expect(res.status).toBe(400)
     expect(JSON.parse(res.body()).error.code).toBe('INVALID_ARGUMENT')
   })

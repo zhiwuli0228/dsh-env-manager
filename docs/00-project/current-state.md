@@ -10,8 +10,9 @@ network, its planes are role views, and hosts also record their machine kind and
 surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
-registry, resolver, router, executor, session store, application service, twelve tools and
-the same-origin HTTP API are in place, with 102 Vitest tests passing. The Client panel is
+registry, resolver, router, executor, session store, application service, fourteen tools
+and the same-origin HTTP API are in place, with 132 Vitest tests passing across 14 test
+files. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
 `size`/`active` props and renders monochrome with `currentColor`; the contract is recorded
@@ -31,7 +32,7 @@ the tarball, publishes with npm Trusted Publisher/OIDC, and creates a GitHub Rel
 The first publish must be bootstrapped manually before Trusted Publisher can be bound;
 the exact steps are in [`release.md`](../06-operations/release.md).
 
-**Executable bindings + experience loop (2026-11-08, unreleased):** an operation binding isno longer Skill-only. It declares exactly one target — `skill` (discovery only) **xor**
+**Executable bindings + experience loop (2026-11-08, unreleased):** an operation binding is no longer Skill-only. It declares exactly one target — `skill` (discovery only) **xor**
 `execute` — where `execute` is one of:
 
 - `script` — a file under `<dataDir>/scripts` (absolute paths and `..` rejected at save and
@@ -67,6 +68,31 @@ via a node smoke run (operate completed, experience written). The profile now in
 build; 12 tools live, route 200, data intact). The running `desktop` process still
 executes its cached pre-upgrade module; a DSH restart is required for the fix to go live
 and to complete the end-to-end execute → experience → review flow.
+
+**DR groups + bundle import/export (2026-11-08, unreleased):** a new record kind
+`drGroup` (`<dataDir>/drGroups/{id}.yaml`) joins two or more environments into a
+disaster-recovery topology. It stores `name`, `type` (`AS` Active-Standby 主备, `AA`
+Active-Active 双活, `AP` Active-Passive 主从, or a custom short token), optional `scope`,
+`rtoMinutes`/`rpoMinutes` (minutes, 0..10080) and 1..8 `members` of
+`{ environmentId, role: primary|standby, weight?, note? }`. Member environments must
+exist; `env_validate` warns `DR_GROUP_MEMBER_UNKNOWN`, and deleting an environment that
+is a member is blocked with `RECORD_IN_USE`. The group is topology metadata only: there
+is no failover/switch/promote operation, and a witness/仲裁 member role is deferred.
+
+Batch onboarding and backup/migration use a versioned **bundle** document (`version: 1`
+plus optional plural-kind arrays `environments`, `services`, `deployments`,
+`ruleProfiles`, `operationBindings`, `drGroups`). `env_import` applies records in
+dependency order, resolves references against the registry union the ids in the same
+bundle, and supports `skip` / `overwrite` / `error` conflict modes; a bundle touching
+production records requires confirmation, and the strict record schemas reject any
+password field. `env_export` writes the whole registry or one environment subset with
+everything that references it (deployments, services, bindings, rule profiles, DR groups).
+Bundles are transient documents, never stored under `dataDir`. The tools are now fourteen
+(`env_import` / `env_export` added); the panel gained a DR groups tab (cards with a type
+badge, scope, RTO/RPO pills and member rows with an open-environment action) plus
+import/export modals, and Records gained a 容灾组 sub-tab. Tests: 132 passing across 14
+files (new `tests/drgroup/`, `tests/bundle/`). Version stays `0.1.6` and nothing is
+published: the `desktop` profile continues to run this repository through a pnpm link.
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
@@ -197,7 +223,7 @@ service-scoped. `ServiceContext.serviceId` is optional (environment-scoped conte
 (service-only context, environment-layer-without-deployment, no-downgrade routing refusal,
 service/global routing within an environment, environment-level binding routing,
 env-only match-shape validation, deployment→environment inference). Docs updated:
-`design.md` §7, `data-model.md` §2/§7/§8/§11, `detailed-design.md` §8, `tool-contract.md`,
+`design.md` §7, `data-model.md` §2/§7/§10/§13, `detailed-design.md` §8, `tool-contract.md`,
 `operation-binding-template.md`, `glossary.md`, client hints.
 
 **Global name sweep (2026-11-03):** a full scan of `dsh-env-manager` vs
@@ -215,7 +241,8 @@ already-open GUI to materialize the fixed client module.
 The panel uses a centered 1080 px column, 22 px title with a glyph mark, underline tabs,
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
-and `Records` is limited to services, deployments, rule profiles and operation bindings.
+a **DR groups (容灾组)** tab sits right after Overview, and `Records` is limited to
+services, deployments, rule profiles, operation bindings and DR groups.
 
 Phase 1 changes the environment workflow:
 
@@ -290,14 +317,14 @@ Documentation and repository:
   - [x] `design.md` — scope, architecture, flows, acceptance criteria
   - [x] `detailed-design.md` — module contracts, algorithms, storage, tools, HTTP
   - [x] `data-model.md` — record schemas, results, diagnostics catalogue
-  - [x] `tool-contract.md` — ten model-facing tools with DSL schemas and errors
+  - [x] `tool-contract.md` — fourteen model-facing tools with DSL schemas and errors
   - [x] `storage-contract.md` — dataDir resolution, atomicity, sessions, backups
   - [x] `module-boundaries.md` — ownership and dependency direction
   - [x] `ui-design.md` — panel layout, transport, states, i18n, QA checklist
   - [x] `security-model.md` — credentials, approval, HTTP controls, redaction
   - [x] `api-verification.md` — verified runtime facts F1–F21 and probes V1–V8
   - [x] `implementation-plan.md` — ordered tasks T01–T24, acceptance, cut line
-  - [x] ADR-0001 … ADR-0011
+  - [x] ADR-0001 … ADR-0012
 
 Code:
 
@@ -332,7 +359,10 @@ Code:
 - [x] Credential write path (`credential` / `credentialUnset`, namespaced refs)
 - [x] Structured forms for basic info, node, account and login records
 - [x] Memory bridge contract and null adapter
-- [x] Tests (52 passing)
+- [x] DR group record kind (`drGroups/`), schema cross-checks, integrity warning and delete guard
+- [x] Versioned bundle import/export (`env_import` / `env_export`, HTTP `import` / `export` ops)
+- [x] Panel DR groups tab (type badge, scope, RTO/RPO pills, member rows) and import/export modals
+- [x] Tests (132 passing, 14 files)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -354,6 +384,10 @@ Code:
 - No arbitrary code in rule templates.
 - No remote execution in V1.
 - No production auto-apply.
+- A DR group is topology metadata only: no failover/switch/promote operation exists, and
+  RTO/RPO values are descriptive objectives, not enforced limits.
+- Bundle documents are transient: nothing is written outside `dataDir`, and a bundle never
+  accepts passwords (the strict record schemas reject them).
 - Registry data is git-ignored.
 - DSH peer packages are not bundled; they resolve from the profile.
 
@@ -407,6 +441,11 @@ dsh-env-manager/
 - The panel cannot write production records unless
   `writePolicy.allowUiProductionWrites` is enabled.
 - No JumpServer/PAM synchronization; account and login observations remain manual/YAML.
+- DR group members are limited to `primary`/`standby`; a witness/仲裁 member role and
+  scheduled DR-drill tracking are deferred, and there is no failover orchestration (a
+  group never executes anything).
+- DR groups are edited through the Records YAML editor or created from the DR tab; there
+  is no in-panel member-row editor beyond the create/YAML paths.
 
 ## Next Recommended Work
 
@@ -420,3 +459,6 @@ dsh-env-manager/
 5. Optional JumpServer/PAM import adapter for accounts and login observations.
 6. Add a small example registry under `examples/` for first-run demonstration.
 7. P1 memory bridge and operation records.
+8. DR group follow-ups: a witness/仲裁 member role, scheduled drill tracking, and (later)
+   failover/switch/promote operations behind the existing approval gates — the group model
+   itself stays read-only metadata.

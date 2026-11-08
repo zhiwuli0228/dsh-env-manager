@@ -132,7 +132,7 @@ describe('plugin apply', () => {
       },
     }
     await apply(ctx as any, normalizeConfig({ dataDir: dir, defaults: { environmentId: 'test-a' } }))
-    expect([...tools.keys()]).toHaveLength(12)
+    expect([...tools.keys()]).toHaveLength(14)
     expect(injectDeps.some((deps) => deps.includes('webServer'))).toBe(true)
     expect(disposed).not.toContain('http')
     effectDisposer?.()

@@ -540,6 +540,7 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
             deployment: report.counts.deployments ?? 0,
             ruleProfile: report.counts.ruleProfiles ?? 0,
             operationBinding: report.counts.operationBindings ?? 0,
+            drGroup: report.counts.drGroups ?? 0,
           },
           diagnostics: report.diagnostics,
         }
@@ -725,6 +726,114 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
     },
   })
 
+  const envImport = defineTool({
+    name: 'env_import',
+    description:
+      'Import a self-contained environment bundle (several environments plus their services, deployments, rule profiles, operation bindings and DR groups) in one call. Conflict mode: skip keeps existing records, overwrite replaces them, error fails the conflicting ones. Records carry credentialRef names only — passwords are never accepted. Bundles touching production records require approval: pass confirm: true only after the user agrees.',
+    parameters: {
+      document: {
+        type: 'json',
+        required: true,
+        description:
+          'Bundle document: { version: 1, environments: [...], services: [...], deployments: [...], ruleProfiles: [...], operationBindings: [...], drGroups: [...] }.',
+      },
+      mode: {
+        type: 'string',
+        enum: ['skip', 'overwrite', 'error'],
+        description: 'Conflict mode for ids that already exist; defaults to skip.',
+      },
+      confirm: {
+        type: 'boolean',
+        description: 'true only after the user approved importing production records.',
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          imported: { type: 'array', items: { type: 'json' }, required: true },
+          skipped: { type: 'array', items: { type: 'json' }, required: true },
+          failed: { type: 'array', items: { type: 'json' }, required: true },
+          warnings: { ...warningsSchema(), required: true },
+        },
+      },
+      render: (_args, value) => {
+        const result = value as { imported: unknown[]; skipped: unknown[]; failed: unknown[] }
+        return text(
+          `Imported ${result.imported.length}, skipped ${result.skipped.length}, failed ${result.failed.length}.`,
+        )
+      },
+    },
+    async execute(args: any, exec: any): Promise<any> {
+      const run = (confirm: boolean) =>
+        app.importBundle(
+          {
+            document: args.document,
+            mode: args.mode,
+            confirm,
+          },
+          'agent',
+        )
+      try {
+        return await run(Boolean(args.confirm))
+      } catch (error) {
+        const envError = asEnvManagerError(error)
+        if (envError.code === 'APPROVAL_REQUIRED') {
+          await approval(ctx, exec, 'env_import', 'Import an environment bundle')
+          return await run(true)
+        }
+        throw error
+      }
+    },
+  })
+
+  const envExport = defineTool({
+    name: 'env_export',
+    description:
+      'Export a self-contained environment bundle for backup or migration: environments, deployments, referenced services, related operation bindings, rule profiles and DR groups. Omit environmentIds to export the whole registry; pass ids/names to export one or several environments plus what references them. Records carry credentialRef names only — never a credential value.',
+    parameters: {
+      environmentIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional environment ids or names to include; omit for a full export.',
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          document: { type: 'json', required: true },
+          counts: { type: 'json', required: true },
+        },
+      },
+      render: (_args, value) => {
+        const result = value as { counts: Record<string, number> }
+        const total = Object.values(result.counts).reduce((sum, n) => sum + n, 0)
+        return text(`Exported ${total} record(s).`)
+      },
+    },
+    async execute(args: any): Promise<any> {
+      try {
+        const document = await app.exportBundle(args.environmentIds)
+        return {
+          document,
+          counts: {
+            environments: document.environments?.length ?? 0,
+            services: document.services?.length ?? 0,
+            deployments: document.deployments?.length ?? 0,
+            ruleProfiles: document.ruleProfiles?.length ?? 0,
+            operationBindings: document.operationBindings?.length ?? 0,
+            drGroups: document.drGroups?.length ?? 0,
+          },
+        }
+      } catch (error) {
+        throw asEnvManagerError(error)
+      }
+    },
+  })
+
   return [
     envList,
     envGet,
@@ -738,5 +847,7 @@ export function createToolDefinitions(options: ToolRuntimeOptions): ToolDefiniti
     envValidate,
     envOperate,
     envExperience,
+    envImport,
+    envExport,
   ]
 }

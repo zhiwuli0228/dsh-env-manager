@@ -1,8 +1,15 @@
 import { z } from 'zod'
-import { ID_PATTERN, PARAMETER_KEY_PATTERN, SCHEMA_VERSION, WRITE_OPERATIONS } from './constants.js'
+import {
+  DR_GROUP_LIMITS,
+  ID_PATTERN,
+  PARAMETER_KEY_PATTERN,
+  SCHEMA_VERSION,
+  WRITE_OPERATIONS,
+} from './constants.js'
 import { CREDENTIAL_REF_PATTERN } from './credential-ref.js'
 import type {
   AnyRecord,
+  DrGroup,
   Environment,
   RecordKind,
   RuntimeMode,
@@ -413,6 +420,36 @@ function operationBindingFields(mode: Mode): Shape {
   }
 }
 
+function drGroupFields(mode: Mode): Shape {
+  return {
+    name: z.string().min(1).max(120),
+    type: z
+      .string()
+      .regex(
+        /^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/,
+        'DR type must be a short token such as AS, AA or AP',
+      ),
+    scope: z.string().min(1).max(DR_GROUP_LIMITS.maxScopeLength).optional(),
+    rpoMinutes: z.number().int().min(0).max(DR_GROUP_LIMITS.maxMinutes).optional(),
+    rtoMinutes: z.number().int().min(0).max(DR_GROUP_LIMITS.maxMinutes).optional(),
+    note: z.string().max(DR_GROUP_LIMITS.maxNoteLength).optional(),
+    members: z
+      .array(
+        o(
+          {
+            environmentId: z.string().min(1).max(128),
+            role: z.enum(['primary', 'standby']),
+            weight: z.number().int().min(0).max(1000).optional(),
+            note: z.string().max(500).optional(),
+          },
+          mode,
+        ),
+      )
+      .min(1)
+      .max(DR_GROUP_LIMITS.maxMembers),
+  }
+}
+
 function fieldsOf(kind: RecordKind, mode: Mode): Shape {
   switch (kind) {
     case 'environment':
@@ -425,6 +462,8 @@ function fieldsOf(kind: RecordKind, mode: Mode): Shape {
       return ruleProfileFields(mode)
     case 'operationBinding':
       return operationBindingFields(mode)
+    case 'drGroup':
+      return drGroupFields(mode)
   }
 }
 
@@ -540,6 +579,26 @@ function crossCheck(kind: RecordKind, value: Record<string, unknown>, ctx: z.Ref
       add('execute', 'Declare either skill or execute, not both')
     }
   }
+
+  if (kind === 'drGroup') {
+    const group = value as unknown as DrGroup
+    const memberIds = (group.members ?? []).map((member) => member.environmentId)
+    const seen = new Set<string>()
+    for (const [index, member] of (group.members ?? []).entries()) {
+      if (seen.has(member.environmentId)) {
+        add(`members[${index}].environmentId`, `Duplicate environment "${member.environmentId}"`)
+      }
+      seen.add(member.environmentId)
+    }
+    const primaryCount = (group.members ?? []).filter((member) => member.role === 'primary').length
+    if (primaryCount === 0) {
+      add('members', 'At least one member must be role primary (production)')
+    }
+    const type = (group.type ?? '').toUpperCase()
+    if ((type === 'AS' || type === 'AP') && primaryCount !== 1) {
+      add('members', `DR type ${type} requires exactly one primary member (production)`)
+    }
+  }
 }
 
 const cache = new Map<string, z.ZodType>()
@@ -591,6 +650,10 @@ export function normalizeRecordInput(kind: RecordKind, raw: unknown): unknown {
         requiresApproval: existing.requiresApproval ?? WRITE_OPERATIONS.has(operation),
         allowProduction: existing.allowProduction ?? false,
       }
+      break
+    }
+    case 'drGroup': {
+      value.members ??= []
       break
     }
   }

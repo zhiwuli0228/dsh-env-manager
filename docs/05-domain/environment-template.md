@@ -166,3 +166,8 @@ updatedAt: 2026-11-01T03:00:00.000Z
   classification to the node form or YAML.
 - Database primary/replica/sharding topology is not modeled in Phase 1. Use the
   `database` role plus a node note; a later schema may add topology metadata.
+- An environment can be a member of one or more DR groups (see
+  [`dr-group-template.md`](./dr-group-template.md)). DR membership lives in the group
+  record (`<dataDir>/drGroups/`) — this environment file carries nothing about it, and a
+  group is topology metadata that never writes to or executes anything on its member
+  environments.

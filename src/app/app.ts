@@ -2,9 +2,11 @@ import { createRequire } from 'node:module'
 import { PLUGIN_CREDENTIAL_PREFIX, isCredentialRef } from '../domain/credential-ref.js'
 import { EnvManagerError, type ErrorCode } from '../domain/errors.js'
 import {
+  BUNDLE_LIMITS,
   ENVIRONMENT_SCOPED_OPERATIONS,
   EXPERIENCE_LIMITS,
   LIMITS,
+  RECORD_KINDS,
   WRITE_OPERATIONS,
   isRecordKind,
 } from '../domain/constants.js'
@@ -29,6 +31,7 @@ function stripUndefined<T>(value: T): T {
 import type {
   Actor,
   AnyRecord,
+  BundleDocument,
   CredentialDirectory,
   CredentialStatus,
   Deployment,
@@ -40,6 +43,11 @@ import type {
   FindHit,
   FindResult,
   GetResult,
+  ImportConflictMode,
+  ImportFailure,
+  ImportRequest,
+  ImportResult,
+  ImportedRecordRef,
   ListResult,
   MetaResult,
   OperateRequest,
@@ -115,6 +123,8 @@ function notFoundCode(kind: RecordKind): string {
       return 'RULE_PROFILE_NOT_FOUND'
     case 'operationBinding':
       return 'BINDING_NOT_FOUND'
+    case 'drGroup':
+      return 'DR_GROUP_NOT_FOUND'
   }
 }
 
@@ -155,12 +165,125 @@ function summaryOf(kind: RecordKind, record: AnyRecord): RecordSummary {
       summary = `${binding.operation} → ${binding.skill?.name ?? `execute:${binding.execute?.mode ?? 'none'}`}`
       break
     }
+    case 'drGroup': {
+      const group = record as import('../domain/types.js').DrGroup
+      const primaries = group.members.filter((member) => member.role === 'primary').length
+      summary = `${group.type} · ${group.members.length} members · ${primaries} primary`
+      break
+    }
   }
   return { kind, id: record.id, name: recordName(record), summary }
 }
 
 function errorDiagnostic(code: string, message: string, details?: Record<string, unknown>): Diagnostic {
   return { code, severity: 'error', message, details }
+}
+
+/** Validate the top-level shape of an import document. */
+function normalizeBundleDocument(raw: unknown): Record<
+  'environment' | 'service' | 'deployment' | 'ruleProfile' | 'operationBinding' | 'drGroup',
+  unknown[]
+> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new EnvManagerError('IMPORT_INVALID', 'Import document must be a YAML/JSON object')
+  }
+  const value = raw as Record<string, unknown>
+  const allowed = new Set(['version', 'exportedAt', 'environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings', 'drGroups'])
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key))
+  if (unknownKeys.length > 0) {
+    throw new EnvManagerError('IMPORT_INVALID', `Unknown bundle field(s): ${unknownKeys.join(', ')}`, {
+      fields: unknownKeys,
+    })
+  }
+  if (value.version !== undefined && value.version !== 1) {
+    throw new EnvManagerError('IMPORT_INVALID', `Unsupported bundle version ${String(value.version)}`, {
+      version: value.version,
+    })
+  }
+  const serialized = JSON.stringify(value)
+  if (Buffer.byteLength(serialized, 'utf8') > BUNDLE_LIMITS.maxBytes) {
+    throw new EnvManagerError('IMPORT_TOO_LARGE', `Bundle exceeds ${BUNDLE_LIMITS.maxBytes} bytes`)
+  }
+  const byKind: Record<string, unknown[]> = {}
+  for (const key of ['environments', 'services', 'deployments', 'ruleProfiles', 'operationBindings', 'drGroups']) {
+    const entries = value[key]
+    if (entries === undefined) continue
+    if (!Array.isArray(entries)) {
+      throw new EnvManagerError('IMPORT_INVALID', `Bundle field "${key}" must be an array`)
+    }
+    byKind[key] = entries
+  }
+  const total = Object.values(byKind).reduce((sum, entries) => sum + entries.length, 0)
+  if (total > BUNDLE_LIMITS.maxRecords) {
+    throw new EnvManagerError(
+      'IMPORT_TOO_LARGE',
+      `Bundle exceeds ${BUNDLE_LIMITS.maxRecords} records (${total} found)`,
+      { total },
+    )
+  }
+  return {
+    environment: byKind.environments ?? [],
+    service: byKind.services ?? [],
+    deployment: byKind.deployments ?? [],
+    ruleProfile: byKind.ruleProfiles ?? [],
+    operationBinding: byKind.operationBindings ?? [],
+    drGroup: byKind.drGroups ?? [],
+  }
+}
+
+/** Check a candidate record's references against the registry plus bundle ids. */
+function referenceProblem(
+  kind: RecordKind,
+  record: AnyRecord,
+  snapshot: RegistrySnapshot,
+  pending: { environment: Set<string>; service: Set<string>; deployment: Set<string> },
+): { code: string; message: string } | undefined {
+  const envOk = (id: string | undefined) => !id || snapshot.environments.has(id) || pending.environment.has(id)
+  const svcOk = (id: string | undefined) => !id || snapshot.services.has(id) || pending.service.has(id)
+  const depOk = (id: string | undefined) => !id || snapshot.deployments.has(id) || pending.deployment.has(id)
+  switch (kind) {
+    case 'deployment': {
+      const deployment = record as import('../domain/types.js').Deployment
+      if (!envOk(deployment.environmentId)) {
+        return { code: 'ENV_NOT_FOUND', message: `References missing environment "${deployment.environmentId}"` }
+      }
+      if (!svcOk(deployment.serviceId)) {
+        return { code: 'SERVICE_NOT_FOUND', message: `References missing service "${deployment.serviceId}"` }
+      }
+      return undefined
+    }
+    case 'operationBinding': {
+      const binding = record as OperationBinding
+      if (!envOk(binding.match.environmentId)) {
+        return { code: 'ENV_NOT_FOUND', message: `References missing environment "${binding.match.environmentId}"` }
+      }
+      if (!svcOk(binding.match.serviceId)) {
+        return { code: 'SERVICE_NOT_FOUND', message: `References missing service "${binding.match.serviceId}"` }
+      }
+      if (!depOk(binding.match.deploymentId)) {
+        return { code: 'DEPLOYMENT_NOT_FOUND', message: `References missing deployment "${binding.match.deploymentId}"` }
+      }
+      return undefined
+    }
+    case 'drGroup': {
+      const group = record as import('../domain/types.js').DrGroup
+      for (const member of group.members) {
+        if (!envOk(member.environmentId)) {
+          return {
+            code: 'DR_GROUP_MEMBER_UNKNOWN',
+            message: `References missing environment "${member.environmentId}"`,
+          }
+        }
+      }
+      return undefined
+    }
+    default:
+      return undefined
+  }
+}
+
+function sorted<T extends { id: string }>(map: Map<string, T>): T[] {
+  return [...map.values()].sort((a, b) => a.id.localeCompare(b.id))
 }
 
 export class App {
@@ -194,6 +317,7 @@ export class App {
       deployments: snapshot.deployments.size,
       ruleProfiles: snapshot.ruleProfiles.size,
       operationBindings: snapshot.operationBindings.size,
+      drGroups: snapshot.drGroups.size,
     }
   }
 
@@ -243,7 +367,7 @@ export class App {
     const needle = query.trim().toLowerCase()
     if (!needle) return { hits: [] }
     const hits: FindHit[] = []
-    for (const kind of ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'] as const) {
+    for (const kind of RECORD_KINDS) {
       for (const record of this.mapFor(snapshot, kind).values()) {
         const named = record as { name?: string; aliases?: string[]; category?: string }
         let field: FindHit['field'] | null = null
@@ -415,6 +539,244 @@ export class App {
       ok: !snapshot.diagnostics.some((item) => item.severity === 'error'),
       counts: this.counts(snapshot),
       diagnostics: snapshot.diagnostics,
+    }
+  }
+
+  /**
+   * Import a self-contained environment bundle: several environments plus the
+   * services, deployments, rule profiles, operation bindings and DR groups that
+   * reference them, in one call. Records are schema-validated first; references
+   * are checked against the registry plus the ids arriving in the same bundle.
+   * Bundle records carry `credentialRef` names only — never a password or key.
+   */
+  async importBundle(request: ImportRequest, actor: Actor = 'agent'): Promise<ImportResult> {
+    const mode: ImportConflictMode = request.mode ?? 'skip'
+    if (mode !== 'skip' && mode !== 'overwrite' && mode !== 'error') {
+      throw new EnvManagerError('INVALID_ARGUMENT', `Unknown import mode "${String(mode)}"`)
+    }
+    const document = normalizeBundleDocument(request.document)
+    const snapshot = await this.snapshot()
+    const imported: ImportedRecordRef[] = []
+    const skipped: ImportedRecordRef[] = []
+    const failed: ImportFailure[] = []
+
+    const kindOrder = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'] as const
+    type Writable = { kind: RecordKind; record: AnyRecord; created: boolean }
+    const pendingIds = {
+      environment: new Set<string>(),
+      service: new Set<string>(),
+      deployment: new Set<string>(),
+    }
+    const candidates: Writable[] = []
+
+    for (const kind of kindOrder) {
+      const entries = (document[kind] ?? []) as unknown[]
+      for (const [index, raw] of entries.entries()) {
+        if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+          failed.push({ kind, index, code: 'RECORD_INVALID', message: 'Entry must be a YAML/JSON object' })
+          continue
+        }
+        const parsed = parseRecordInput(kind, raw)
+        if (!parsed.ok) {
+          failed.push({
+            kind,
+            index,
+            code: 'RECORD_INVALID',
+            message: parsed.issues.map((issue) => `${issue.path || 'record'}: ${issue.message}`).join('; '),
+          })
+          continue
+        }
+        const record = parsed.record
+        const existing = await readRecordRaw(this.options.dataDir, kind, record.id)
+        if (existing.found) {
+          if (mode === 'skip') {
+            skipped.push({ kind, id: record.id })
+            pendingIds[kind as keyof typeof pendingIds]?.add(record.id)
+            continue
+          }
+          if (mode === 'error') {
+            failed.push({
+              kind,
+              id: record.id,
+              index,
+              code: 'RECORD_EXISTS',
+              message: `${kind} "${record.id}" already exists (mode "error")`,
+            })
+            continue
+          }
+        }
+        candidates.push({ kind, record, created: !existing.found })
+        pendingIds[kind as keyof typeof pendingIds]?.add(record.id)
+      }
+    }
+
+    // Reference checks against the registry plus this bundle's own records.
+    const pending = {
+      environment: new Set([...pendingIds.environment]),
+      service: new Set([...pendingIds.service]),
+      deployment: new Set([...pendingIds.deployment]),
+    }
+    const allowed: Writable[] = []
+    for (const candidate of candidates) {
+      const problem = referenceProblem(candidate.kind, candidate.record, snapshot, pending)
+      if (problem) {
+        pendingIds[candidate.kind as keyof typeof pendingIds]?.delete(candidate.record.id)
+        failed.push({
+          kind: candidate.kind,
+          id: candidate.record.id,
+          index: candidates.indexOf(candidate),
+          code: problem.code,
+          message: problem.message,
+        })
+        continue
+      }
+      allowed.push(candidate)
+    }
+
+    const production = allowed.filter((item) =>
+      this.isProductionRecord(item.kind, item.record, snapshot),
+    )
+    if (production.length > 0) {
+      if (actor === 'ui' && !this.options.writePolicy.allowUiProductionWrites) {
+        throw new EnvManagerError(
+          'FORBIDDEN',
+          'The panel cannot import production records unless writePolicy.allowUiProductionWrites is true',
+          { records: production.map((item) => ({ kind: item.kind, id: item.record.id })) },
+        )
+      }
+      if (!request.confirm) {
+        throw new EnvManagerError(
+          'APPROVAL_REQUIRED',
+          'The bundle contains production records; confirm the import to continue',
+          { records: production.map((item) => ({ kind: item.kind, id: item.record.id })) },
+        )
+      }
+    }
+
+    for (const item of allowed) {
+      let previous: { createdAt: string } | undefined
+      if (!item.created) {
+        try {
+          const rawPrevious = await readRecordRaw(this.options.dataDir, item.kind, item.record.id)
+          if (rawPrevious.found) {
+            const prior = parseRecord(item.kind, rawPrevious.raw)
+            if (prior.ok) previous = { createdAt: prior.record.createdAt }
+          }
+        } catch {
+          previous = undefined
+        }
+      }
+      const finalized = withTimestamps(item.record, previous)
+      const checked = parseRecord(item.kind, finalized)
+      if (!checked.ok) {
+        failed.push({
+          kind: item.kind,
+          id: item.record.id,
+          index: allowed.indexOf(item),
+          code: 'RECORD_INVALID',
+          message: checked.issues.map((issue) => `${issue.path || 'record'}: ${issue.message}`).join('; '),
+        })
+        continue
+      }
+      const text = stringifyRecord(checked.record)
+      if (Buffer.byteLength(text, 'utf8') > LIMITS.recordBytes) {
+        failed.push({
+          kind: item.kind,
+          id: item.record.id,
+          index: allowed.indexOf(item),
+          code: 'RECORD_TOO_LARGE',
+          message: `Record exceeds ${LIMITS.recordBytes} bytes`,
+        })
+        continue
+      }
+      try {
+        await writeRecordFile(this.options.dataDir, item.kind, checked.record)
+        imported.push({ kind: item.kind, id: item.record.id })
+      } catch (error) {
+        failed.push({
+          kind: item.kind,
+          id: item.record.id,
+          index: allowed.indexOf(item),
+          code: error instanceof EnvManagerError ? 'STORAGE_UNWRITABLE' : 'STORAGE_UNWRITABLE',
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    const reloaded = await this.snapshot()
+    return {
+      imported,
+      skipped,
+      failed,
+      warnings: [...this.warnings(reloaded)],
+    }
+  }
+
+  /**
+   * Export a self-contained environment bundle. Without ids the whole registry is
+   * exported; with ids, each named environment plus its deployments, referenced
+   * services, related bindings and DR groups is exported. Records contain only
+   * `credentialRef` names — never a credential value.
+   */
+  async exportBundle(environmentIds?: string[]): Promise<BundleDocument> {
+    const snapshot = await this.snapshot()
+    const exportedAt = new Date().toISOString()
+    const wanted = (environmentIds ?? []).filter((value) => typeof value === 'string' && value.trim())
+    if (wanted.length === 0) {
+      return {
+        version: 1,
+        exportedAt,
+        environments: sorted(snapshot.environments),
+        services: sorted(snapshot.services),
+        deployments: sorted(snapshot.deployments),
+        ruleProfiles: sorted(snapshot.ruleProfiles),
+        operationBindings: sorted(snapshot.operationBindings),
+        drGroups: sorted(snapshot.drGroups),
+      }
+    }
+    const envIds = new Set<string>()
+    for (const ref of wanted) {
+      const record = lookupByRef(snapshot, 'environment', ref)
+      if (!record) {
+        throw new EnvManagerError('ENV_NOT_FOUND', `Environment "${ref}" was not found`, {
+          environmentId: ref,
+        })
+      }
+      envIds.add(record.id)
+    }
+    const deployments = [...snapshot.deployments.values()]
+      .filter((deployment) => envIds.has(deployment.environmentId))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const serviceIds = new Set(deployments.map((deployment) => deployment.serviceId))
+    const deploymentIds = new Set(deployments.map((deployment) => deployment.id))
+    const services = [...snapshot.services.values()]
+      .filter((service) => serviceIds.has(service.id))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const ruleProfiles = [...snapshot.ruleProfiles.values()]
+      .filter((profile) => services.some((service) => service.ruleProfileRefs.includes(profile.id)))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const operationBindings = [...snapshot.operationBindings.values()]
+      .filter(
+        (binding) =>
+          (binding.match.environmentId && envIds.has(binding.match.environmentId)) ||
+          (binding.match.serviceId && serviceIds.has(binding.match.serviceId)) ||
+          (binding.match.deploymentId && deploymentIds.has(binding.match.deploymentId)),
+      )
+      .sort((a, b) => a.id.localeCompare(b.id))
+    const drGroups = [...snapshot.drGroups.values()]
+      .filter((group) => group.members.some((member) => envIds.has(member.environmentId)))
+      .sort((a, b) => a.id.localeCompare(b.id))
+    return {
+      version: 1,
+      exportedAt,
+      environments: [...snapshot.environments.values()]
+        .filter((environment) => envIds.has(environment.id))
+        .sort((a, b) => a.id.localeCompare(b.id)),
+      services,
+      deployments,
+      ruleProfiles,
+      operationBindings,
+      drGroups,
     }
   }
 
@@ -937,6 +1299,8 @@ export class App {
         return snapshot.ruleProfiles
       case 'operationBinding':
         return snapshot.operationBindings
+      case 'drGroup':
+        return snapshot.drGroups
     }
   }
 

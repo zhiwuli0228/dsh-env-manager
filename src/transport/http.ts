@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { App } from '../app/app.js'
 import { EnvManagerError } from '../domain/errors.js'
 import { isRecordKind } from '../domain/constants.js'
+import { parseYamlText } from '../storage/records.js'
 import type { Logger } from '../logger.js'
 
 const MAX_BODY = 2 * 1024 * 1024
@@ -17,6 +18,7 @@ function statusFor(code: string): number {
     case 'BINDING_NOT_FOUND':
     case 'HOST_NOT_FOUND':
     case 'CLUSTER_NOT_FOUND':
+    case 'DR_GROUP_NOT_FOUND':
       return 404
     case 'RECORD_IN_USE':
     case 'BINDING_CONFLICT':
@@ -24,6 +26,7 @@ function statusFor(code: string): number {
     case 'DUPLICATE_ID':
       return 409
     case 'RECORD_TOO_LARGE':
+    case 'IMPORT_TOO_LARGE':
       return 413
     case 'POLICY_DENIED':
       return 403
@@ -31,6 +34,8 @@ function statusFor(code: string): number {
       return 503
     case 'INVALID_ARGUMENT':
     case 'RECORD_INVALID':
+    case 'IMPORT_INVALID':
+    case 'DR_GROUP_MEMBER_UNKNOWN':
     case 'RULE_TEMPLATE_INVALID':
     case 'RULE_UNDEFINED_VARIABLE':
     case 'RULE_CYCLE':
@@ -260,6 +265,36 @@ export function registerHttpTransport(ctx: any, app: App, logger: Logger): () =>
           'ui',
           payload.note ? String(payload.note) : undefined,
         )
+      case 'import': {
+        let document = payload.document
+        if (payload.yaml !== undefined) {
+          document = parseYamlText(String(payload.yaml), 'bundle.yaml')
+        }
+        return app.importBundle(
+          {
+            document,
+            mode: payload.mode,
+            confirm: Boolean(payload.confirm),
+          },
+          'ui',
+        )
+      }
+      case 'export': {
+        const document = await app.exportBundle(
+          Array.isArray(payload.environmentIds) ? payload.environmentIds.map(String) : undefined,
+        )
+        return {
+          document,
+          counts: {
+            environments: document.environments?.length ?? 0,
+            services: document.services?.length ?? 0,
+            deployments: document.deployments?.length ?? 0,
+            ruleProfiles: document.ruleProfiles?.length ?? 0,
+            operationBindings: document.operationBindings?.length ?? 0,
+            drGroups: document.drGroups?.length ?? 0,
+          },
+        }
+      }
       default:
         throw new EnvManagerError('INVALID_ARGUMENT', `Unknown operation "${op}"`)
     }

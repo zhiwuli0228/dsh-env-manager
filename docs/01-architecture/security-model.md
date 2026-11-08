@@ -173,6 +173,38 @@ The route reads no cookie and no credential. It returns only registry data that 
 
 A caller could edit YAML files directly, outside the tools. V1 cannot prevent this; file access is governed by the DSH sandbox and OS permissions. The design documents this as a deliberate boundary: the plugin is a context manager, not a policy enforcement point for the filesystem.
 
+### 4.6 Bundle import / export
+
+Bundles are the only bulk write path and are guarded like every other write:
+
+- **Shape is strict.** A bundle is a versioned object (`version: 1` plus the six
+  plural-kind arrays); unknown top-level keys and non-array kind fields are rejected
+  (`IMPORT_INVALID`). Record schemas are strict, so a `password` / `sshPassword`-style
+  field fails with `RECORD_INVALID` — a bundle can never smuggle a secret into the
+  registry.
+- **Size and count caps.** `BUNDLE_LIMITS` (500 records, 100 environments, 2 MiB
+  serialized) are enforced before any write (`IMPORT_TOO_LARGE`); the HTTP route also
+  caps the request body at 2 MiB.
+- **Production gate.** If any candidate record is production (a production environment,
+  or a record referencing a production environment/service/deployment), the call throws
+  `APPROVAL_REQUIRED` unless `confirm: true`. Actor `ui` gets `FORBIDDEN` unless
+  `writePolicy.allowUiProductionWrites` is true — the same rule as the panel's other
+  writes, applied before anything is written.
+- **References are checked.** Each record's references must resolve against the existing
+  registry plus ids in the same bundle; a missing environment/service/deployment/DR-group
+  member fails that record (`ENV_NOT_FOUND` / `SERVICE_NOT_FOUND` /
+  `DEPLOYMENT_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`) without aborting the rest.
+- **No file escape.** Documents are parsed in memory; every applied record is written
+  through the normal `storage` path under `dataDir`. A bundle cannot create files
+  outside `dataDir`, and export returns only records that already exist.
+- **CredentialRef-only.** Export serializes records as stored: `credentialRef` names
+  only, never a value.
+
+Threat: a malicious bundle could try to overwrite production records or introduce broken
+references. Mitigation: per-record schema validation, the production gate, conflict mode
+`skip`/`error` defaults, reference checks against the registry, and the fact that a
+per-record failure does not silently fall back to anything.
+
 ---
 
 ## 5. Rule template safety
@@ -234,6 +266,11 @@ The redaction function is shared and unit-tested.
 | Missing transport header or foreign origin | `FORBIDDEN`, no routing |
 | Body over 2 MiB | 413, no parsing |
 | Record cap exceeded | `RECORD_LIMIT_EXCEEDED`, no write |
+| Bundle over 500 records / 100 environments / 2 MiB | `IMPORT_TOO_LARGE`, nothing imported |
+| Bundle with unknown fields or a bad version | `IMPORT_INVALID`, nothing imported |
+| Bundle touching production without confirmation | `APPROVAL_REQUIRED`, nothing imported |
+| Bundle record with a broken reference | that record fails (`ENV_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`, …); the rest may still import |
+| Import conflict mode `error` on an existing id | `RECORD_EXISTS`, that record fails |
 
 ---
 
@@ -273,3 +310,9 @@ Requirements for P1:
    can already see, and write only as the `ui` actor under §4.2.
 7. `ctx.fs.watch` is not used in V1, so an external edit is picked up on the next
    request rather than immediately; a stale resolve cannot outlive one request.
+8. A bundle exported from one profile may contain production topology and is a tempting
+   migration artifact; importing it on another profile applies the same production gate,
+   but the export itself is unencrypted YAML and must be handled like registry data.
+9. DR group records are topology metadata; a group with an `AS`/`AP` type asserts a
+   standby relationship that nothing verifies at runtime. RTO/RPO values are descriptive
+   and never enforced.

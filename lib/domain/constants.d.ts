@@ -19,6 +19,24 @@ export declare const LIMITS: {
     readonly backupCount: 5;
     readonly maxSnapshotRecords: 5000;
 };
+export declare const BUNDLE_LIMITS: {
+    /** Maximum records in one import document, across all kinds. */
+    readonly maxRecords: 500;
+    /** Serialized import document cap. */
+    readonly maxBytes: number;
+    /** Maximum environments in one bundle. */
+    readonly maxEnvironments: 100;
+};
+export declare const DR_GROUP_LIMITS: {
+    readonly maxMembers: 8;
+    readonly maxTypeLength: 16;
+    readonly maxScopeLength: 40;
+    readonly maxNoteLength: 2000;
+    /** RPO/RTO are minutes; 0..7 days is plenty. */
+    readonly maxMinutes: number;
+};
+/** Human labels for the standard DR patterns; unknown codes render as-is. */
+export declare const DR_GROUP_TYPE_LABELS: Readonly<Record<string, string>>;
 export declare const EXPERIENCE_DIR = "experiences";
 export declare const SCRIPTS_DIR = "scripts";
 export declare const EXECUTION_LIMITS: {

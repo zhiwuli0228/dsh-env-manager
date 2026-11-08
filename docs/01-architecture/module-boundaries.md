@@ -46,8 +46,10 @@ Owns the shapes.
 
 Allowed:
 
-- TypeScript interfaces and type guards for all records, results and diagnostics.
-- Zod schemas that mirror the interfaces.
+- TypeScript interfaces and type guards for all records, results and diagnostics
+  (including `DrGroup`, `BundleDocument` and the import/export result shapes).
+- Zod schemas that mirror the interfaces, with cross-checks such as the DR group
+  member-role rules.
 - Enums and constants (operation ids, categories, runtime modes).
 - Pure helpers that operate on the types.
 
@@ -67,7 +69,7 @@ Owns bytes on disk.
 Responsibilities:
 
 - Resolve `dataDir` and create directories.
-- Read, parse, validate and write one record file.
+- Read, parse, validate and write one record file (all kinds, including `drGroups/`).
 - Atomic write protocol.
 - Rolling backups.
 - Session state files.
@@ -91,7 +93,8 @@ Responsibilities:
 - Load all record directories into maps.
 - Reload affected entries after writes.
 - Enforce id uniqueness and filename/id agreement.
-- Enforce referential integrity (data-model §12).
+- Enforce referential integrity (data-model §14), including DR group `members[].environmentId`
+  references, and expose `findReferences` so deleting an in-use environment is blocked.
 - Provide lookups: by id, by alias, list by category, deployments by service, deployments by environment.
 - Produce load diagnostics.
 
@@ -214,6 +217,13 @@ Responsibilities:
 - `operate`: gate, execute (via `executor`) and write the resulting experience
   (success → summary, failure → lesson) into the review queue.
 - `listExperiences` / `reviewExperience` / `addExperience` for the review queue.
+- `importBundle`: parse a bundle with the normal record schemas, apply records in
+  dependency order, resolve references against the registry union the ids in the same
+  bundle, apply `skip`/`overwrite`/`error` conflict modes, and gate production-touching
+  bundles with `APPROVAL_REQUIRED` / `FORBIDDEN`.
+- `exportBundle`: collect a closed set of records for the whole registry or a selected
+  set of environments (deployments, referenced services, matching bindings, referenced
+  rule profiles and DR groups), sorted by id.
 - Return domain results or throw `EnvManagerError`.
 
 Forbidden:
@@ -273,8 +283,10 @@ Responsibilities:
 
 - Register and dispose the `/env-manager/api` route.
 - Enforce method, content type, request header, origin and body limits.
-- Map `{ op, payload }` to `app` calls.
-- Map `EnvManagerError` codes to status codes.
+- Map `{ op, payload }` to `app` calls, including the `import` (document or `yaml` text)
+  and `export` operations.
+- Map `EnvManagerError` codes to status codes (`DR_GROUP_NOT_FOUND` → 404,
+  `IMPORT_TOO_LARGE` → 413, `IMPORT_INVALID` / `DR_GROUP_MEMBER_UNKNOWN` → 400).
 - Log writes with actor, op, kind, id and outcome.
 
 Forbidden:

@@ -7,7 +7,7 @@ import type {
   RecordKind,
   RegistrySnapshot,
 } from '../domain/types.js'
-import { isRecordKind } from '../domain/constants.js'
+import { KIND_DIRECTORIES, RECORD_KINDS, isRecordKind } from '../domain/constants.js'
 import { checkIntegrity } from './integrity.js'
 
 function warning(code: string, message: string, file?: string, path?: string): Diagnostic {
@@ -21,6 +21,7 @@ function emptySnapshot(): RegistrySnapshot {
     deployments: new Map(),
     ruleProfiles: new Map(),
     operationBindings: new Map(),
+    drGroups: new Map(),
     byAlias: new Map(),
     diagnostics: [],
     loadedAt: new Date().toISOString(),
@@ -39,12 +40,14 @@ function mapFor(snapshot: RegistrySnapshot, kind: RecordKind): Map<string, AnyRe
       return snapshot.ruleProfiles
     case 'operationBinding':
       return snapshot.operationBindings
+    case 'drGroup':
+      return snapshot.drGroups
   }
 }
 
 export async function loadSnapshot(dataDir: string): Promise<RegistrySnapshot> {
   const snapshot = emptySnapshot()
-  for (const kind of ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'] as const) {
+  for (const kind of RECORD_KINDS) {
     const ids = await listRecordIds(dataDir, kind)
     for (const id of ids) {
       const file = `${kindDirectoryName(kind)}/${id}.yaml`
@@ -123,18 +126,7 @@ export async function loadSnapshot(dataDir: string): Promise<RegistrySnapshot> {
 }
 
 function kindDirectoryName(kind: RecordKind): string {
-  switch (kind) {
-    case 'environment':
-      return 'environments'
-    case 'service':
-      return 'services'
-    case 'deployment':
-      return 'deployments'
-    case 'ruleProfile':
-      return 'rules'
-    case 'operationBinding':
-      return 'operations'
-  }
+  return KIND_DIRECTORIES[kind]
 }
 
 export function lookup<T extends RecordKind>(

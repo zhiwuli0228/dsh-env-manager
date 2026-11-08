@@ -36,6 +36,9 @@ Give every DSH session a shared, queryable environment context, and make the pat
 7. Read-only Agent tools usable from any session in the profile.
 8. Session-scoped default environment.
 9. A minimal Web/Desktop configuration UI; file editing remains a supported baseline.
+10. DR groups that join environments into a disaster-recovery topology (`AS` / `AA` / `AP`
+    or a custom token) with RTO/RPO objectives, and a versioned bundle import/export for
+    onboarding, backup and migration.
 
 ### 1.3 V1 does not deliver
 
@@ -46,6 +49,8 @@ Give every DSH session a shared, queryable environment context, and make the pat
 - Automatic rule or Skill modification without review.
 - A persistent memory store of its own; experiences are plugin-owned YAML files in a review queue.
 - Guarantees that a derived path exists. Only an online check may mark a value verified.
+- DR failover / switch / promote operations, a witness/仲裁 member role, and scheduled DR
+  drills: a DR group is topology metadata only and never executes anything.
 
 ---
 
@@ -87,7 +92,7 @@ DSH Host process
           │
           ▼
 Plugin data directory
-  ├── environments/  services/  deployments/  rules/  operations/
+  ├── environments/  services/  deployments/  rules/  operations/  drGroups/
   ├── scripts/       execution scripts referenced by bindings
   ├── experiences/   review-queue records (success summaries / failure lessons)
   └── sessions/
@@ -155,6 +160,10 @@ Key points that shape the design:
 - **Deployment bindings are many**: a service may run several times in one environment, so deployment ids are first-class.
 - **Rule profiles are shared**; environment and deployment carry field-level overrides.
 - **Operation bindings are predicates**, not a fixed matrix of every combination.
+- **DR groups join environments** rather than duplicating them: a `drGroup` record holds
+  1..8 environment members with a `primary`/`standby` role and an optional weight, plus
+  the pattern type and RTO/RPO objectives. Membership lives in the group, environments do
+  not point back, and the group is topology metadata — no failover operation.
 
 ---
 
@@ -169,6 +178,7 @@ Full rules in [storage-contract.md](./storage-contract.md). Summary:
 ├── deployments/{id}.yaml
 ├── rules/{id}.yaml
 ├── operations/{id}.yaml
+├── drGroups/{id}.yaml
 ├── sessions/{sessionId}.json
 └── .backups/{kind}/{id}/{timestamp}.yaml
 ```
@@ -434,13 +444,13 @@ Read tools:
 
 ```text
 env_list, env_get, env_find, env_resolve, env_resolve_operation,
-env_get_context, env_set_context
+env_get_context, env_set_context, env_export
 ```
 
 Management tools (state-changing):
 
 ```text
-env_save, env_delete, env_validate
+env_save, env_delete, env_validate, env_operate, env_experience, env_import
 ```
 
 Results:
@@ -450,8 +460,10 @@ Results:
 - Expected failures throw `EnvManagerError extends HarnessError`, which carries a
   stable `code` (`ENV_NOT_FOUND`, `BINDING_CONFLICT`, `POLICY_DENIED`, …) and a
   message safe to show. There is no `{ ok: false }` value.
-- `env_delete` and production `env_save` ask `ctx.approval`; any outcome other than
-  `allowed-once` denies.
+- `env_delete`, production `env_save` and production-touching `env_import` ask
+  `ctx.approval`; any outcome other than `allowed-once` denies.
+- `env_operate` is the only tool that executes local targets, and only through a
+  matching enabled binding, behind the approval and production gates.
 - Errors never include credential values, file contents or stack traces.
 
 ---
@@ -476,7 +488,8 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 |---|---|
 | Environments (default) | list; detail split into overview, all nodes, management/business/database/expansion plane views, login records, Kubernetes/clusters, endpoints and YAML; shell-only New environment |
 | Overview | counts, dataDir, warnings, validate |
-| Records | Services, Deployments, Rule profiles and Operation bindings as YAML editors |
+| DR Groups (容灾组) | one card per group with a type badge, scope, RTO/RPO pills and member rows (open-environment action); header 导入/导出 buttons open the import/export modals |
+| Records | Services, Deployments, Rule profiles, Operation bindings and DR groups (容灾组) as YAML editors |
 | Context preview | pick environment + service (+ deployment) and inspect the Service Context |
 | Operation preview | operation → selected binding, skill availability, policy, parameters |
 
@@ -582,6 +595,8 @@ Summary; details in [security-model.md](./security-model.md).
 | AC-16 | A host records machine kind and command access; K8s kinds require an existing cluster; a Pod host is one machine, not one entry per Pod | yes | schema test + UI checklist + live verification |
 | AC-17 | Cluster metadata includes optional topology and a node count derived from `clusterRef`; cluster create/edit round-trips in the panel | yes | app test + UI checklist |
 | AC-18 | A host account can store a web login URL and username; a password is written to the credential service and only `credentialRef` remains; the account can be edited and searched by URL | yes | app test + UI checklist + live verification |
+| AC-19 | A DR group saves with `AS`/`AA`/`AP`/custom type, member roles and RTO/RPO; missing member environments are flagged, and deleting a member environment is blocked while the group exists | yes | schema/integrity tests + UI checklist |
+| AC-20 | A bundle exports the selected environments plus everything that references them and imports it back with `skip`/`overwrite`/`error`; production bundles require confirmation and per-record failures do not abort the rest | yes | bundle tests + live verification |
 
 ---
 
@@ -668,6 +683,8 @@ Remaining, none blocking V1:
 - Cross-process write locking for a shared `dataDir`.
 - A session-event projection instead of the session file.
 - Client bundling if the UI outgrows a single plain-JS module.
+- DR group follow-ups: a witness/仲裁 member role, scheduled drill tracking, and (later)
+  failover/switch/promote operations behind the existing approval gates.
 
 ---
 

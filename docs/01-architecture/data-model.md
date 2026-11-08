@@ -15,7 +15,7 @@ TypeScript declarations below are the source of truth for the Host implementatio
 ### 1.1 Identifiers
 
 - Pattern: `^[a-z0-9][a-z0-9-]{0,62}$` (1–63 characters).
-- One namespace per record type: environment ids, service ids, deployment ids, rule profile ids and operation binding ids are unique within their own type.
+- One namespace per record type: environment ids, service ids, deployment ids, rule profile ids, operation binding ids and DR group ids are unique within their own type.
 - A record's `id` must equal its file name without extension.
 
 ### 1.2 Timestamps
@@ -60,6 +60,8 @@ type HostKind = 'vm' | 'physical' | 'k8s-all-in-one' | 'k8s-worker' | 'pod-host'
 
 type HostAccessMethod = 'ssh' | 'kubectl' | 'docker';
 
+type DrGroupRole = 'primary' | 'standby';
+
 type ClusterTopology = 'all-in-one' | 'separate' | 'external';
 
 type Status = 'configured-not-verified' | 'partially-verified' | 'verified';
@@ -81,7 +83,7 @@ type Severity = 'info' | 'warning' | 'error';
 
 ## 3. Environment
 
-An environment is the unit of topology: roles, hosts, clusters and access endpoints travel together in one file. Hosts and clusters are embedded entities rather than top-level records; this keeps co-location edits atomic. Cross-environment host sharing is out of V1 scope (see §14).
+An environment is the unit of topology: roles, hosts, clusters and access endpoints travel together in one file. Hosts and clusters are embedded entities rather than top-level records; this keeps co-location edits atomic. Cross-environment host sharing is out of V1 scope (see §16).
 
 ```ts
 interface LogicalRole {
@@ -382,7 +384,7 @@ updatedAt: 2026-11-01T03:00:00.000Z
 
 A service is environment-independent. Deployment placement lives in §5. Service contexts,
 operation routing and rule resolution accept a service alone: the environment and
-deployment are optional refinement layers (§8.2). A deployment is *current placement*,
+deployment are optional refinement layers (§10.2). A deployment is *current placement*,
 not a routing prerequisite — machines can change, and the machine binding is resolved at
 execution time, not pinned in the registry.
 
@@ -719,9 +721,179 @@ updatedAt: 2026-11-01T03:00:00.000Z
 
 ---
 
-## 8. Resolved results
+## 8. DR group
 
-### 8.1 Rule source and provenance
+A disaster-recovery group joins two or more environments (typically a production site and
+its standby) so the panel can present the DR topology together. Membership lives **in the
+group record**: environments do not point back at groups. Members are metadata that join
+environments for display — a group never triggers writes by itself, and no failover /
+switch / promote operation exists (roadmap).
+
+```ts
+interface DrGroupMember {
+  environmentId: string;        // must exist; see §14
+  role: DrGroupRole;            // primary = 生产/主用, standby = 容灾/备用
+  weight?: number;              // 0..1000 traffic/priority weight; primary usually 100, standby 0
+  note?: string;                // ≤500 chars
+}
+
+interface DrGroup extends RecordMeta {
+  name: string;                 // 1..120, required; names are not unique (ids are)
+  type: string;                 // AS | AA | AP or a custom token, required
+  scope?: string;               // ≤40 chars, e.g. 同城 / 两地三中心
+  rpoMinutes?: number;          // recovery point objective, minutes, 0..10080
+  rtoMinutes?: number;          // recovery time objective, minutes, 0..10080
+  note?: string;                // ≤2000 chars
+  members: DrGroupMember[];     // 1..8 entries
+}
+```
+
+- `type` is a short token matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$`. The standard codes
+  are `AS` (Active-Standby 主备), `AA` (Active-Active 双活) and `AP` (Active-Passive 主从);
+  the UI labels them through the `DR_GROUP_TYPE_LABELS` constant and displays custom codes
+  as-is.
+- `rtoMinutes` / `rpoMinutes` are descriptive objectives in minute granularity
+  (`DR_GROUP_LIMITS.maxMinutes = 7 * 24 * 60`); they are targets, not enforced limits.
+- Cross-checks (`crossCheck`): member `environmentId`s must be unique within the group; at
+  least one member must be `primary`; for `AS` and `AP` exactly one `primary` is required
+  (`AA` allows several).
+- A witness/仲裁 member role is deliberately **not** modelled (roadmap). No secrets: the
+  same `credentialRef`-only rule as every other record applies.
+
+### 8.1 Referential integrity
+
+- Every `members[].environmentId` must exist. `env_validate` reports a missing one as a
+  `DR_GROUP_MEMBER_UNKNOWN` warning; a bundle import fails that record with the same code.
+- `findReferences` scans groups, so deleting an environment that is a member of a group is
+  blocked with `RECORD_IN_USE` until the group is edited or removed.
+
+### 8.2 YAML examples
+
+AS (Active-Standby 主备):
+
+```yaml
+id: dr-prod-as
+schemaVersion: 1
+name: 生产主备
+type: AS
+scope: 同城
+rtoMinutes: 30
+rpoMinutes: 10
+members:
+  - environmentId: prod-env
+    role: primary
+    weight: 100
+    note: 生产
+  - environmentId: dr-env
+    role: standby
+    weight: 0
+    note: 容灾
+createdAt: 2026-11-08T00:00:00.000Z
+updatedAt: 2026-11-08T00:00:00.000Z
+```
+
+AA (Active-Active 双活) with several primaries:
+
+```yaml
+id: dr-fin-aa
+schemaVersion: 1
+name: 两地双活
+type: AA
+scope: 两地三中心
+members:
+  - environmentId: fin-site-a
+    role: primary
+    weight: 50
+  - environmentId: fin-site-b
+    role: primary
+    weight: 50
+createdAt: 2026-11-08T00:00:00.000Z
+updatedAt: 2026-11-08T00:00:00.000Z
+```
+
+---
+
+## 9. Bundle import / export
+
+A **bundle** is a self-contained, versioned document that carries records of several kinds
+at once: it backs up a set of environments and migrates them to another profile. Bundles
+are transient documents — they exist only in memory during an import/export call and are
+never written to the data directory (see `storage-contract.md` §1.3).
+
+### 9.1 Document shape
+
+```ts
+interface BundleDocument {
+  version?: 1;                    // absent or 1; anything else is IMPORT_INVALID
+  exportedAt?: string;            // ISO-8601; set by export
+  environments?: Environment[];
+  services?: Service[];
+  deployments?: Deployment[];
+  ruleProfiles?: RuleProfile[];
+  operationBindings?: OperationBinding[];
+  drGroups?: DrGroup[];
+}
+```
+
+- Unknown top-level keys are rejected (`IMPORT_INVALID`); every kind field must be an
+  array when present.
+- Limits (`BUNDLE_LIMITS`): at most 500 records, at most 100 environments, at most
+  2 MiB serialized (`IMPORT_TOO_LARGE` / `RECORD_TOO_LARGE`).
+
+### 9.2 Import
+
+`app.importBundle({ document, mode?, confirm? }, actor)`:
+
+1. Every record is parsed with the same zod schema as a normal save (`RECORD_INVALID` on
+   failure).
+2. Records are applied in topological order: environment → service → deployment →
+   ruleProfile → operationBinding → drGroup.
+3. References resolve against the existing registry **plus** the ids being written by this
+   same bundle, so a bundle may create an environment and its deployments together. An
+   unresolved reference fails that record with `ENV_NOT_FOUND` / `SERVICE_NOT_FOUND` /
+   `DEPLOYMENT_NOT_FOUND` / `DR_GROUP_MEMBER_UNKNOWN`.
+4. Conflict modes:
+   - `skip` (default) — keeps the existing record and reports it as skipped;
+   - `overwrite` — replaces it, preserving the existing `createdAt`;
+   - `error` — fails that record with `RECORD_EXISTS`.
+5. Production gate: if any candidate record is production (an environment with
+   `category: production`, or a record referencing a production environment/service/
+   deployment), the call throws `APPROVAL_REQUIRED` unless `confirm: true`. Actor `ui`
+   gets `FORBIDDEN` unless `writePolicy.allowUiProductionWrites` is true (same rule as the
+   panel's other writes).
+6. Returns `{ imported: ImportedRecordRef[], skipped, failed: ImportFailure[], warnings }`.
+   A per-record failure does not abort the rest; some records may still be imported when
+   others fail.
+7. Passwords are never accepted: record schemas are strict, so a `password` /
+   `sshPassword`-style field fails with `RECORD_INVALID`.
+
+### 9.3 Export
+
+`app.exportBundle(environmentIds?)`:
+
+- Omitted or empty ids → the whole registry.
+- Explicit ids → those environments plus their deployments, the services those deployments
+  reference, operation bindings whose match hits a selected environment/service/deployment,
+  rule profiles referenced by those services and bindings, and DR groups that contain at
+  least one selected environment as a member. Lists are sorted by id; `exportedAt` is set.
+- An unknown id fails with `ENV_NOT_FOUND`.
+
+### 9.4 Surface
+
+- HTTP `POST /env-manager/api`: op `import` (payload `{ document | yaml, mode?, confirm? }`;
+  `yaml` is a YAML/JSON string parsed by the host via `parseYamlText`) and op `export`
+  (payload `{ environmentIds?: string[] }` → `{ document, counts }`). Actor is `ui`.
+- Tools: `env_import` (JSON `document`, `mode` skip/overwrite/error, `confirm`; retries
+  once with an approval prompt on `APPROVAL_REQUIRED`) and `env_export` (optional
+  `environmentIds` → document + counts).
+- Status mapping: `DR_GROUP_NOT_FOUND` → 404, `IMPORT_TOO_LARGE` → 413,
+  `IMPORT_INVALID` / `DR_GROUP_MEMBER_UNKNOWN` → 400.
+
+---
+
+## 10. Resolved results
+
+### 10.1 Rule source and provenance
 
 ```ts
 type RuleLayer = 'global' | 'service' | 'environment' | 'deployment';
@@ -758,7 +930,7 @@ interface ResolvedStructured<T> {
 
 `definedBy` answers "where did this template come from". `inputs` answers "what influenced the final value". Both are required: an override of `paths.logDir` changes `paths.applicationLog` even though the latter was defined at the service layer.
 
-### 8.2 Service Context
+### 10.2 Service Context
 
 The environment and deployment are **optional refinement layers**, not prerequisites:
 `serviceId` is the only required anchor. Without an environment the context covers the
@@ -812,7 +984,7 @@ interface ServiceContext {
 `status` starts as `configured-not-verified`. Without an online check, V1 must not claim `verified`.
 `credentials` is populated only when an environment context is present (credentials attach to hosts/clusters).
 
-### 8.3 Operation Resolution
+### 10.3 Operation Resolution
 
 ```ts
 interface Diagnostic {
@@ -862,7 +1034,7 @@ interface ResolvedTarget {
 
 ---
 
-## 9. Session context
+## 11. Session context
 
 ```ts
 interface SessionContext {
@@ -877,7 +1049,7 @@ Session context is per session and never mutates registry records. It is stored 
 
 ---
 
-## 10. Operation record (P1 boundary)
+## 12. Operation record (P1 boundary)
 
 ```ts
 interface OperationRecord {
@@ -900,7 +1072,7 @@ V1 defines the type and a no-op bridge; it does not persist operation records it
 
 ---
 
-## 10.1 Experience record (execution loop)
+## 12.1 Experience record (execution loop)
 
 Executed operations (script/command targets) write one experience per run; hand-written
 lessons from Skill runs can be added through `env_experience add`. Experiences are
@@ -935,7 +1107,7 @@ smarter with use without any auto-apply path.
 
 ---
 
-## 11. Diagnostics catalogue
+## 13. Diagnostics catalogue
 
 | Code | Severity | Meaning |
 |---|---|---|
@@ -980,6 +1152,11 @@ smarter with use without any auto-apply path.
 | `EXECUTION_FAILED` | error | Execution could not start or exited non-zero |
 | `APPROVAL_REQUIRED` | error | Gated write execution needs explicit approval (`confirm: true`) |
 | `EXPERIENCE_NOT_FOUND` | error | Experience id does not exist |
+| `DR_GROUP_NOT_FOUND` | error | DR group id does not exist |
+| `DR_GROUP_MEMBER_UNKNOWN` | warning | A DR group member references a missing environment (`env_validate`); a bundle import fails that record with the same code |
+| `IMPORT_INVALID` | error | Import document shape, version or field validation failed |
+| `IMPORT_TOO_LARGE` | error | Import document exceeds `BUNDLE_LIMITS` (500 records / 100 environments / 2 MiB) |
+| `RECORD_EXISTS` | error | Import conflict mode `error`: the id already exists (per-record failure code, not an `EnvManagerError` code) |
 | `CREDENTIAL_MISSING` | warning | `credentialRef` has no configured value |
 | `MEMORY_BRIDGE_UNAVAILABLE` | warning | Memory plugin not installed |
 | `SESSION_CONTEXT_UNAVAILABLE` | error | A session-scoped tool ran without an owning agent |
@@ -988,7 +1165,7 @@ smarter with use without any auto-apply path.
 
 ---
 
-## 12. Referential integrity
+## 14. Referential integrity
 
 Validated on every write and by `env_validate`:
 
@@ -1004,6 +1181,7 @@ Validated on every write and by `env_validate`:
 10. `Environment.loginRecords[].accountId` exists on the referenced host when both are set.
 11. `OperationBinding` match references (when present) exist.
 12. `OperationBinding.skill.name` is non-empty.
+13. `DrGroup.members[].environmentId` exists.
 
 Duplicate host ids and duplicate host IPs are also reported as integrity errors.
 Schema validation additionally rejects an environment whose `roles` is empty, and a host whose
@@ -1014,7 +1192,7 @@ Broken references are reported, never silently repaired.
 
 ---
 
-## 13. Identity and cardinality
+## 15. Identity and cardinality
 
 ```text
 Environment 1 ── N Host
@@ -1026,11 +1204,12 @@ Service     1 ── N DeploymentBinding
 Environment 1 ── N DeploymentBinding
 Service     1 ── N RuleProfile    (ordered ruleProfileRefs)
 OperationBinding N ── predicate over Environment/Service/Deployment
+DR group   N ── N Environment   (via DrGroup.members; membership lives in the group)
 ```
 
 ---
 
-## 14. Out-of-scope model changes
+## 16. Out-of-scope model changes
 
 The following are deliberately postponed:
 
@@ -1038,3 +1217,9 @@ The following are deliberately postponed:
 - Storing discovered assets separately from declared assets.
 - Vector or embedding-based retrieval for services.
 - Per-user permissions inside one DSH profile.
+- Failover / switch / promote operations for DR groups: a group is topology metadata only
+  and never triggers writes by itself.
+- A witness/仲裁 member role and scheduled DR-drill tracking for groups.
+- Partial-per-kind bundle documents: a bundle always uses the full plural-kind shape
+  (`environments`, `services`, `deployments`, `ruleProfiles`, `operationBindings`,
+  `drGroups`); importing only some kinds means omitting the others.

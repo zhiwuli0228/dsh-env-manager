@@ -225,6 +225,41 @@ window.__ModuleLoader__.load({
         defaultRolesHint: 'Management, business, database and expansion are created by default. Add nodes to each plane after creating the environment.',
         envIdExists: 'That environment id already exists.',
         environmentCreated: 'Environment created',
+        drGroups: 'DR groups',
+        drGroupTab: 'DR groups',
+        drGroupsHint: 'Disaster-recovery topologies: one card per group, joining a production environment with its standby. AS = Active-Standby (主备), AA = Active-Active (双活), AP = Active-Passive (主从); custom codes are shown as-is.',
+        drPrimary: 'Production',
+        drStandby: 'Disaster recovery',
+        drType: 'Type',
+        drScope: 'Site scope',
+        drRto: 'RTO',
+        drRpo: 'RPO',
+        drMinutes: 'min',
+        drMembers: 'Members',
+        drNoGroups: 'No DR groups yet',
+        drNoGroupsHint: 'Create a DR group under Records → DR groups, or import a bundle that includes drGroups.',
+        drNewGroup: 'New DR group',
+        drOpenEnvironment: 'Open environment',
+        drNoType: 'Unclassified',
+        importExport: 'Import / export',
+        drImportTitle: 'Batch import',
+        drImportHint: 'Paste a YAML/JSON bundle (version 1 with environments, services, deployments, ruleProfiles, operationBindings, drGroups). Records carry credentialRef names only — passwords are never accepted. Conflicting ids follow the mode below; production records require confirmation.',
+        drImportMode: 'Conflict mode',
+        drImportModeSkip: 'Skip existing',
+        drImportModeOverwrite: 'Overwrite existing',
+        drImportModeError: 'Fail conflicts',
+        drImportConfirm: 'Import',
+        drImportDone: 'Import finished',
+        drImportConfirmHint: 'The bundle contains production records. Confirm to import them.',
+        drImported: 'Imported',
+        drSkipped: 'Skipped',
+        drFailed: 'Failed',
+        drBundleInvalid: 'Bundle must be a YAML/JSON object.',
+        drExportTitle: 'Export bundle',
+        drExportHint: 'Export the whole registry, or type environment ids/names (comma separated) to export those environments plus their deployments, services, bindings and DR groups.',
+        drExportEnvironments: 'Environment ids (blank = full registry)',
+        drExportDownload: 'Download YAML',
+        drExportDone: 'Bundle exported',
       },
       zh: {
         title: '环境管理器',
@@ -445,12 +480,47 @@ window.__ModuleLoader__.load({
         defaultRolesHint: '默认创建管理面、业务面、数据库和扩容四类；创建后在各自平面添加节点。',
         envIdExists: '该环境 ID 已存在。',
         environmentCreated: '环境已创建',
+        drGroups: '容灾组',
+        drGroupTab: '容灾组',
+        drGroupsHint: '容灾拓扑：每个容灾组一张卡片，把生产环境与容灾环境并排展示。AS = 主备（Active-Standby），AA = 双活（Active-Active），AP = 主从（Active-Passive）；自定义类型原样显示。',
+        drPrimary: '生产',
+        drStandby: '容灾',
+        drType: '类型',
+        drScope: '站点范围',
+        drRto: 'RTO',
+        drRpo: 'RPO',
+        drMinutes: '分钟',
+        drMembers: '成员',
+        drNoGroups: '还没有容灾组',
+        drNoGroupsHint: '在「记录 → 容灾组」里新建，或导入一个包含 drGroups 的环境包。',
+        drNewGroup: '新建容灾组',
+        drOpenEnvironment: '打开环境',
+        drNoType: '未分类',
+        importExport: '导入 / 导出',
+        drImportTitle: '批量导入',
+        drImportHint: '粘贴一个 YAML/JSON 环境包（version 1，可含 environments / services / deployments / ruleProfiles / operationBindings / drGroups）。记录只允许 credentialRef 名称，永不接受密码。已存在的 id 按下方的冲突策略处理；涉及生产记录需确认。',
+        drImportMode: '冲突策略',
+        drImportModeSkip: '跳过已有',
+        drImportModeOverwrite: '覆盖已有',
+        drImportModeError: '冲突即失败',
+        drImportConfirm: '导入',
+        drImportDone: '导入完成',
+        drImportConfirmHint: '环境包包含生产记录，确认后导入。',
+        drImported: '已导入',
+        drSkipped: '已跳过',
+        drFailed: '失败',
+        drBundleInvalid: '环境包必须是 YAML/JSON 对象。',
+        drExportTitle: '导出环境包',
+        drExportHint: '导出整个注册表，或填写一个或多个环境 id/名称（逗号分隔），导出这些环境及其部署、服务、绑定与容灾组。',
+        drExportEnvironments: '环境 id（留空 = 全量）',
+        drExportDownload: '下载 YAML',
+        drExportDone: '环境包已导出',
       },
     };
     const lang = String(navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
     const t = (key) => MESSAGES[lang][key] || MESSAGES.en[key] || key;
 
-    const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding'];
+    const KINDS = ['environment', 'service', 'deployment', 'ruleProfile', 'operationBinding', 'drGroup'];
     const RECORD_KINDS = KINDS.filter((kind) => kind !== 'environment');
     const DEFAULT_ROLES = [
       { id: 'management', name: 'Management Plane' },
@@ -504,7 +574,11 @@ window.__ModuleLoader__.load({
       deployment: 'deployments',
       ruleProfile: 'ruleProfiles',
       operationBinding: 'operationBindings',
+      drGroup: 'drGroups',
     };
+    const DR_TYPE_LABELS = { AS: 'AS 主备', AA: 'AA 双活', AP: 'AP 主从' };
+    const drTypeLabel = (value) => DR_TYPE_LABELS[String(value || '').toUpperCase()] || String(value || '') || t('drNoType');
+    const drRoleLabel = (role) => (role === 'primary' ? t('drPrimary') : t('drStandby'));
     const CATEGORY_LABELS = {
       en: { dev: 'Development', test: 'Test', staging: 'Staging', production: 'Production', custom: 'Custom' },
       zh: { dev: '开发', test: '测试', staging: '预发', production: '生产', custom: '自定义' },
@@ -651,6 +725,16 @@ window.__ModuleLoader__.load({
 .dem-textarea{width:100%;flex:1;min-height:420px;resize:vertical;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:8px;padding:11px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;tab-size:2}
 .dem-empty-editor{min-height:480px;display:flex;align-items:center;justify-content:center;padding:20px}
 .dem-empty-editor .dem-empty{min-height:220px;width:100%}
+.dem-overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:24px}
+.dem-modal{width:min(760px,100%);max-height:82vh;display:flex;flex-direction:column;gap:10px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;padding:14px}
+.dem-modal-body{overflow:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
+.dem-modal-foot{display:flex;justify-content:flex-end;gap:8px}
+.dem-badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;line-height:1.6;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);white-space:nowrap}
+.dem-badge[data-role="primary"]{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}
+.dem-badge[data-role="standby"]{color:#c98a2b;border-color:#c98a2b}
+.dem-dr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.dem-dr-member{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--dsw-alias-border-l1)}
+.dem-dr-member-left{display:flex;align-items:center;gap:8px;min-width:0}
 .dem-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
 .dem-form-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .dem-field{display:flex;flex-direction:column;gap:5px;min-width:0}
@@ -926,6 +1010,7 @@ window.__ModuleLoader__.load({
       deployment: 'id: new-deployment\nschemaVersion: 1\nenvironmentId: new-env\nserviceId: new-service\nruntimeMode: kubernetes\nlocation:\n  kind: kubernetes\n  clusterRef: k8s-01\n  namespace: default\n  workload:\n    kind: Deployment\n    name: new-service\n',
       ruleProfile: 'id: new-rule\nschemaVersion: 1\ndescription: New rule profile\nvariables: {}\npaths: {}\n',
       operationBinding: 'id: new-binding\nschemaVersion: 1\noperation: redeploy\nmatch:\n  environmentId: new-env\n  serviceId: new-service\n# Exactly one target: a Skill (discovery only) OR an execute target.\n# skill:\n#   name: example-skill\nexecute:\n  mode: command\n  argv: ["kubectl", "rollout", "restart", "${workload}", "-n", "${namespace}"]\n  timeoutSeconds: 300\n# execute modes: script (under <dataDir>/scripts), command (local CLI), remote (prepared ssh).\nparameters:\n  workload: ${deployment.location.workload.name}\n  namespace: ${deployment.location.namespace}\npolicy:\n  requiresApproval: true\n  allowProduction: false\nenabled: true\n',
+      drGroup: 'id: new-dr-group\nschemaVersion: 1\nname: New DR Group\n# AS 主备 / AA 双活 / AP 主从, or a custom code\ntype: AA\nscope: 同城\n# rtoMinutes: 30\n# rpoMinutes: 10\nmembers:\n  - environmentId: prod-env\n    role: primary\n    weight: 100\n    note: 生产\n  - environmentId: dr-env\n    role: standby\n    weight: 0\n    note: 容灾\n',
     };
 
     function EnvironmentDetail(props) {
@@ -2147,6 +2232,13 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState(null);
       const [message, setMessage] = useState(null);
 
+      useEffect(() => {
+        if (!environmentMode && props.initialRecordKind) {
+          setRecordKind(props.initialRecordKind);
+          if (props.onConsumeRecordKind) props.onConsumeRecordKind();
+        }
+      }, [environmentMode, props.initialRecordKind, props.onConsumeRecordKind]);
+
       const load = useCallback(async (nextKind) => {
         try {
           setError(null);
@@ -2176,6 +2268,24 @@ window.__ModuleLoader__.load({
         setCreating(true);
         if (props.onCreateConsumed) props.onCreateConsumed();
       }, [environmentMode, props.createRequest, props.onCreateConsumed]);
+
+      useEffect(() => {
+        if (!environmentMode || !props.initialEnvironmentId) return;
+        const id = props.initialEnvironmentId;
+        if (props.onConsumeEnvironmentId) props.onConsumeEnvironmentId();
+        (async () => {
+          try {
+            setError(null);
+            setMessage(null);
+            const data = await call('get', { kind: 'environment', id });
+            setSelected(id);
+            setRecord(data.record || null);
+            setYaml(data.yaml);
+          } catch (next) {
+            setError(next);
+          }
+        })();
+      }, [environmentMode, props.initialEnvironmentId, props.onConsumeEnvironmentId]);
 
       const open = async (id) => {
         try {
@@ -2499,12 +2609,88 @@ window.__ModuleLoader__.load({
       ]);
     }
 
+    function DrView(props) {
+      const [groups, setGroups] = useState([]);
+      const [envs, setEnvs] = useState([]);
+      const [error, setError] = useState(null);
+      const load = async () => {
+        try {
+          setError(null);
+          const [groupData, envData] = await Promise.all([
+            call('list', { kind: 'drGroup' }),
+            call('list', { kind: 'environment' }),
+          ]);
+          setGroups(groupData.items || []);
+          setEnvs(envData.items || []);
+        } catch (next) {
+          setError(next);
+        }
+      };
+      useEffect(() => {
+        load();
+      }, []);
+      const envById = new Map(envs.map((env) => [env.id, env]));
+      return h('div', { className: 'dem-view' },
+        h('div', { className: 'dem-toolbar' },
+          h('div', { className: 'dem-toolbar-copy' },
+            h('h2', { className: 'dem-section-title' }, t('drGroupTab')),
+            h('p', { className: 'dem-hint' }, t('drGroupsHint'))),
+          h('div', { className: 'dem-actions' },
+            h(Button, { onClick: props.onNewGroup }, t('drNewGroup')),
+            h(Button, { onClick: load }, t('refresh')))),
+        error ? h(ErrorBox, { error }) : null,
+        groups.length === 0
+          ? h('div', { className: 'dem-card' },
+            h('div', { className: 'dem-empty' },
+              h('strong', null, t('drNoGroups')),
+              h('span', null, t('drNoGroupsHint'))))
+          : h('div', { className: 'dem-dr-grid' }, groups.map((group) =>
+            h('div', { key: group.id, className: 'dem-card' },
+              h('div', { className: 'dem-section-head' },
+                h('div', null,
+                  h('h3', { className: 'dem-section-title' }, group.name || group.id),
+                  h('div', { className: 'dem-detail-sub' },
+                    h('span', { className: 'dem-badge' }, drTypeLabel(group.type)),
+                    group.scope ? h('span', { className: 'dem-badge' }, group.scope) : null,
+                    typeof group.rtoMinutes === 'number'
+                      ? h('span', { className: 'dem-badge' }, t('drRto') + ' ' + group.rtoMinutes + t('drMinutes'))
+                      : null,
+                    typeof group.rpoMinutes === 'number'
+                      ? h('span', { className: 'dem-badge' }, t('drRpo') + ' ' + group.rpoMinutes + t('drMinutes'))
+                      : null)),
+                h('span', { className: 'dem-pill' }, group.id)),
+              (group.members || []).map((member) => {
+                const env = envById.get(member.environmentId);
+                return h('div', { key: member.environmentId, className: 'dem-dr-member' },
+                  h('div', { className: 'dem-dr-member-left' },
+                    h('span', { className: 'dem-badge', 'data-role': member.role }, drRoleLabel(member.role)),
+                    h('span', { className: 'dem-item-name' }, (env && env.name) || member.environmentId),
+                    h('span', { className: 'dem-item-meta' },
+                      member.environmentId + (typeof member.weight === 'number' ? ' · ' + t('drMembers') + ' w=' + member.weight : ''))),
+                  h(Button, { onClick: () => props.onOpenEnvironment(member.environmentId) }, t('drOpenEnvironment')));
+              })))));
+    }
+
     function Panel() {
       const [tab, setTab] = useState('environments');
       const [createRequest, setCreateRequest] = useState(0);
+      const [recordsKind, setRecordsKind] = useState(null);
+      const [openEnvironmentId, setOpenEnvironmentId] = useState(null);
+      const [importOpen, setImportOpen] = useState(false);
+      const [importText, setImportText] = useState('');
+      const [importMode, setImportMode] = useState('skip');
+      const [importBusy, setImportBusy] = useState(false);
+      const [importResult, setImportResult] = useState(null);
+      const [importError, setImportError] = useState(null);
+      const [exportOpen, setExportOpen] = useState(false);
+      const [exportIds, setExportIds] = useState('');
+      const [exportBusy, setExportBusy] = useState(false);
+      const [exportError, setExportError] = useState(null);
+      const [reloadKey, setReloadKey] = useState(0);
       const tabs = useMemo(() => [
         ['environments', t('environments')],
         ['overview', t('overview')],
+        ['dr', t('drGroupTab')],
         ['records', t('records')],
         ['context', t('context')],
         ['operations', t('operations')],
@@ -2513,6 +2699,53 @@ window.__ModuleLoader__.load({
         setTab('environments');
         setCreateRequest((value) => value + 1);
       };
+      const runImport = async () => {
+        try {
+          setImportBusy(true);
+          setImportError(null);
+          setImportResult(null);
+          const data = await call('import', { yaml: importText, mode: importMode, confirm: true });
+          setImportResult(data);
+          setReloadKey((value) => value + 1);
+        } catch (next) {
+          setImportError(next);
+        } finally {
+          setImportBusy(false);
+        }
+      };
+      const runExport = async () => {
+        try {
+          setExportBusy(true);
+          setExportError(null);
+          const ids = String(exportIds || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+          const data = await call('export', { environmentIds: ids.length ? ids : undefined });
+          const blob = new Blob([JSON.stringify(data.document, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'env-manager-bundle.json';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+        } catch (next) {
+          setExportError(next);
+        } finally {
+          setExportBusy(false);
+        }
+      };
+      const modal = (open, title, hint, body, foot, onClose) =>
+        open ? h('div', { className: 'dem-overlay', onClick: (event) => { if (event.target === event.currentTarget && onClose) onClose() } },
+          h('div', { className: 'dem-modal', onClick: (event) => event.stopPropagation() },
+            h('div', { className: 'dem-section-head' },
+              h('div', null,
+                h('h3', { className: 'dem-section-title' }, title),
+                h('p', { className: 'dem-hint' }, hint))),
+            h('div', { className: 'dem-modal-body' }, body),
+            h('div', { className: 'dem-modal-foot' }, foot))) : null;
       return h('div', { className: 'dem-root' },
         h('div', { className: 'dem-shell' },
           h('header', { className: 'dem-header' },
@@ -2522,6 +2755,8 @@ window.__ModuleLoader__.load({
                 h('h1', { className: 'dem-title' }, t('title')),
                 h('p', { className: 'dem-sub' }, t('subtitle')))),
             h('div', { className: 'dem-header-actions' },
+              h(Button, { onClick: () => setExportOpen(true) }, t('drExportTitle')),
+              h(Button, { onClick: () => setImportOpen(true) }, t('drImportTitle')),
               h(Button, { onClick: requestCreate, variant: 'primary' }, t('newEnvironment')))),
           h('div', { className: 'dem-tabs', role: 'tablist' }, tabs.map(([key, label]) =>
             h('button', {
@@ -2532,15 +2767,80 @@ window.__ModuleLoader__.load({
               'aria-selected': tab === key ? 'true' : 'false',
               onClick: () => setTab(key),
             }, label))),
-          tab === 'overview' ? h(Overview, { onCreateEnvironment: requestCreate }) : null,
+          tab === 'overview' ? h(Overview, { key: 'overview-' + reloadKey, onCreateEnvironment: requestCreate }) : null,
           tab === 'environments' ? h(Records, {
+            key: 'environments-' + reloadKey,
             kind: 'environment',
             createRequest,
             onCreateConsumed: () => setCreateRequest(0),
+            initialEnvironmentId: openEnvironmentId,
+            onConsumeEnvironmentId: () => setOpenEnvironmentId(null),
           }) : null,
-          tab === 'records' ? h(Records) : null,
+          tab === 'dr' ? h(DrView, {
+            key: 'dr-' + reloadKey,
+            onNewGroup: () => {
+              setRecordsKind('drGroup');
+              setTab('records');
+            },
+            onOpenEnvironment: (id) => {
+              setOpenEnvironmentId(id);
+              setTab('environments');
+            },
+          }) : null,
+          tab === 'records' ? h(Records, {
+            key: 'records-' + reloadKey,
+            initialRecordKind: recordsKind,
+            onConsumeRecordKind: () => setRecordsKind(null),
+          }) : null,
           tab === 'context' ? h(ContextView) : null,
-          tab === 'operations' ? h(OperationsView) : null));
+          tab === 'operations' ? h(OperationsView) : null,
+          modal(importOpen, t('drImportTitle'), t('drImportHint'),
+            [
+              h('div', { className: 'dem-field' },
+                h('span', { className: 'dem-label' }, t('drImportMode')),
+                h(Select, {
+                  value: importMode,
+                  onChange: (value) => setImportMode(value),
+                  options: ['skip', 'overwrite', 'error'].map((value) => ({ value, label: t(value === 'skip' ? 'drImportModeSkip' : value === 'overwrite' ? 'drImportModeOverwrite' : 'drImportModeError') })),
+                })),
+              h('textarea', {
+                className: 'dem-textarea',
+                'aria-label': t('drImportTitle'),
+                value: importText,
+                onChange: (event) => setImportText(event.target.value),
+                spellCheck: false,
+                placeholder: 'version: 1\nenvironments: []\nservices: []\ndeployments: []\nruleProfiles: []\noperationBindings: []\ndrGroups: []\n',
+              }),
+              importError ? h(ErrorBox, { error: importError }) : null,
+              importResult ? h('div', { className: 'dem-result' },
+                t('drImportDone') + ' — ' + t('drImported') + ': ' + importResult.imported.length
+                + ' · ' + t('drSkipped') + ': ' + importResult.skipped.length
+                + ' · ' + t('drFailed') + ': ' + importResult.failed.length,
+                importResult.failed.length
+                  ? '\n' + importResult.failed.map((item) => item.kind + ' ' + (item.id || '#' + item.index) + ': ' + item.code + ' — ' + item.message).join('\n')
+                  : '') : null,
+            ],
+            [
+              h(Button, { onClick: () => { setImportOpen(false); setImportResult(null); setImportError(null); setImportText(''); } }, t('cancel')),
+              h(Button, { onClick: runImport, variant: 'primary', disabled: importBusy || !importText.trim() },
+                importBusy ? '…' : t('drImportConfirm')),
+            ],
+            () => setImportOpen(false)),
+          modal(exportOpen, t('drExportTitle'), t('drExportHint'),
+            [
+              h(Field, {
+                label: t('drExportEnvironments'),
+                value: exportIds,
+                onChange: setExportIds,
+                placeholder: 'prod-a, dr-a',
+              }),
+              exportError ? h(ErrorBox, { error: exportError }) : null,
+            ],
+            [
+              h(Button, { onClick: () => setExportOpen(false) }, t('cancel')),
+              h(Button, { onClick: runExport, variant: 'primary', disabled: exportBusy }, exportBusy ? '…' : t('drExportDownload')),
+            ],
+            () => setExportOpen(false))));
     }
 
     return {

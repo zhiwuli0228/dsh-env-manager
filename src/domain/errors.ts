@@ -43,6 +43,10 @@ export type ErrorCode =
   | 'EXECUTION_FAILED'
   | 'APPROVAL_REQUIRED'
   | 'EXPERIENCE_NOT_FOUND'
+  | 'DR_GROUP_NOT_FOUND'
+  | 'DR_GROUP_MEMBER_UNKNOWN'
+  | 'IMPORT_INVALID'
+  | 'IMPORT_TOO_LARGE'
   | 'INTERNAL_ERROR'
 
 export class EnvManagerError extends HarnessError {

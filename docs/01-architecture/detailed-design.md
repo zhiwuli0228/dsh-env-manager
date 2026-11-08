@@ -28,7 +28,7 @@ UI screens and copy are in [`ui-design.md`](ui-design.md); build and packaging a
 - Paths: POSIX separators inside resolved values; OS-native paths only at the
   filesystem boundary.
 - All expected failures are `EnvManagerError extends HarnessError` (F5) with a code
-  from `data-model.md` §11.
+  from `data-model.md` §13.
 
 ## 3. Configuration
 

@@ -163,12 +163,74 @@ export const binding = {
   updatedAt: '2026-11-01T03:00:00.000Z',
 }
 
+/** A second, production-category environment used for DR and import tests. */
+export const environmentB = {
+  id: 'test-b',
+  schemaVersion: 1,
+  name: 'Test B (DR)',
+  aliases: ['tb'],
+  category: 'production',
+  roles: [
+    { id: 'management', name: 'Management' },
+    { id: 'business', name: 'Business' },
+  ],
+  hosts: [
+    {
+      id: 'host-b-01',
+      name: 'test-b-node-01',
+      os: 'ubuntu-22.04',
+      platform: 'linux/x86_64',
+      ip: '10.0.2.10',
+      sshPort: 22,
+      roles: ['management', 'business'],
+      adminUser: 'root',
+      isActive: true,
+      credentialRef: 'DSH_ENV_MANAGER_TEST_B_ROOT',
+      accounts: [
+        {
+          id: 'root',
+          username: 'root',
+          purpose: 'management',
+          protocol: 'ssh',
+          port: 22,
+          authType: 'private-key',
+          credentialRef: 'DSH_ENV_MANAGER_TEST_B_ROOT',
+          lastLoginAt: '2026-11-01T03:00:00.000Z',
+          lastLoginFrom: '10.0.2.1',
+        },
+      ],
+    },
+  ],
+  clusters: [],
+  endpoints: [],
+  loginRecords: [],
+  createdAt: '2026-11-01T03:00:00.000Z',
+  updatedAt: '2026-11-01T03:00:00.000Z',
+}
+
+export const drGroup = {
+  id: 'drg-test',
+  schemaVersion: 1,
+  name: 'Test DR Group',
+  type: 'AS',
+  scope: '同城',
+  rtoMinutes: 15,
+  rpoMinutes: 5,
+  members: [
+    { environmentId: 'test-a', role: 'primary', weight: 100, note: '生产' },
+    { environmentId: 'test-b', role: 'standby', weight: 0, note: '容灾' },
+  ],
+  createdAt: '2026-11-01T03:00:00.000Z',
+  updatedAt: '2026-11-01T03:00:00.000Z',
+}
+
 const DIRECTORIES: Record<RecordKind, string> = {
   environment: 'environments',
   service: 'services',
   deployment: 'deployments',
   ruleProfile: 'rules',
   operationBinding: 'operations',
+  drGroup: 'drGroups',
 }
 
 export async function writeRecord(
@@ -191,4 +253,9 @@ export async function writeFixture(dataDir: string): Promise<void> {
   await writeRecord(dataDir, 'ruleProfile', ruleProfile)
   await writeRecord(dataDir, 'deployment', deployment)
   await writeRecord(dataDir, 'operationBinding', binding)
+}
+
+export async function writeDrFixture(dataDir: string): Promise<void> {
+  await writeRecord(dataDir, 'environment', environmentB)
+  await writeRecord(dataDir, 'drGroup', drGroup)
 }
