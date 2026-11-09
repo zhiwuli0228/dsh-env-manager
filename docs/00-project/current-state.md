@@ -109,7 +109,7 @@ peer, scope, RTO/RPO, note; `drUnset` empty state), and environment list summari
 Released as `dsh-env-manager-plugin@0.1.7`; README gained a verified batch-import
 walkthrough (two-site bundle example, conflict modes, DR-peer behaviour).
 
-**DR peer linking in the panel (2026-11-09, client-only):** the 容灾 card was display-only,
+**DR peer linking in the panel (2026-11-09, released in `0.1.8`, client-only):** the 容灾 card was display-only,
 so operators could see "未参与容灾配对" but had no way to say which environment the peer
 is. The card now has 关联容灾 / 编辑容灾 (`drLink` / `drEdit`): an inline form with role
 (生产/容灾), type (`AS` / `AA` / `AP` or 自定义类型码), **peer environment picker limited to
@@ -159,10 +159,15 @@ The repository's own `@deepseek-ai/*` devDependencies now track the same family
 newest DSH line (no throwaway needed).
 Released as `dsh-env-manager-plugin@0.1.5`.
 
-**Release status (2026-11-08):** `dsh-env-manager-plugin@0.1.7` is the `latest` npm tag
-and the disaster-recovery release: DR marking embedded in each environment record (no
-separate module) plus versioned bundle import/export with `skip`/`overwrite`/`error`
-conflict modes and both-direction DR-peer export closure. `0.1.6` was the panel-route fix
+**Release status (2026-11-09):** `dsh-env-manager-plugin@0.1.8` is the `latest` npm tag
+and the DR peer-linking release: the 容灾 card on the environment detail edits the marking
+in place (role, type incl. a custom code, a peer picker over the other registered
+environments, scope, RTO/RPO, note), links the pair by id, optionally writes the mirror
+`dr` block on the peer and clears both sides on 解除容灾. It is a client-only change —
+`src/`, `lib/`, the schemas, the tools and the HTTP ops are unchanged. `0.1.7` was the
+disaster-recovery release: DR marking embedded in each environment record (no separate
+module) plus versioned bundle import/export with `skip`/`overwrite`/`error` conflict modes
+and both-direction DR-peer export closure. `0.1.6` was the panel-route fix
 release (mount the HTTP route through `ctx.inject(['webServer'])`;
 [GitHub Release v0.1.6](https://github.com/zhiwuli0228/dsh-env-manager/releases/tag/v0.1.6)).
 `v0.1.5` was the DSH-0.2.2-rcx
