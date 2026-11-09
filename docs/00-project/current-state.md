@@ -164,7 +164,10 @@ and the DR peer-linking release: the 容灾 card on the environment detail edits
 in place (role, type incl. a custom code, a peer picker over the other registered
 environments, scope, RTO/RPO, note), links the pair by id, optionally writes the mirror
 `dr` block on the peer and clears both sides on 解除容灾. It is a client-only change —
-`src/`, `lib/`, the schemas, the tools and the HTTP ops are unchanged. `0.1.7` was the
+`src/`, `lib/`, the schemas, the tools and the HTTP ops are unchanged. Published by the
+Release workflow ([run `42647282220`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/42647282220),
+all steps green); npm `gitHead` is `cad6276` with OIDC provenance, and the Release carries
+`dsh-env-manager-plugin-0.1.8.tgz`. `0.1.7` was the
 disaster-recovery release: DR marking embedded in each environment record (no separate
 module) plus versioned bundle import/export with `skip`/`overwrite`/`error` conflict modes
 and both-direction DR-peer export closure. `0.1.6` was the panel-route fix
