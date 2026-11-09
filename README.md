@@ -66,10 +66,13 @@ implemented and installed in the `desktop` profile.**
 - **Disaster-recovery marking lives inside each environment record** (`dr` block:
   `role` `primary` 生产 / `standby` 容灾, `type` `AS` 主备 / `AA` 双活 / `AP` 主从 or a
   custom code, optional `peer` environment, `scope` 同城/异地, RTO/RPO minutes and a
-  note). The environment detail shows a 容灾 card with the role badge; a missing peer
-  is a `DR_PEER_UNKNOWN` warning and deleting a referenced peer is blocked
-  (`RECORD_IN_USE`). The marking is metadata: there is no failover/switch/promote
-  operation and RTO/RPO are descriptive objectives, never enforced.
+  note). The environment detail's 容灾 card both shows and edits it: **关联容灾** opens a
+  form whose peer picker lists the other registered environments, so the pair is a link
+  between two environments (by id, never a copy); 同时更新对端环境 also writes the mirror
+  block on the peer, and 解除容灾 clears both sides. A missing peer is a `DR_PEER_UNKNOWN`
+  warning and deleting a referenced peer is blocked (`RECORD_IN_USE`). The marking is
+  metadata: there is no failover/switch/promote operation and RTO/RPO are descriptive
+  objectives, never enforced.
 - **Bundle import/export** (`env_import` / `env_export`, plus the panel's 导入 / 导出
   actions) onboards, backs up or migrates whole sets of environments with their services,
   deployments, rule profiles and operation bindings in one versioned document. DR marking
@@ -156,14 +159,17 @@ DSH credential service. It never appears in the registry YAML, tool output or lo
 ## Disaster-recovery marking and bundles
 
 1. Create both environments first (production site and DR site are independent records).
-2. Open the production environment (or use **新建记录** for the YAML template) and fill the
-   **容灾 (DR)** card in the environment detail: `role` `primary` (生产) or `standby` (容灾),
-   `type` (`AS` 主备 / `AA` 双活 / `AP` 主从 or a custom code), optional `peer` (the other
-   environment's id), `scope` (同城/异地), RTO/RPO minutes and a note. Every environment
-   carries its own marking; there is no separate DR module.
+2. Open the production environment and use **关联容灾** on the **容灾 (DR)** card in the
+   right rail: choose `role` `primary` (生产) / `standby` (容灾), `type` (`AS` 主备 /
+   `AA` 双活 / `AP` 主从 or a custom code), the **peer environment** from the picker (the
+   other registered environment), `scope` (同城/异地), RTO/RPO minutes and a note. Keep
+   同时更新对端环境 checked so the peer's own marking is written back with the opposite
+   role — or repeat the step on the peer environment. Every environment carries its own
+   marking; there is no separate DR module, and the YAML tab edits the same block.
 3. Run **校验 (Validate)** from Overview: an environment whose `dr.peer` is missing is
    flagged `DR_PEER_UNKNOWN`, and deleting an environment that is the DR peer of another
-   is blocked with `RECORD_IN_USE` until the peer link is edited or removed.
+   is blocked with `RECORD_IN_USE` until the peer link is edited or removed
+   (**解除容灾** removes this side and the peer's back-reference).
 4. To onboard or back up a whole set, use **导入 / 导出** in the panel header (or the
    agent tools `env_import` / `env_export`). Export produces a versioned JSON bundle for
    the whole registry or a selected list of environments; DR marking travels inside each

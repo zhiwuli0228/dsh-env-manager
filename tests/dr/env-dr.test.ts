@@ -164,6 +164,37 @@ describe('DR marking in the registry', () => {
     expect(record.record.dr).toMatchObject({ role: 'standby', type: 'AS', peer: 'test-a' })
     expect(record.yaml).toContain('type: AS')
   })
+
+  // The panel links a pair by writing this half and then the mirror block on the peer.
+  // This is the data contract behind that flow: two ordinary saves, one link per record.
+  it('links a pair by writing both halves and keeps the summaries symmetric', async () => {
+    const dir = await makeDir()
+    await writeFixture(dir)
+    const app = makeApp(dir, { writePolicy: { allowUiProductionWrites: true } })
+
+    await app.save(
+      'environment',
+      {
+        ...structuredClone(environment),
+        dr: { role: 'primary', type: 'AS', peer: 'test-b', scope: '同城' },
+      },
+      { actor: 'ui' },
+    )
+    await app.save(
+      'environment',
+      { ...structuredClone(environmentB), dr: { role: 'standby', type: 'AS', peer: 'test-a' } },
+      { actor: 'ui' },
+    )
+
+    const listed = await app.list('environment')
+    const primary = listed.items.find((item) => item.id === 'test-a')
+    const standby = listed.items.find((item) => item.id === 'test-b')
+    expect(primary?.summary).toContain('DR primary AS → test-b')
+    expect(standby?.summary).toContain('DR standby AS → test-a')
+    const report = await app.validate()
+    expect(report.diagnostics.filter((item) => item.severity === 'error')).toHaveLength(0)
+    expect(report.diagnostics.some((item) => item.code === 'DR_PEER_UNKNOWN')).toBe(false)
+  })
 })
 
 describe('DR marking export', () => {

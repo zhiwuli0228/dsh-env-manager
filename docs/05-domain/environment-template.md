@@ -212,6 +212,13 @@ Invariants:
 - `rtoMinutes` / `rpoMinutes` are descriptive objectives (0..10080 = 7 days). Nothing
   measures or enforces them; `0` means "no data loss" / "immediate" as a declared target.
 - The panel shows the marking on the environment detail (容灾 card: role badge, type,
-  peer, scope, RTO/RPO, note) and appends `DR <role> <type> → <peer>` to the environment
-  list summary. The block is edited through this YAML (the record editor / YAML tab); the
-  detail card is display-only.
+  peer as `name (id)`, scope, RTO/RPO, note) and appends `DR <role> <type> → <peer>` to
+  the environment list summary. The card is editable — 关联容灾 / 编辑容灾 opens a form
+  where the peer is picked from the **other registered environments** and linked by id
+  (never copied); with 同时更新对端环境 checked the panel also writes the mirror `dr`
+  block on that peer, and 解除容灾 removes this block plus the peer's back-reference. The
+  block can still be edited as YAML (the YAML tab / record editor); both paths go through
+  the same record schema.
+- A peer must already exist as an environment: the picker only lists registered
+  environments, and the panel never creates the peer on the fly. The link is per-record
+  metadata written through `save`; the marking itself never executes anything.

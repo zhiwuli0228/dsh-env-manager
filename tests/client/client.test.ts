@@ -9,6 +9,27 @@ import { readFileSync } from 'node:fs'
 const pkgName = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).name as string
 
 describe('client module', () => {
+  it('translates every key the panel uses in both locales', () => {
+    const source = readFileSync(new URL('../../client.js', import.meta.url), 'utf8')
+    const startEn = source.indexOf('en: {')
+    const startZh = source.indexOf('zh: {')
+    const endZh = source.indexOf('const lang =')
+    expect(startEn).toBeGreaterThan(-1)
+    expect(startZh).toBeGreaterThan(startEn)
+    expect(endZh).toBeGreaterThan(startZh)
+    const blocks = { en: source.slice(startEn, startZh), zh: source.slice(startZh, endZh) }
+    const used = [
+      ...new Set([...source.matchAll(/\bt\('([A-Za-z0-9_]+)'\)/g)].map((match) => match[1])),
+    ].sort()
+    expect(used.length).toBeGreaterThan(150)
+    for (const [lang, block] of Object.entries(blocks)) {
+      const missing = used.filter(
+        (key) => !new RegExp(`(^|\\n)\\s*${key}:`, 'm').test(block),
+      )
+      expect({ lang, missing }).toEqual({ lang, missing: [] })
+    }
+  })
+
   it('registers a sidebar id and the matching main key', async () => {
     let loaded: any
     const g = globalThis as any

@@ -217,7 +217,8 @@ sidebar:
   description. It seeds the four standard planes (`management`, `business`, `database`,
   `extension`) and leaves `hosts`, `clusters`, `endpoints` and `loginRecords` empty. Nodes
   are added inside the environment, from the plane they belong to. The shell form never
-  asks for a password.
+  asks for a password, and its hint points at the 容灾 card for the DR role and peer
+  environment (a peer must already be registered).
 - Empty lists show a dashed empty state with `New environment` and `Refresh`.
 - There is no global search across environments in V1; the `record.find` HTTP operation
   remains available to future screens.
@@ -245,8 +246,9 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
 │ hosts / accounts                   │ latest login             │
 │ Plane distribution                 │ 容灾 (DR card)            │
 │ [Management 2] [Business 2] ...    │ [生产] AS 主备 · peer     │
-│ All nodes                          │ Roles                    │
-│ [Oracle1] [db-01] [db-02] ...      │ [management] [business]  │
+│ All nodes                          │ [编辑容灾] [解除容灾]      │
+│ [Oracle1] [db-01] [db-02] ...      │ Roles                    │
+│                                    │ [management] [business]  │
 └────────────────────────────────────┴──────────────────────────┘
 ```
 
@@ -267,10 +269,23 @@ Expansion / other | Login records | Kubernetes / clusters | Endpoints | YAML
   declares only some of them.
 - The right rail's 容灾 (DR) card renders the environment's optional `dr` marking: a
   生产/容灾 role badge, the type label (`AS 主备`, `AA 双活`, `AP 主从`, or a custom code
-  as-is), the peer environment id in mono, `scope`, `RTO` / `RPO` in minutes and the note.
-  When no `dr` block is set it shows the `drUnset` empty state ("Not part of a DR pair" /
-  未参与容灾配对). The card is display-only: the marking is edited through the environment
-  YAML (the YAML tab / record editor).
+  as-is), the peer environment as `name (id)`, `scope`, `RTO` / `RPO` in minutes and the
+  note. When no `dr` block is set it shows the `drUnset` empty state ("Not part of a DR
+  pair" / 未参与容灾配对) with a prominent 关联容灾 (`drLink`) button.
+- The card is editable in place: 关联容灾 (`drLink`) on an unset environment or 编辑容灾
+  (`drEdit`) on a marked one opens an inline form with role (`生产` / `容灾`), type
+  (`AS` / `AA` / `AP` or a 自定义类型码 with its own token field), peer environment,
+  scope, RTO and RPO minutes and a note. Saving sends the full structured record through
+  `save` (`record`, not `yaml`) and re-reads it, so schema validation stays server-side.
+- The peer field is a picker over the **other registered environments** (`name (id)`),
+  with `不对端关联` as the empty option; DR links environments by id and never copies a
+  record. Choosing a peer turns on `drSyncPeer` ("同时更新对端环境", on by default): after
+  saving this half, the panel also writes the mirror `dr` block on the peer environment
+  (opposite role, `peer` = this environment), asking for confirmation first when that peer
+  is already paired elsewhere. Editing the peer away, or 解除容灾 (`drClear`, which deletes
+  the `dr` block), also drops the old peer's back-reference. The reciprocal write goes
+  through the same `save` op and its production policy gate; a failed peer write surfaces
+  in the form without hiding the fact that this half was saved.
 - `All nodes` and every plane tab share one node view:
   - toolbar: search box (id, name, IP, platform, admin user, role, kind, access
     method, cluster name/reference, account username, purpose or web login URL),
@@ -440,6 +455,22 @@ Namespace `envManager`; dictionaries registered for `en` and `zh`.
 | `drMinutes` | min | 分钟 |
 | `drUnset` | Not part of a DR pair | 未参与容灾配对 |
 | `drNoType` | Unclassified | 未分类 |
+| `drLink` | Link DR | 关联容灾 |
+| `drEdit` | Edit DR | 编辑容灾 |
+| `drRole` | Role | 角色 |
+| `drTypeCustomOption` | Custom code | 自定义类型码 |
+| `drTypeCustom` | Custom type code | 自定义类型码 |
+| `drTypeInvalid` | DR type must be 1-16 characters (letters, digits, "_" or "-") and start with a letter or digit. | 容灾类型码需为 1-16 位字母、数字、下划线或短横线，且以字母或数字开头。 |
+| `drPeerNone` | No peer environment | 不对端关联 |
+| `drPeerUnknown` | missing environment | 环境不存在 |
+| `drPeerHint` | DR pairs two registered environments. Choose the partner here; "Also update the peer environment" writes the reverse link so both sides point at each other. | 容灾是两套已注册环境之间的配对：这里选择对端环境，保存后只在记录里按 id 引用，不会复制对端数据。 |
+| `drSyncPeer` | Also update the peer environment | 同时更新对端环境 |
+| `drRelinkConfirm` | That environment is already paired with another environment. Relink it to this one? | 该环境已与另一套环境配对，确认改绑到本环境？ |
+| `drClear` | Clear DR | 解除容灾 |
+| `drClearConfirm` | Clear this environment’s DR marking and remove the back-link from its peer environment? | 解除本环境的容灾标记，并移除对端环境对它的反向关联？ |
+| `drUnsetHint` | Choose this side’s role, then link the peer environment. | 先选择本环境角色，再关联对端环境。 |
+| `drMinutesInvalid` | RTO/RPO must be a whole number of minutes between 0 and 10080. | RTO/RPO 必须是 0-10080 之间的整数分钟。 |
+| `drWizardHint` | After creating the environment, set its disaster-recovery role and peer environment on the 容灾 card. | 创建环境后，可在环境详情的「容灾」卡片中设置角色并关联对端环境。 |
 | `drImportTitle` | Batch import | 批量导入 |
 | `drImportHint` | Paste a YAML/JSON bundle (version 1 with environments, services, deployments, ruleProfiles, operationBindings). DR marking travels inside each environment record. Records carry `credentialRef` names only — passwords are never accepted. | 粘贴一个 YAML/JSON 环境包（version 1，可含 environments / services / deployments / ruleProfiles / operationBindings）。容灾标记内嵌在每个环境记录里（dr）。记录只允许 credentialRef 名称，永不接受密码。 |
 | `drImportMode` | Conflict mode | 冲突策略 |
@@ -613,8 +644,13 @@ primitives `Field`, `Select` and `TextArea`.
 - [ ] Operation preview resolves a binding or a clear diagnostic.
 - [ ] The panel header shows 导出 / 导入 actions that open the bundle modals from any tab.
 - [ ] Environment detail right rail shows the 容灾 (DR) card: a 生产/容灾 role badge, type
-      label (AS/AA/AP/custom), peer (mono), scope, RTO/RPO in minutes and the note; an
-      environment without a `dr` block shows the `drUnset` empty state.
+      label (AS/AA/AP/custom), peer as `name (id)`, scope, RTO/RPO in minutes and the note;
+      an environment without a `dr` block shows the `drUnset` empty state with a 关联容灾
+      button.
+- [ ] 关联容灾 / 编辑容灾 opens an inline form with role, type (custom code field when
+      needed), a peer picker limited to the other registered environments, scope, RTO, RPO
+      and note; saving writes this record and, with 同时更新对端环境, the mirror `dr` block
+      on the peer; 解除容灾 removes this block and the peer's back-reference.
 - [ ] The environment list summary appends `DR <role> <type> → <peer>` for marked
       environments.
 - [ ] Import accepts pasted YAML/JSON bundles, applies the chosen conflict mode, and
@@ -646,5 +682,5 @@ primitives `Field`, `Select` and `TextArea`.
 - Multi-user presence, comments, or audit UI.
 - JumpServer/PAM API synchronization; login data is entered or imported explicitly.
 - A DR witness/仲裁 role, scheduled drill tracking, and any failover/switch/promote
-  action: DR marking is read-only metadata shown on the environment detail's 容灾 card;
-  import/export is the only bulk surface.
+  action: DR marking is editable metadata (the environment detail's 容灾 card or the YAML
+  tab) and never triggers an action; import/export is the only bulk surface.

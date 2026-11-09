@@ -236,6 +236,22 @@ window.__ModuleLoader__.load({
         drMinutes: 'min',
         drUnset: 'Not part of a DR pair',
         drNoType: 'Unclassified',
+        drLink: 'Link DR',
+        drEdit: 'Edit DR',
+        drRole: 'Role',
+        drTypeCustomOption: 'Custom code',
+        drTypeCustom: 'Custom type code',
+        drTypeInvalid: 'DR type must be 1-16 characters (letters, digits, "_" or "-") and start with a letter or digit.',
+        drPeerNone: 'No peer environment',
+        drPeerUnknown: 'missing environment',
+        drPeerHint: 'DR pairs two registered environments. Choose the partner here; "Also update the peer environment" writes the reverse link so both sides point at each other.',
+        drSyncPeer: 'Also update the peer environment',
+        drRelinkConfirm: 'That environment is already paired with another environment. Relink it to this one?',
+        drClear: 'Clear DR',
+        drClearConfirm: 'Clear this environment’s DR marking and remove the back-link from its peer environment?',
+        drUnsetHint: 'Choose this side’s role, then link the peer environment.',
+        drMinutesInvalid: 'RTO/RPO must be a whole number of minutes between 0 and 10080.',
+        drWizardHint: 'After creating the environment, set its disaster-recovery role and peer environment on the 容灾 card.',
         importExport: 'Import / export',
         drImportTitle: 'Batch import',
         drImportHint: 'Paste a YAML/JSON bundle (version 1 with environments, services, deployments, ruleProfiles, operationBindings). DR marking travels inside each environment record. Records carry credentialRef names only — passwords are never accepted. Conflicting ids follow the mode below; production records require confirmation.',
@@ -486,6 +502,22 @@ window.__ModuleLoader__.load({
         drMinutes: '分钟',
         drUnset: '未参与容灾配对',
         drNoType: '未分类',
+        drLink: '关联容灾',
+        drEdit: '编辑容灾',
+        drRole: '角色',
+        drTypeCustomOption: '自定义类型码',
+        drTypeCustom: '自定义类型码',
+        drTypeInvalid: '容灾类型码需为 1-16 位字母、数字、下划线或短横线，且以字母或数字开头。',
+        drPeerNone: '不对端关联',
+        drPeerUnknown: '环境不存在',
+        drPeerHint: '容灾是两套已注册环境之间的配对：这里选择对端环境，保存后只在记录里按 id 引用，不会复制对端数据。',
+        drSyncPeer: '同时更新对端环境',
+        drRelinkConfirm: '该环境已与另一套环境配对，确认改绑到本环境？',
+        drClear: '解除容灾',
+        drClearConfirm: '解除本环境的容灾标记，并移除对端环境对它的反向关联？',
+        drUnsetHint: '先选择本环境角色，再关联对端环境。',
+        drMinutesInvalid: 'RTO/RPO 必须是 0-10080 之间的整数分钟。',
+        drWizardHint: '创建环境后，可在环境详情的「容灾」卡片中设置角色并关联对端环境。',
         importExport: '导入 / 导出',
         drImportTitle: '批量导入',
         drImportHint: '粘贴一个 YAML/JSON 环境包（version 1，可含 environments / services / deployments / ruleProfiles / operationBindings）。容灾标记内嵌在每个环境记录里（dr）。记录只允许 credentialRef 名称，永不接受密码。已存在的 id 按下方的冲突策略处理；涉及生产记录需确认。',
@@ -1130,6 +1162,138 @@ window.__ModuleLoader__.load({
         });
       };
 
+      // DR is a pairing between two environment records: this side picks a role and
+      // links the partner environment by id. The partner is never copied, and the
+      // optional reciprocal write keeps both halves pointing at each other.
+      const DR_STANDARD_TYPES = ['AS', 'AA', 'AP'];
+      const otherEnvironments = (props.environments || []).filter((item) => item.id !== record.id);
+      const environmentLabel = (id) => {
+        const item = (props.environments || []).find((entry) => entry.id === id);
+        return item ? (item.name || id) + ' (' + id + ')' : id;
+      };
+      const drTypeOptions = DR_STANDARD_TYPES
+        .map((value) => ({ value, label: drTypeLabel(value) }))
+        .concat([{ value: 'custom', label: t('drTypeCustomOption') }]);
+      const peerSelectOptions = [{ value: '', label: t('drPeerNone') }]
+        .concat(otherEnvironments.map((item) => ({ value: item.id, label: (item.name || item.id) + ' (' + item.id + ')' })));
+      if (dr && dr.peer && !peerSelectOptions.some((option) => option.value === dr.peer)) {
+        peerSelectOptions.push({ value: dr.peer, label: dr.peer + ' · ' + t('drPeerUnknown') });
+      }
+
+      const openDr = () => {
+        setFormError(null);
+        setEditing('dr');
+        const current = dr || {};
+        const declared = String(current.type || 'AS');
+        const standard = DR_STANDARD_TYPES.includes(declared.toUpperCase());
+        const peer = current.peer || '';
+        setDraft({
+          role: current.role || (record.category === 'production' ? 'primary' : 'standby'),
+          type: standard ? declared.toUpperCase() : 'custom',
+          typeCustom: standard ? '' : declared,
+          peer,
+          scope: current.scope || '',
+          rtoMinutes: typeof current.rtoMinutes === 'number' ? String(current.rtoMinutes) : '',
+          rpoMinutes: typeof current.rpoMinutes === 'number' ? String(current.rpoMinutes) : '',
+          note: current.note || '',
+          syncPeer: Boolean(peer),
+        });
+      };
+      const minutesFrom = (value) => {
+        const text = String(value === undefined || value === null ? '' : value).trim();
+        if (!text) return undefined;
+        const parsed = Number(text);
+        if (!Number.isInteger(parsed) || parsed < 0 || parsed > 10080) return NaN;
+        return parsed;
+      };
+      const syncPeerEnvironment = async (peerId, ownDr) => {
+        if (!props.onGetEnvironment || !props.onSavePeer) return;
+        const peerRecord = await props.onGetEnvironment(peerId);
+        if (!peerRecord) return;
+        const peerDr = peerRecord.dr && typeof peerRecord.dr === 'object' ? { ...peerRecord.dr } : null;
+        if (peerDr && peerDr.peer === record.id) return;
+        if (peerDr && peerDr.peer && peerDr.peer !== record.id && !window.confirm(t('drRelinkConfirm'))) return;
+        const opposite = ownDr.role === 'primary' ? 'standby' : 'primary';
+        const nextPeerDr = peerDr ? { ...peerDr } : { role: opposite, type: ownDr.type };
+        if (!nextPeerDr.role || nextPeerDr.role === ownDr.role) nextPeerDr.role = opposite;
+        if (!nextPeerDr.type) nextPeerDr.type = ownDr.type;
+        nextPeerDr.peer = record.id;
+        await props.onSavePeer({ ...peerRecord, dr: nextPeerDr });
+      };
+      const dropPeerBackLink = async (peerId) => {
+        if (!props.onGetEnvironment || !props.onSavePeer) return;
+        let peerRecord = null;
+        try {
+          peerRecord = await props.onGetEnvironment(peerId);
+        } catch (next) {
+          if (!next || next.code !== 'ENV_NOT_FOUND') throw next;
+        }
+        if (!peerRecord || !peerRecord.dr || peerRecord.dr.peer !== record.id) return;
+        const peerDr = { ...peerRecord.dr };
+        delete peerDr.peer;
+        await props.onSavePeer({ ...peerRecord, dr: peerDr });
+      };
+      const submitDr = async () => {
+        const type = draft.type === 'custom'
+          ? String(draft.typeCustom || '').trim()
+          : String(draft.type || 'AS').toUpperCase();
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(type)) {
+          setFormError({ message: t('drTypeInvalid') });
+          return;
+        }
+        const rto = minutesFrom(draft.rtoMinutes);
+        const rpo = minutesFrom(draft.rpoMinutes);
+        if (Number.isNaN(rto) || Number.isNaN(rpo)) {
+          setFormError({ message: t('drMinutesInvalid') });
+          return;
+        }
+        const nextDr = { role: draft.role === 'standby' ? 'standby' : 'primary', type };
+        const peer = String(draft.peer || '').trim();
+        if (peer) nextDr.peer = peer;
+        const scope = String(draft.scope || '').trim();
+        if (scope) nextDr.scope = scope;
+        if (rto !== undefined) nextDr.rtoMinutes = rto;
+        if (rpo !== undefined) nextDr.rpoMinutes = rpo;
+        const note = String(draft.note || '').trim();
+        if (note) nextDr.note = note;
+        const previousPeer = dr && dr.peer ? dr.peer : '';
+        setSaving(true);
+        setFormError(null);
+        try {
+          await props.onSaveRecord({ ...record, dr: nextDr });
+          if (previousPeer && previousPeer !== peer) {
+            await dropPeerBackLink(previousPeer);
+          }
+          if (peer && draft.syncPeer) await syncPeerEnvironment(peer, nextDr);
+          setEditing(null);
+          setDraft({});
+        } catch (next) {
+          setFormError(next);
+        } finally {
+          setSaving(false);
+        }
+      };
+      const clearDr = async () => {
+        if (!window.confirm(t('drClearConfirm'))) return;
+        const previous = dr || null;
+        setSaving(true);
+        setFormError(null);
+        try {
+          const nextRecord = { ...record };
+          delete nextRecord.dr;
+          await props.onSaveRecord(nextRecord);
+          if (previous && previous.peer) {
+            await dropPeerBackLink(previous.peer);
+          }
+          setEditing(null);
+          setDraft({});
+        } catch (next) {
+          setFormError(next);
+        } finally {
+          setSaving(false);
+        }
+      };
+
       const openHost = (roleId) => {
         setFormError(null);
         setEditing('host');
@@ -1573,6 +1737,51 @@ window.__ModuleLoader__.load({
           h(Button, { onClick: () => setEditing(null) }, t('cancel')),
           h(Button, { onClick: submitBasic, variant: 'primary', disabled: saving }, t('save'))));
 
+      const drForm = h('div', { className: 'dem-inline-form' },
+        h('div', { className: 'dem-form-grid' },
+          h(Select, {
+            label: t('drRole'),
+            value: draft.role || 'standby',
+            onChange: field('role'),
+            options: [
+              { value: 'primary', label: t('drPrimary') },
+              { value: 'standby', label: t('drStandby') },
+            ],
+          }),
+          h(Select, { label: t('drType'), value: draft.type || 'AS', onChange: field('type'), options: drTypeOptions }),
+          draft.type === 'custom'
+            ? h(Field, { label: t('drTypeCustom'), value: draft.typeCustom || '', onChange: field('typeCustom'), placeholder: 'AS2' })
+            : null,
+          h(Select, {
+            label: t('drPeer'),
+            value: draft.peer || '',
+            onChange: (value) => setDraft((current) => ({
+              ...current,
+              peer: value,
+              syncPeer: value ? (current.peer ? current.syncPeer : true) : false,
+            })),
+            options: peerSelectOptions,
+          }),
+          h(Field, { label: t('drScope'), value: draft.scope || '', onChange: field('scope'), placeholder: '同城 / 异地' }),
+          h(Field, { label: t('drRto'), value: draft.rtoMinutes || '', onChange: field('rtoMinutes'), type: 'number', inputMode: 'numeric', placeholder: '30' }),
+          h(Field, { label: t('drRpo'), value: draft.rpoMinutes || '', onChange: field('rpoMinutes'), type: 'number', inputMode: 'numeric', placeholder: '10' }),
+          h(TextArea, { label: t('note'), value: draft.note || '', onChange: field('note'), rows: 2, wide: true })),
+        h('p', { className: 'dem-hint' }, t('drPeerHint')),
+        draft.peer
+          ? h('label', { className: 'dem-check' },
+            h('input', {
+              type: 'checkbox',
+              checked: Boolean(draft.syncPeer),
+              onChange: (event) => field('syncPeer')(event.target.checked),
+            }),
+            t('drSyncPeer'))
+          : null,
+        formError ? h('div', { className: 'dem-form-error' }, formError.message || String(formError)) : null,
+        h('div', { className: 'dem-form-foot' },
+          dr ? h(Button, { onClick: clearDr, variant: 'danger', disabled: saving }, t('drClear')) : null,
+          h(Button, { onClick: () => { setEditing(null); setFormError(null); } }, t('cancel')),
+          h(Button, { onClick: submitDr, variant: 'primary', disabled: saving }, t('save'))));
+
       const overview = h('div', { className: 'dem-detail-grid' },
         h('div', { className: 'dem-detail-main' },
           h('div', { className: 'dem-card' },
@@ -1632,23 +1841,30 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
               h('h3', { className: 'dem-section-title' }, t('drSection')),
-              dr
-                ? h('span', { className: 'dem-badge', 'data-role': dr.role }, drRoleLabel(dr.role))
-                : null),
-            dr
-              ? h('div', { className: 'dem-info-grid' },
-                info(t('drType'), drTypeLabel(dr.type)),
-                dr.peer ? info(t('drPeer'), dr.peer, { mono: true }) : null,
-                dr.scope ? info(t('drScope'), dr.scope) : null,
-                typeof dr.rtoMinutes === 'number'
-                  ? info(t('drRto'), String(dr.rtoMinutes) + ' ' + t('drMinutes'))
+              h('div', { className: 'dem-actions' },
+                dr
+                  ? h('span', { className: 'dem-badge', 'data-role': dr.role }, drRoleLabel(dr.role))
                   : null,
-                typeof dr.rpoMinutes === 'number'
-                  ? info(t('drRpo'), String(dr.rpoMinutes) + ' ' + t('drMinutes'))
-                  : null,
-                dr.note ? info(t('note'), dr.note, { wide: true }) : null)
-              : h('div', { className: 'dem-empty' },
-                h('strong', null, t('drUnset')))),
+                h(Button, { onClick: openDr, disabled: editing === 'dr' }, dr ? t('drEdit') : t('drLink')))),
+            editing === 'dr'
+              ? drForm
+              : dr
+                ? h('div', { className: 'dem-info-grid' },
+                  info(t('drRole'), drRoleLabel(dr.role)),
+                  info(t('drType'), drTypeLabel(dr.type)),
+                  dr.peer ? info(t('drPeer'), environmentLabel(dr.peer), { wide: true }) : null,
+                  dr.scope ? info(t('drScope'), dr.scope) : null,
+                  typeof dr.rtoMinutes === 'number'
+                    ? info(t('drRto'), String(dr.rtoMinutes) + ' ' + t('drMinutes'))
+                    : null,
+                  typeof dr.rpoMinutes === 'number'
+                    ? info(t('drRpo'), String(dr.rpoMinutes) + ' ' + t('drMinutes'))
+                    : null,
+                  dr.note ? info(t('note'), dr.note, { wide: true }) : null)
+                : h('div', { className: 'dem-empty' },
+                  h('strong', null, t('drUnset')),
+                  h('span', null, t('drUnsetHint')),
+                  h(Button, { onClick: openDr, variant: 'primary' }, t('drLink')))),
           h('div', { className: 'dem-card' },
             h('div', { className: 'dem-section-head' },
               h('h3', { className: 'dem-section-title' }, t('roles'))),
@@ -2223,6 +2439,7 @@ window.__ModuleLoader__.load({
             h('div', { className: 'dem-chips' }, DEFAULT_ROLES.map((role) =>
               h('span', { key: role.id, className: 'dem-chip' }, roleLabel(role.id))))),
           h('p', { className: 'dem-hint' }, t('defaultRolesHint')),
+          h('p', { className: 'dem-hint' }, t('drWizardHint')),
           h(ErrorBox, { error }),
           h('div', { className: 'dem-form-foot' },
             h(Button, { onClick: props.onCancel, disabled: saving }, t('cancel')),
@@ -2395,6 +2612,24 @@ window.__ModuleLoader__.load({
         }
       };
 
+      // Update a different environment record (e.g. a DR peer) without moving the
+      // selection away from the environment the operator is looking at.
+      const savePeerEnvironment = async (nextRecord) => {
+        try {
+          setError(null);
+          await call('save', { kind: 'environment', record: nextRecord });
+          setMessage(t('saved') + ': ' + nextRecord.id);
+          await load('environment');
+        } catch (next) {
+          setError(next);
+          throw next;
+        }
+      };
+      const getEnvironment = async (id) => {
+        const data = await call('get', { kind: 'environment', id });
+        return data.record || null;
+      };
+
       const remove = async () => {
         if (!selected) return;
         if (!window.confirm(t('confirmDelete'))) return;
@@ -2433,10 +2668,13 @@ window.__ModuleLoader__.load({
           ? h(EnvironmentDetail, {
             record,
             yaml,
+            environments: items,
             onBack: closeDetail,
             onYamlChange: setYaml,
             onSave: save,
             onSaveRecord: saveRecord,
+            onSavePeer: savePeerEnvironment,
+            onGetEnvironment: getEnvironment,
             onRemove: remove,
             onCredential: saveCredential,
             onCredentialUnset: saveCredentialUnset,

@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, executor, session store, application service, fourteen tools
-and the same-origin HTTP API are in place, with 133 Vitest tests passing across 14 test
+and the same-origin HTTP API are in place, with 135 Vitest tests passing across 14 test
 files. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
@@ -108,6 +108,25 @@ peer, scope, RTO/RPO, note; `drUnset` empty state), and environment list summari
 `tests/bundle/`; `tests/dr/env-dr.test.ts` holds the DR schema/registry/export tests).
 Released as `dsh-env-manager-plugin@0.1.7`; README gained a verified batch-import
 walkthrough (two-site bundle example, conflict modes, DR-peer behaviour).
+
+**DR peer linking in the panel (2026-11-09, client-only):** the 容灾 card was display-only,
+so operators could see "未参与容灾配对" but had no way to say which environment the peer
+is. The card now has 关联容灾 / 编辑容灾 (`drLink` / `drEdit`): an inline form with role
+(生产/容灾), type (`AS` / `AA` / `AP` or 自定义类型码), **peer environment picker limited to
+the other registered environments** (`name (id)`, empty option 不对端关联), scope, RTO, RPO
+and note. Saving posts the full environment record through the existing `save` op (schema
+validation unchanged, client-side checks only for the type token and the 0..10080 minutes
+range) and re-reads it. With 同时更新对端环境 (`drSyncPeer`, default on once a peer is
+picked) the panel also writes the mirror `dr` block on the peer environment — opposite
+role, `peer` = this environment, the peer's own type/scope/RTO/RPO/note preserved, and a
+confirm prompt when that peer is already paired elsewhere — through a second `save`; the
+peer write keeps the current selection and applies the same production policy gate, with a
+failure surfaced in the form. Changing the peer, or 解除容灾 (`drClear`), drops the old
+peer's back-reference. DR stays a reference by id (never a copied record), no new record
+kind, no new Host op and no failover action. Verified with `node --check client.js` and the
+suite (135 tests; new: the two-half pair-link save in `tests/dr/env-dr.test.ts` and a
+`tests/client` check that every `t()` key exists in both locales); the panel change needs a
+page refresh (Ctrl+F5) in the open GUI.
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
@@ -259,9 +278,9 @@ The panel uses a centered 1080 px column, 22 px title with a glyph mark, underli
 compact stat cards and a master/detail environment view. **Environments is the first and
 default tab**; a persistent header **New environment** action is available from every tab,
 and `Records` is limited to services, deployments, rule profiles and operation bindings.
-The panel header also carries 导出/导入 bundle actions; DR marking is shown on the
-environment detail (容灾 card) and in the environment list summaries (`DR <role> <type> →
-<peer>`), not as its own tab.
+The panel header also carries 导出/导入 bundle actions; DR marking is set and shown on the
+environment detail (容灾 card: role, type, peer environment picker, scope, RTO/RPO) and in
+the environment list summaries (`DR <role> <type> → <peer>`), not as its own tab.
 
 Phase 1 changes the environment workflow:
 
@@ -380,8 +399,10 @@ Code:
 - [x] Memory bridge contract and null adapter
 - [x] Optional `dr` marking on each environment (role/type/peer/scope/RTO/RPO), `DR_PEER_UNKNOWN` warning and `RECORD_IN_USE` delete guard
 - [x] Versioned bundle import/export (`env_import` / `env_export`, HTTP `import` / `export` ops)
-- [x] Panel header import/export modals, environment detail 容灾 (DR) card and DR list summaries
-- [x] Tests (133 passing, 14 files)
+- [x] Panel header import/export modals, environment detail 容灾 (DR) card (editable: role,
+      type, peer environment picker, scope, RTO/RPO, note; reciprocal peer link and clear)
+      and DR list summaries
+- [x] Tests (135 passing, 14 files)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints
@@ -466,8 +487,11 @@ dsh-env-manager/
 - The `dr` role is limited to `primary`/`standby`; a witness/仲裁 role and scheduled
   DR-drill tracking are deferred, and there is no failover orchestration (the marking
   never executes anything).
-- DR marking is edited through the environment YAML (the record editor / YAML tab); the
-  detail's 容灾 card is display-only, and there is no dedicated `dr` form yet.
+- DR marking is edited on the environment detail's 容灾 card (role/type/peer/scope/RTO/RPO/
+  note) or in the environment YAML. A peer link is stored per environment and the panel
+  writes the mirror block when 同时更新对端环境 is checked, but nothing enforces a
+  symmetric pair: a one-way `dr.peer` is accepted (only a missing peer triggers
+  `DR_PEER_UNKNOWN`), and there is no bulk re-link across many environments.
 
 ## Next Recommended Work
 
@@ -483,4 +507,5 @@ dsh-env-manager/
 7. P1 memory bridge and operation records.
 8. DR follow-ups: a witness/仲裁 role, scheduled drill tracking, and (later)
    failover/switch/promote operations behind the existing approval gates — the `dr`
-   marking itself stays read-only metadata.
+   marking itself stays read-only metadata. Panel `dr` editing (peer picker + reciprocal
+   link) is done; a bulk "link these two environments" helper is not.

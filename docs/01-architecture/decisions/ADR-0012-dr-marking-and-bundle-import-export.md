@@ -134,3 +134,19 @@ Costs / limits:
 - A witness/仲裁 role and scheduled drill tracking if operations request them.
 - Keep `docs/01-architecture/data-model.md` §8/§9, `docs/01-architecture/ui-design.md`
   §6.3 and `docs/05-domain/environment-template.md` synchronized with this decision.
+
+## Update 2026-11-09 — the panel can link the peer
+
+The 容灾 card was display-only, which made the peer relationship impractical: an operator
+saw the empty state but had to hand-edit YAML to say which environment the pair partner
+is. The card now edits the marking in place: role, type (`AS`/`AA`/`AP`/custom), a peer
+**picker limited to the other registered environments**, scope, RTO, RPO and note. The
+peer is still linked by id inside this environment's own `dr` block, so decision 1 and the
+"no new record kind" rule are unchanged; with the 同时更新对端环境 option the panel also
+writes the mirror `dr` block on the peer (opposite role, `peer` = this environment) via a
+second `save`, and confirms before relinking a peer that is already paired. 解除容灾
+deletes this `dr` block and drops the peer's back-reference. Everything still runs through
+the existing `save` op, its schema validation and its production policy gate — no new Host
+op, no auto-apply, and no DR action. "Read-only" in the alternatives above meant "never
+authorizes execution", not "not editable"; the marking is operator-authored metadata.
+

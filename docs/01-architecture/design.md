@@ -493,8 +493,9 @@ A dedicated Environment Manager surface in the DSH Web/Desktop client, registere
 | Operation preview | operation → selected binding, skill availability, policy, parameters |
 
 The panel header carries `New environment` plus the 导入 / 导出 (Import/Export) bundle
-actions; the environment detail shows a 容灾 (DR) card in the right rail, and list
-summaries append `DR <role> <type> → <peer>` for marked environments.
+actions; the environment detail shows a 容灾 (DR) card in the right rail that both renders
+and edits the marking (role, type, peer environment, scope, RTO/RPO), and list summaries
+append `DR <role> <type> → <peer>` for marked environments.
 
 Rules for the UI:
 
@@ -512,9 +513,12 @@ Rules for the UI:
   cluster metadata. See ADR-0011.
 - Service, deployment, rule and binding records are edited as YAML, validated
   server-side before writing.
-- DR marking is part of the environment YAML and is shown read-only on the environment
-  detail's 容灾 card; the list summary appends `DR <role> <type> → <peer>`. There is no
-  separate DR tab or record kind.
+- DR marking is part of the environment record and is set on the environment detail's
+  容灾 card (role, type, peer environment picker, scope, RTO/RPO, note) or in its YAML;
+  the list summary appends `DR <role> <type> → <peer>`. The peer is linked by id to another
+  registered environment (never copied), and the card can optionally write the mirror
+  marking on that peer. There is no separate DR tab or record kind, and no DR action ever
+  executes.
 - Text is routed through the client locale service; `en` and `zh` provided.
 - The UI must show provenance for derived values, not just the final string.
 - Production-category destructive actions are visually distinct and require
