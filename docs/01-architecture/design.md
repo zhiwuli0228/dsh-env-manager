@@ -111,7 +111,7 @@ These DSH services are verified in [api-verification.md](./api-verification.md):
 | Service | Use |
 |---|---|
 | `ctx.tools` | register Agent tools (F2–F5) |
-| `ctx.credentials` | `describe(ref)` for status only; `resolve` is never called (F8) |
+| `ctx.credentials` | `describe(ref)` for status only; `resolve` is never called (F8); bound through `ctx.inject` because the provider's async init can outlive `apply` |
 | `ctx.approval` | request confirmation for management writes that affect production (F7) |
 | `ctx.skills` | `snapshot()` for Skill availability; `register()` for the bundled discovery Skill (F20–F21) |
 | `ctx.webServer` | register the plugin HTTP route for the Client (F12) |

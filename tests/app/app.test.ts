@@ -532,4 +532,41 @@ describe('app', () => {
       code: 'CREDENTIAL_UNAVAILABLE',
     })
   })
+
+  // The local provider finishes its async `Service.init` (read
+  // $DSH_HOME/.credentials.yaml, check its mode) after this bundle applies on a
+  // cold start, and cordis only exposes an ACTIVE service, so the host binds
+  // `credentials` later. Before that bind, writes must still fail loud.
+  it('binds the credential service when it becomes available after startup', async () => {
+    const dir = await makeDir()
+    const app = makeApp(dir, { credentials: null })
+    const written: Array<{ ref: string; value: string }> = []
+
+    await expect(app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 'secret')).rejects.toMatchObject({
+      code: 'CREDENTIAL_UNAVAILABLE',
+    })
+
+    app.setCredentials({
+      async describe(ref: string) {
+        return { configured: written.some((entry) => entry.ref === ref) }
+      },
+      async set(ref: string, value: string) {
+        written.push({ ref, value })
+      },
+      async unset(ref: string) {
+        const index = written.findIndex((entry) => entry.ref === ref)
+        if (index >= 0) written.splice(index, 1)
+      },
+    })
+
+    await expect(
+      app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 'secret'),
+    ).resolves.toMatchObject({ ref: 'DSH_ENV_MANAGER_ORACLE_PROD_ROOT' })
+    expect(written).toEqual([{ ref: 'DSH_ENV_MANAGER_ORACLE_PROD_ROOT', value: 'secret' }])
+
+    app.setCredentials(null)
+    await expect(app.setCredential('DSH_ENV_MANAGER_ORACLE_PROD_ROOT', 'secret')).rejects.toMatchObject({
+      code: 'CREDENTIAL_UNAVAILABLE',
+    })
+  })
 })

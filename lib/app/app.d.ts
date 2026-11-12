@@ -34,6 +34,17 @@ export declare class App {
     private readonly experiences;
     constructor(options: AppOptions);
     get dataDir(): string;
+    /**
+     * Attach (or detach) the DSH credential service.
+     *
+     * `ctx.get('credentials')` only resolves services whose providing fiber is
+     * already ACTIVE, and the local provider finishes its async `Service.init`
+     * (read `$DSH_HOME/.credentials.yaml`, verify owner-only mode) after this
+     * bundle applies on a cold start. The host therefore binds the service when
+     * it becomes available; until then credential writes fail loud with
+     * `CREDENTIAL_UNAVAILABLE` instead of pretending a value was stored.
+     */
+    setCredentials(credentials: CredentialDirectory | null): void;
     init(): Promise<void>;
     private snapshot;
     private counts;

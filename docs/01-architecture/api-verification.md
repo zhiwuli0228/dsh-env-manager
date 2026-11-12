@@ -156,6 +156,12 @@ Design consequence: `env_resolve` reports each `credentialRef` with
 `credential`, but never in a tool result, HTTP response, log line, diagnostic or registry
 file.
 
+Availability caveat: `ctx.get('credentials')` is `undefined` until the provider fiber is
+`ACTIVE`. The local provider's `Service.init` awaits loading `$DSH_HOME/.credentials.yaml`
+(and checking its owner-only mode), so a bundle applied at cold start must bind the service
+through `ctx.inject(['credentials'])` as well; otherwise writes fail with
+`CREDENTIAL_UNAVAILABLE` even though the service is fine.
+
 ### F9 — Filesystem capability gap
 
 `ctx.fs` exposes `resolve`, `stat`, `listDir`, `readText`, `writeText` (atomic),

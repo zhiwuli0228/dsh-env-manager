@@ -28,3 +28,18 @@ Storing values in the registry would make the YAML files a secret store, would l
 
 - **Store values in YAML**: unacceptable for Git history and tool output.
 - **Skip references entirely**: loses the link between a host and its credential, which users need.
+
+## Update 2026-11-12 — bind the service when it activates
+
+The rules above unchanged: values live only in the DSH credential service, and this plugin
+reads status and writes values through it. What changed is *when* the plugin acquires the
+service. Cordis exposes `ctx.credentials` only while the providing fiber is `ACTIVE`, and
+the local provider finishes its async `Service.init` (read `$DSH_HOME/.credentials.yaml`,
+verify owner-only mode) after this bundle applies on a cold start. A one-shot
+`ctx.get('credentials')` in `apply` therefore captured `undefined` and the process behaved
+as if no credential store existed, failing every password save with
+`CREDENTIAL_UNAVAILABLE`.
+
+The Host now also binds the adapter through `ctx.inject(['credentials'], ...)` and clears it
+on dispose. This adds no capability and no fallback: before the bind the write still fails
+loud and stores nothing.

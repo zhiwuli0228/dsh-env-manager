@@ -11,7 +11,7 @@ surfaces.**
 
 The V1 Host is implemented in TypeScript under `src/` and compiled to `lib/`. Storage,
 registry, resolver, router, executor, session store, application service, fourteen tools
-and the same-origin HTTP API are in place, with 135 Vitest tests passing across 14 test
+and the same-origin HTTP API are in place, with 136 Vitest tests passing across 14 test
 files. The Client panel is
 implemented in `client.js` and its sidebar/main slot registrations are live. The sidebar
 glyph follows the host `sidebar.panellist` contract: it honors the owner's
@@ -127,6 +127,23 @@ kind, no new Host op and no failover action. Verified with `node --check client.
 suite (135 tests; new: the two-half pair-link save in `tests/dr/env-dr.test.ts` and a
 `tests/client` check that every `t()` key exists in both locales); the panel change needs a
 page refresh (Ctrl+F5) in the open GUI.
+
+**Credential service late binding (2026-11-12, Host, released in `0.1.9`):** saving a
+password from the panel failed with `CREDENTIAL_UNAVAILABLE` — "The DSH credential service
+is unavailable; the password was not stored" — even though the profile loads the provider
+(`include:credentials` = `@deepseek-ai/dsh-credentials-local`, fiber active). Root cause:
+`apply` read `ctx.get('credentials')` exactly once, and cordis only hands out a service
+whose providing fiber is `ACTIVE`; on a cold start the provider is still inside its async
+`Service.init` (read `$DSH_HOME/.credentials.yaml`, verify owner-only mode), so the App
+captured `null` for the lifetime of the process and every credential write failed loud
+before touching the store. The Host now builds the adapter eagerly **and** binds it through
+`ctx.inject(['credentials'], …)` once the service activates (`App.setCredentials`,
+unbound on dispose); writes before that bind still report `CREDENTIAL_UNAVAILABLE` instead
+of pretending storage succeeded. Verified with a throwaway cordis reproduction (strict
+`ctx.get` is `undefined` while `Service.init` is pending; `inject` fires afterwards), a new
+app test that attaches the directory after startup, and the plugin-apply test now asserting
+both injections and the transport cleanup. This is Host code, so the running Desktop
+process needs a restart (page refresh alone is not enough).
 
 **DSH 0.2.2-rc.1 panel-route fix (2026-11-08):** after DSH upgraded to `0.2.2-rc.1`, the
 panel API broke with `Method Not Allowed`: the web runtime started after this bundle, so
@@ -410,7 +427,7 @@ Code:
 - [x] Panel header import/export modals, environment detail 容灾 (DR) card (editable: role,
       type, peer environment picker, scope, RTO/RPO, note; reciprocal peer link and clear)
       and DR list summaries
-- [x] Tests (135 passing, 14 files)
+- [x] Tests (136 passing, 14 files)
 - [x] Installed in the `desktop` profile (`install_bundle`, `application: applied`)
 
 ## Current Constraints

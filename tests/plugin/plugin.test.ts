@@ -106,8 +106,20 @@ describe('plugin apply', () => {
         effectDisposer = callback() ?? undefined
         return () => effectDisposer?.()
       },
-      inject: (deps: string[], callback: (webCtx: any) => void) => {
+      inject: (deps: string[], callback: (inCtx: any) => void) => {
         injectDeps.push(deps)
+        if (deps.includes('credentials')) {
+          // The credential provider is still initializing in this fake; the
+          // callback must tolerate an absent service and register a cleanup.
+          callback({
+            get: () => undefined,
+            effect: (callback2: () => (() => void) | void) => {
+              const dispose = callback2() ?? undefined
+              return () => dispose?.()
+            },
+          })
+          return undefined
+        }
         // The webServer service is already available: run the callback now.
         const webCtx = {
           get: (key: string) => {

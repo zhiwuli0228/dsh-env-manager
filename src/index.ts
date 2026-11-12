@@ -1,12 +1,41 @@
 import os from 'node:os'
 import { App } from './app/app.js'
 import { Config, normalizeConfig } from './config.js'
+import type { CredentialDirectory } from './domain/types.js'
 import { consoleLogger } from './logger.js'
 import { resolveDataDir } from './storage/paths.js'
 import { cleanupTempFiles } from './storage/atomic.js'
 import { createEnvironmentManagerSkill } from './skill.js'
 import { createToolDefinitions } from './tools/tools.js'
 import { registerHttpTransport } from './transport/http.js'
+
+/**
+ * Adapt the DSH `ctx.credentials` service to the narrow directory the App uses.
+ *
+ * Accepts `undefined` while the provider is still initializing, so callers can
+ * use the same function for the eager attempt and the late `ctx.inject` bind.
+ */
+function credentialDirectory(service: any): CredentialDirectory | null {
+  if (!service || typeof service.describe !== 'function') return null
+  return {
+    async describe(ref: string) {
+      const info = await service.describe(ref)
+      return { configured: info.configured, source: info.source }
+    },
+    async set(ref: string, value: string) {
+      if (typeof service.set !== 'function') {
+        throw new Error('the credential service is not writable')
+      }
+      await service.set(ref, value)
+    },
+    async unset(ref: string) {
+      if (typeof service.unset !== 'function') {
+        throw new Error('the credential service is not writable')
+      }
+      await service.unset(ref)
+    },
+  }
+}
 
 export const name = 'dsh-env-manager'
 
@@ -39,7 +68,6 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
   )
 
   const skills = ctx.get('skills')
-  const credentials = ctx.get('credentials')
 
   const app = new App({
     dataDir,
@@ -52,26 +80,7 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
           snapshot: (options?: { signal?: AbortSignal }) => skills.snapshot(options),
         }
       : null,
-    credentials: credentials
-      ? {
-          async describe(ref: string) {
-            const info = await credentials.describe(ref)
-            return { configured: info.configured, source: info.source }
-          },
-          async set(ref: string, value: string) {
-            if (typeof credentials.set !== 'function') {
-              throw new Error('the credential service is not writable')
-            }
-            await credentials.set(ref, value)
-          },
-          async unset(ref: string) {
-            if (typeof credentials.unset !== 'function') {
-              throw new Error('the credential service is not writable')
-            }
-            await credentials.unset(ref)
-          },
-        }
-      : null,
+    credentials: credentialDirectory(ctx.get('credentials')),
     logger: consoleLogger,
     defaults: normalized.defaults,
   })
@@ -104,6 +113,20 @@ export function apply(ctx: any, config: ApplyConfig = {}): void {
     // on headless profiles.
     ctx.inject(['webServer'], (webCtx: any) => {
       webCtx.effect(() => registerHttpTransport(webCtx, app, consoleLogger))
+    })
+
+    // The credential provider registers `credentials` from an async
+    // `Service.init` (read `$DSH_HOME/.credentials.yaml`, verify its owner-only
+    // mode), and cordis only exposes a service whose providing fiber is ACTIVE.
+    // On a cold start this bundle applies inside that window, so a synchronous
+    // `ctx.get('credentials')` was undefined and the session behaved as if no
+    // credential store existed: every password save failed with
+    // `CREDENTIAL_UNAVAILABLE`. Bind it when it becomes available instead.
+    ctx.inject(['credentials'], (credentialCtx: any) => {
+      credentialCtx.effect(() => {
+        app.setCredentials(credentialDirectory(credentialCtx.get('credentials')))
+        return () => app.setCredentials(null)
+      })
     })
 
     let disposeSkill: (() => void) | undefined

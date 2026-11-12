@@ -637,6 +637,12 @@ Rules:
   `unsetCredential` uses the same namespace check and calls `ctx.credentials.unset`.
   A missing service yields `CREDENTIAL_UNAVAILABLE`; provider failures yield
   `CREDENTIAL_WRITE_FAILED` without exposing the provider message to the UI.
+- The directory is not captured once at apply time: cordis only exposes a service whose
+  providing fiber is `ACTIVE`, and the local provider finishes `Service.init`
+  (`$DSH_HOME/.credentials.yaml` read plus owner-only mode check) after this bundle
+  applies on a cold start. The Host therefore binds `App.setCredentials(...)` from
+  `ctx.inject(['credentials'])` when the service becomes available and clears it on
+  dispose; until then writes keep failing with `CREDENTIAL_UNAVAILABLE`.
 
 ## 11. Tools
 

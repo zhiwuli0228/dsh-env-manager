@@ -64,6 +64,12 @@ credential service is the only component allowed to hold secret values.
    `DSH_ENV_MANAGER_<ENVIRONMENT>_<ACCOUNT>` (uppercase letters, digits and underscores,
    always prefixed) so the form cannot overwrite an ambient credential such as
    `OPENAI_API_KEY`.
+9. The Host binds the credential directory from `ctx.inject(['credentials'])`, not only
+   from the `ctx.get` seen during `apply`: cordis exposes a service only once its providing
+   fiber is `ACTIVE`, and the local provider finishes its async `Service.init` (read
+   `.credentials.yaml`, verify owner-only mode) after this bundle applies on a cold start.
+   Until the bind, a write fails with `CREDENTIAL_UNAVAILABLE` and stores nothing — it
+   never falls back to another store.
 
 ### 3.2 Threat: exfiltration through tool output
 
