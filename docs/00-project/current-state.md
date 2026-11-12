@@ -180,7 +180,10 @@ Released as `dsh-env-manager-plugin@0.1.5`.
 and the credential late-binding release: the Host no longer treats a cold-start
 `ctx.get('credentials') === undefined` as "no credential store", so a password typed in the
 panel is stored again (see the paragraph above; Host code only, the panel, schemas, tools
-and HTTP ops are unchanged). `0.1.8` was the DR peer-linking release: the 容灾 card on the
+and HTTP ops are unchanged). Published by the Release workflow
+([run `43253743521`](https://github.com/zhiwuli0228/dsh-env-manager/actions/runs/43253743521),
+all steps green); npm `gitHead` is `027d45b` with OIDC provenance, and the Release carries
+`dsh-env-manager-plugin-0.1.9.tgz`. `0.1.8` was the DR peer-linking release: the 容灾 card on the
 environment detail edits the marking in place (role, type incl. a custom code, a peer picker
 over the other registered environments, scope, RTO/RPO, note), links the pair by id,
 optionally writes the mirror `dr` block on the peer and clears both sides on 解除容灾 — a
